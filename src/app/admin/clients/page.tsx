@@ -1,0 +1,92 @@
+"use client";
+
+import { useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { Search, ChevronRight } from "lucide-react";
+import PageHeader from "@/components/shared/PageHeader";
+import Card from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
+import { clients, getCoach } from "@/lib/mock-data";
+
+export default function AdminClientsPage() {
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const filtered = clients.filter((c) => {
+    const matchesQuery = c.name.toLowerCase().includes(query.toLowerCase()) || c.email.toLowerCase().includes(query.toLowerCase());
+    const matchesStatus = statusFilter === "all" || c.status === statusFilter;
+    return matchesQuery && matchesStatus;
+  });
+
+  return (
+    <div className="mx-auto max-w-7xl">
+      <PageHeader title="Clients" description={`${clients.length} total clients on the platform.`} />
+
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-black/30" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search clients by name or email..."
+            className="w-full rounded-xl border border-black/10 bg-white py-2.5 pl-10 pr-4 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+          />
+        </div>
+        <div className="flex gap-1 rounded-xl bg-black/5 p-1">
+          {["all", "active", "paused", "inactive"].map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`whitespace-nowrap rounded-lg px-3.5 py-2 text-xs font-bold capitalize ${
+                statusFilter === s ? "bg-white shadow-card" : "text-black/50"
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <Card className="overflow-hidden">
+        <div className="hidden grid-cols-12 gap-4 border-b border-black/[0.06] px-5 py-3 text-xs font-bold uppercase text-black/40 sm:grid">
+          <div className="col-span-4">Client</div>
+          <div className="col-span-2">Package</div>
+          <div className="col-span-2">Coach</div>
+          <div className="col-span-2">Sessions Left</div>
+          <div className="col-span-1">Status</div>
+          <div className="col-span-1"></div>
+        </div>
+        <div className="divide-y divide-black/[0.05]">
+          {filtered.map((c) => {
+            const coach = getCoach(c.coachId);
+            return (
+              <Link
+                key={c.id}
+                href={`/admin/clients/${c.id}`}
+                className="grid grid-cols-2 items-center gap-4 px-5 py-4 hover:bg-black/[0.02] sm:grid-cols-12"
+              >
+                <div className="col-span-2 flex items-center gap-3 sm:col-span-4">
+                  <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full">
+                    <Image src={c.photo} alt={c.name} fill className="object-cover" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold">{c.name}</p>
+                    <p className="truncate text-xs text-black/40">{c.email}</p>
+                  </div>
+                </div>
+                <div className="col-span-1 text-sm text-black/60 sm:col-span-2">{c.packageName}</div>
+                <div className="col-span-1 text-sm text-black/60 sm:col-span-2">{coach?.name ?? "—"}</div>
+                <div className="col-span-1 text-sm text-black/60 sm:col-span-2">{c.sessionsRemaining} / {c.sessionsTotal}</div>
+                <div className="col-span-1">
+                  <Badge variant={c.status === "active" ? "green" : c.status === "paused" ? "red" : "gray"}>{c.status}</Badge>
+                </div>
+                <ChevronRight className="col-span-1 hidden h-4 w-4 justify-self-end text-black/30 sm:block" />
+              </Link>
+            );
+          })}
+        </div>
+      </Card>
+    </div>
+  );
+}
