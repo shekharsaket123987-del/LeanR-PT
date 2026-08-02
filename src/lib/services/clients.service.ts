@@ -37,6 +37,28 @@ export async function updateMyClientProfile(
   return data;
 }
 
+/** All clients linked to the signed-in coach via a booking or recurring
+ * slot — RLS (coach_client_linked) already scopes this, so no explicit join
+ * is needed here. */
+export async function listMyClients(accessToken: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["coach"]);
+  const { data, error } = await ctx.client.from("client_profiles").select("*, profile:profiles(full_name, photo_url, phone)");
+  if (error) throw error;
+
+  const clientIds = (data ?? []).map((c) => c.id);
+  if (clientIds.length === 0) return [];
+  const { data: subs, error: subsError } = await ctx.client
+    .from("subscriptions")
+    .select("client_id, status, package:package_tiers(name)")
+    .in("client_id", clientIds)
+    .eq("status", "active");
+  if (subsError) throw subsError;
+  const subByClient = new Map((subs ?? []).map((s) => [s.client_id, s]));
+
+  return (data ?? []).map((c) => ({ ...c, activeSubscription: subByClient.get(c.id) ?? null }));
+}
+
 export async function getMyClientProfile(accessToken: string) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["client"]);

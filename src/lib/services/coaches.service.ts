@@ -21,6 +21,20 @@ export async function listCoaches(accessToken: string) {
   return (data ?? []).map((c) => ({ ...c, utilization: utilByCoach.get(c.id) ?? null }));
 }
 
+export async function getMyCoachProfile(accessToken: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["coach"]);
+  const { data, error } = await ctx.client
+    .from("coach_profiles")
+    .select("*, profile:profiles(full_name, photo_url, phone)")
+    .eq("profile_id", ctx.userId)
+    .single();
+  if (error) throw error;
+
+  const utilByCoach = await withUtilization(ctx.client, [data.id]);
+  return { ...data, utilization: utilByCoach.get(data.id) ?? null };
+}
+
 export async function getCoach(accessToken: string, coachId: string) {
   const ctx = await getCallerContext(accessToken);
   const { data, error } = await ctx.client

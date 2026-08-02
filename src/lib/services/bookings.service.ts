@@ -151,6 +151,20 @@ export async function listMyWorkoutNotes(accessToken: string) {
   return data;
 }
 
+/** A coach's own notes for one client (excludes other coaches' notes for
+ * shared clients, if any, via RLS's workout_notes_manage_own_coach policy). */
+export async function listWorkoutNotesForClient(accessToken: string, clientId: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["coach"]);
+  const { data, error } = await ctx.client
+    .from("workout_notes")
+    .select("booking_id, notes, homework, created_at")
+    .eq("client_id", clientId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
 /** Public entry point for the "book a free assessment" flow — the prospect
  * has no account yet, so this uses the admin client directly rather than an
  * access token. Only creates a lead record; no privileged data is exposed. */

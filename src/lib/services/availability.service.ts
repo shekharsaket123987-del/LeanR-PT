@@ -12,6 +12,28 @@ export async function getCoachAvailability(accessToken: string, coachId: string)
   return data;
 }
 
+export async function getMyAvailability(accessToken: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["coach"]);
+  const { data: coach, error: coachError } = await ctx.client.from("coach_profiles").select("id").eq("profile_id", ctx.userId).single();
+  if (coachError || !coach) throw coachError ?? new Error("Coach profile not found");
+  return getCoachAvailability(accessToken, coach.id);
+}
+
+export async function getMyLeaveRequests(accessToken: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["coach"]);
+  const { data: coach, error: coachError } = await ctx.client.from("coach_profiles").select("id").eq("profile_id", ctx.userId).single();
+  if (coachError || !coach) throw coachError ?? new Error("Coach profile not found");
+  const { data, error } = await ctx.client
+    .from("coach_leave")
+    .select("id, starts_on, ends_on, reason, status")
+    .eq("coach_id", coach.id)
+    .order("starts_on", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
 export interface AvailabilityWindow {
   day_of_week: number;
   start_time: string;
