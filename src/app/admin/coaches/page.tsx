@@ -7,6 +7,7 @@ import { Search, ChevronRight, Star } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
 import { coaches } from "@/lib/mock-data";
 
 export default function AdminCoachesPage() {
@@ -15,7 +16,11 @@ export default function AdminCoachesPage() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <PageHeader title="Coaches" description={`${coaches.length} coaches on the platform.`} />
+      <PageHeader
+        title="Coaches"
+        description={`${coaches.length} coaches on the platform.`}
+        action={<Button href="/admin/coaches/new">+ Add Coach</Button>}
+      />
 
       <div className="relative mb-5">
         <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-black/30" />

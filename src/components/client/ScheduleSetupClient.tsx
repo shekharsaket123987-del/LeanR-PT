@@ -5,9 +5,9 @@ import Image from "next/image";
 import { CalendarClock, Check, Info } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import { ScheduleSetupOptions, confirmScheduleAction, matchScheduleAction, reportScheduleUnmatchedAction } from "@/lib/actions/schedule.actions";
+import { ScheduleMatchResult, ScheduleSetupOptions, confirmScheduleAction, matchScheduleAction, reportScheduleUnmatchedAction } from "@/lib/actions/schedule.actions";
 import { isFailure } from "@/lib/actions/action-result";
-import { PatternKey, PatternMatchResult } from "@/lib/services/scheduling.service";
+import { PatternKey } from "@/lib/services/scheduling.service";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const PATTERN_OPTIONS: { key: PatternKey; label: string; hint: string }[] = [
@@ -34,7 +34,7 @@ export default function ScheduleSetupClient({ options }: { options: ScheduleSetu
   const [customDays, setCustomDays] = useState<number[]>([]);
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState("");
-  const [result, setResult] = useState<PatternMatchResult | null | undefined>(undefined); // undefined = not checked yet
+  const [result, setResult] = useState<ScheduleMatchResult | null | undefined>(undefined); // undefined = not checked yet
   const [confirming, setConfirming] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [reportedToAdmin, setReportedToAdmin] = useState(false);
@@ -64,7 +64,7 @@ export default function ScheduleSetupClient({ options }: { options: ScheduleSetu
     if (!result) return;
     setConfirming(true);
     setCheckError("");
-    const res = await confirmScheduleAction({ days: result.days, timeOfDay: result.timeOfDay });
+    const res = await confirmScheduleAction({ days: result.days, timeOfDay: result.timeOfDay, coachId: result.newCoach?.id });
     setConfirming(false);
     if (isFailure(res)) {
       setCheckError(res.error.message);
@@ -86,8 +86,8 @@ export default function ScheduleSetupClient({ options }: { options: ScheduleSetu
         </div>
         <p className="text-display text-xl font-bold italic">Your recurring schedule is set!</p>
         <p className="mt-2 text-sm text-black/60">
-          {daysLabel(result.days)} at {formatHour(Number(result.timeOfDay.split(":")[0]))}, with {options.coach?.name}. Your next few sessions
-          have already been added to your calendar.
+          {daysLabel(result.days)} at {formatHour(Number(result.timeOfDay.split(":")[0]))}, with{" "}
+          {result.newCoach?.name ?? options.coach?.name}. Your next few sessions have already been added to your calendar.
         </p>
         <Button href="/client/dashboard" className="mt-6">
           Back to Dashboard
@@ -189,7 +189,9 @@ export default function ScheduleSetupClient({ options }: { options: ScheduleSetu
             <p className="mt-1 text-xs text-black/50">
               {pattern === "custom"
                 ? "We tried your selected days at every available hour and couldn't find a fit."
-                : "We tried this pattern, alternate times, and nearby day pairings. Try picking specific days instead, or let us notify support to help manually."}
+                : options.coach
+                ? "We tried this pattern, alternate times, and nearby day pairings. Try picking specific days instead, or let us notify support to help manually."
+                : "No coach is free for that exact day/time. Try a different day or time, or let us notify support to help manually."}
             </p>
             <div className="mt-3 flex gap-2">
               {pattern !== "custom" && (
@@ -221,6 +223,7 @@ export default function ScheduleSetupClient({ options }: { options: ScheduleSetu
             </p>
             <p className="mt-1 text-sm text-black/60">
               {daysLabel(result.days)} at {formatHour(Number(result.timeOfDay.split(":")[0]))}
+              {result.newCoach && <> — matched with <span className="font-bold">{result.newCoach.name}</span></>}
             </p>
             <Button className="mt-4" onClick={confirm} loading={confirming}>
               Confirm This Schedule

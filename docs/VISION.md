@@ -1,5 +1,6 @@
 # LEANR by Fitelo
 
+
 # Product Vision & Philosophy
 
 **Version:** 1.0

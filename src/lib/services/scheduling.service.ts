@@ -1,4 +1,5 @@
 import { getCallerContext, requireRole } from "./_auth";
+import { supabaseAdmin } from "@/lib/supabase/admin-client";
 
 export interface OpenSlot {
   start: string; // ISO
@@ -193,19 +194,21 @@ export interface PatternMatchResult {
  * skips one of them. Leave is deliberately NOT checked here — leave is
  * temporary and already handled per-occurrence by
  * generate_bookings_from_recurring_slot; it shouldn't block a permanent
- * pattern from being set up. */
-async function isDayTimeFreeForCoach(
-  ctx: Awaited<ReturnType<typeof getCallerContext>>,
-  coachId: string,
-  dayOfWeek: number,
-  timeOfDay: string,
-  durationMinutes: number
-): Promise<boolean> {
+ * pattern from being set up.
+ *
+ * Deliberately uses supabaseAdmin, not the caller's RLS-scoped client:
+ * recurring_slots RLS only lets a client see their OWN rows
+ * (recurring_slots_select_own), so a different client's collision check
+ * would silently see zero rows and report "free" even when it isn't. This
+ * mirrors has_scheduling_conflict()'s own security-definer rationale — it's
+ * a system-wide true/false fitness question, not a caller-scoped read, and
+ * it leaks no row data back to the caller, only a boolean. */
+async function isDayTimeFreeForCoach(coachId: string, dayOfWeek: number, timeOfDay: string, durationMinutes: number): Promise<boolean> {
   const [h, m] = timeOfDay.split(":").map(Number);
   const startMin = h * 60 + m;
   const endMin = startMin + durationMinutes;
 
-  const { data: windows, error: availError } = await ctx.client
+  const { data: windows, error: availError } = await supabaseAdmin
     .from("coach_availability")
     .select("start_time, end_time")
     .eq("coach_id", coachId)
@@ -219,7 +222,7 @@ async function isDayTimeFreeForCoach(
   });
   if (!withinTemplate) return false;
 
-  const { data: collisions, error: collisionError } = await ctx.client
+  const { data: collisions, error: collisionError } = await supabaseAdmin
     .from("recurring_slots")
     .select("id")
     .eq("coach_id", coachId)
@@ -231,17 +234,69 @@ async function isDayTimeFreeForCoach(
   return (collisions ?? []).length === 0;
 }
 
-async function patternFreeAt(
-  ctx: Awaited<ReturnType<typeof getCallerContext>>,
-  coachId: string,
-  days: number[],
-  timeOfDay: string,
-  durationMinutes: number
-): Promise<boolean> {
+async function patternFreeAt(coachId: string, days: number[], timeOfDay: string, durationMinutes: number): Promise<boolean> {
   for (const day of days) {
-    if (!(await isDayTimeFreeForCoach(ctx, coachId, day, timeOfDay, durationMinutes))) return false;
+    if (!(await isDayTimeFreeForCoach(coachId, day, timeOfDay, durationMinutes))) return false;
   }
   return true;
+}
+
+export interface CoachMatchResult {
+  coachId: string;
+  days: number[];
+  timeOfDay: string;
+}
+
+/** First-time coach assignment: a client with no coach yet picks a day/time
+ * pattern, and this searches every active coach for one who is genuinely
+ * free for the WHOLE pattern (reusing the same collision-safe check used
+ * for an already-assigned client's own schedule setup). No pattern/pair
+ * fallback here — the client asked for an exact day/time, so this either
+ * finds a real match or reports none, per the agreed scope (matching is on
+ * day/time availability only; skill/language stay descriptive persona
+ * fields for now, not filter criteria). Ties are broken by lowest
+ * utilization, so load spreads across the coach pool rather than always
+ * landing on the first one found. */
+export async function findAvailableCoach(
+  accessToken: string,
+  input: { pattern: PatternKey; preferredTime: string; customDays?: number[]; durationMinutes?: number }
+): Promise<CoachMatchResult | null> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["client"]);
+  const durationMinutes = input.durationMinutes ?? 60;
+
+  let days: number[];
+  if (input.pattern === "custom") {
+    if (!input.customDays || input.customDays.length < 2 || input.customDays.length > 5) {
+      throw new Error("Custom schedule needs between 2 and 5 days");
+    }
+    days = input.customDays;
+  } else {
+    days = [...DAY_GROUPS[input.pattern]];
+  }
+
+  const { data: coaches, error: coachesError } = await ctx.client.from("coach_profiles").select("id").eq("status", "active");
+  if (coachesError) throw coachesError;
+  if (!coaches || coaches.length === 0) return null;
+
+  const { data: util, error: utilError } = await ctx.client
+    .from("coach_utilization_view")
+    .select("coach_id, utilization_pct")
+    .in(
+      "coach_id",
+      coaches.map((c) => c.id)
+    );
+  if (utilError) throw utilError;
+  const utilByCoach = new Map((util ?? []).map((u) => [u.coach_id, u.utilization_pct]));
+
+  const sorted = [...coaches].sort((a, b) => (utilByCoach.get(a.id) ?? 0) - (utilByCoach.get(b.id) ?? 0));
+
+  for (const coach of sorted) {
+    if (await patternFreeAt(coach.id, days, input.preferredTime, durationMinutes)) {
+      return { coachId: coach.id, days, timeOfDay: input.preferredTime };
+    }
+  }
+  return null;
 }
 
 /** Walks: requested pattern @ requested time -> requested pattern @ any grid
@@ -269,12 +324,12 @@ export async function matchRecurringPattern(
     if (!input.customDays || input.customDays.length < 2 || input.customDays.length > 5) {
       throw new Error("Custom schedule needs between 2 and 5 days");
     }
-    if (await patternFreeAt(ctx, input.coachId, input.customDays, input.preferredTime, durationMinutes)) {
+    if (await patternFreeAt(input.coachId, input.customDays, input.preferredTime, durationMinutes)) {
       return { days: input.customDays, timeOfDay: input.preferredTime, patternUsed: "custom", exact: true };
     }
     for (const t of grid) {
       if (t === input.preferredTime) continue;
-      if (await patternFreeAt(ctx, input.coachId, input.customDays, t, durationMinutes)) {
+      if (await patternFreeAt(input.coachId, input.customDays, t, durationMinutes)) {
         return { days: input.customDays, timeOfDay: t, patternUsed: "custom", exact: false };
       }
     }
@@ -283,26 +338,26 @@ export async function matchRecurringPattern(
 
   const days = [...DAY_GROUPS[input.pattern]];
 
-  if (await patternFreeAt(ctx, input.coachId, days, input.preferredTime, durationMinutes)) {
+  if (await patternFreeAt(input.coachId, days, input.preferredTime, durationMinutes)) {
     return { days, timeOfDay: input.preferredTime, patternUsed: input.pattern, exact: true };
   }
   for (const t of grid) {
     if (t === input.preferredTime) continue;
-    if (await patternFreeAt(ctx, input.coachId, days, t, durationMinutes)) {
+    if (await patternFreeAt(input.coachId, days, t, durationMinutes)) {
       return { days, timeOfDay: t, patternUsed: input.pattern, exact: false };
     }
   }
 
   const pairsToTry = input.pattern === "tts" ? PAIRS_TTS : input.pattern === "mwf" ? PAIRS_MWF : [...PAIRS_MWF, ...PAIRS_TTS];
   for (const pair of pairsToTry) {
-    if (await patternFreeAt(ctx, input.coachId, pair, input.preferredTime, durationMinutes)) {
+    if (await patternFreeAt(input.coachId, pair, input.preferredTime, durationMinutes)) {
       return { days: pair, timeOfDay: input.preferredTime, patternUsed: "pair", exact: false };
     }
   }
   for (const pair of pairsToTry) {
     for (const t of grid) {
       if (t === input.preferredTime) continue;
-      if (await patternFreeAt(ctx, input.coachId, pair, t, durationMinutes)) {
+      if (await patternFreeAt(input.coachId, pair, t, durationMinutes)) {
         return { days: pair, timeOfDay: t, patternUsed: "pair", exact: false };
       }
     }

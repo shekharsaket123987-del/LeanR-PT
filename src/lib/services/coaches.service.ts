@@ -1,4 +1,5 @@
 import { getCallerContext, requireRole } from "./_auth";
+import { supabaseAdmin } from "@/lib/supabase/admin-client";
 
 // coach_utilization_view has no FK to coach_profiles, so PostgREST can't
 // embed it as a relationship — fetch separately and merge in JS instead.
@@ -8,6 +9,22 @@ async function withUtilization(client: Awaited<ReturnType<typeof getCallerContex
   const { data, error } = await query;
   if (error) throw error;
   return new Map((data ?? []).map((u) => [u.coach_id, u]));
+}
+
+/** Public display info (name, photo, specialization) for a coach the caller
+ * has no relationship with yet — e.g. showing who a client was just matched
+ * with, before a booking/recurring_slot exists to satisfy the normal
+ * `profiles_select_linked_as_client` RLS policy. Uses the admin client
+ * deliberately, same pattern as createAssessmentBooking(); exposes nothing
+ * beyond what's already shown on the public coach carousel. */
+export async function getCoachPublicInfo(coachId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("coach_profiles")
+    .select("id, specialization, profile:profiles(full_name, photo_url)")
+    .eq("id", coachId)
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 export async function listCoaches(accessToken: string) {
@@ -46,6 +63,78 @@ export async function getCoach(accessToken: string, coachId: string) {
 
   const utilByCoach = await withUtilization(ctx.client, [coachId]);
   return { ...data, utilization: utilByCoach.get(coachId) ?? null };
+}
+
+function addMinutes(time: string, minutes: number): string {
+  const [h, m] = time.split(":").map(Number);
+  const total = h * 60 + m + minutes;
+  const endH = Math.floor(total / 60) % 24;
+  const endM = total % 60;
+  return `${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}:00`;
+}
+
+export interface CoachSlotPattern {
+  days: number[]; // 0-6, Sunday-Saturday
+  startTime: string; // "14:00"
+  durationMinutes?: number; // defaults to 60
+}
+
+/** Admin "Add Coach" persona builder: provisions the login (which the
+ * existing handle_new_user() DB trigger turns into profiles + coach_profiles
+ * rows), then fills in the persona details and generates coach_availability
+ * rows from the slot patterns in one step. */
+export async function createCoach(
+  accessToken: string,
+  input: {
+    fullName: string;
+    email: string;
+    password: string;
+    employeeCode: string;
+    specialization: string;
+    skills: string[];
+    languages: string[];
+    slots: CoachSlotPattern[];
+  }
+) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+
+  const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
+    email: input.email,
+    password: input.password,
+    email_confirm: true,
+    user_metadata: { role: "coach", full_name: input.fullName },
+  });
+  if (createError || !created.user) throw createError ?? new Error("Failed to create coach account");
+
+  const { data: coachRow, error: coachError } = await supabaseAdmin
+    .from("coach_profiles")
+    .update({
+      employee_code: input.employeeCode,
+      specialization: input.specialization,
+      secondary_specializations: input.skills,
+      languages: input.languages,
+    })
+    .eq("profile_id", created.user.id)
+    .select("id")
+    .single();
+  if (coachError || !coachRow) throw coachError ?? new Error("Failed to save coach persona details");
+
+  const windows = input.slots.flatMap((slot) =>
+    slot.days.map((day) => ({
+      coach_id: coachRow.id,
+      day_of_week: day,
+      start_time: `${slot.startTime}:00`,
+      end_time: addMinutes(slot.startTime, slot.durationMinutes ?? 60),
+      is_active: true,
+    }))
+  );
+  if (windows.length > 0) {
+    const { error: availError } = await supabaseAdmin.from("coach_availability").insert(windows);
+    if (availError) throw availError;
+  }
+
+  return coachRow.id as string;
 }
 
 export async function updateMyCoachProfile(
