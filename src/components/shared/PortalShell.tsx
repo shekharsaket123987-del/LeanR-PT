@@ -35,6 +35,7 @@ const NAV: Record<Role, { label: string; href: string; icon: any }[]> = {
     { label: "Dashboard", href: "/client/dashboard", icon: LayoutDashboard },
     { label: "My Sessions", href: "/client/sessions", icon: CalendarDays },
     { label: "Book a Session", href: "/client/book", icon: CalendarPlus },
+    { label: "My Schedule", href: "/client/schedule", icon: Clock },
     { label: "My Coach", href: "/client/coach", icon: UserRound },
     { label: "Progress", href: "/client/progress", icon: TrendingUp },
     { label: "Notifications", href: "/client/notifications", icon: Bell },

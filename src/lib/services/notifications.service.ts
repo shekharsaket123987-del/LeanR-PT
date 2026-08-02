@@ -53,3 +53,13 @@ export async function createFromTemplate(templateKey: string, userId: string, va
   if (error) throw error;
   return data;
 }
+
+/** Notifies every admin profile via a template — used when an automated flow
+ * (e.g. recurring-schedule matching) exhausts its options and needs a human
+ * to resolve it manually. There's no dedicated "operations inbox" concept
+ * yet, so every admin gets the notification. */
+export async function notifyAdmins(templateKey: string, vars: Record<string, string> = {}) {
+  const { data: admins, error } = await supabaseAdmin.from("profiles").select("id").eq("role", "admin");
+  if (error) throw error;
+  await Promise.all((admins ?? []).map((a) => createFromTemplate(templateKey, a.id, vars)));
+}

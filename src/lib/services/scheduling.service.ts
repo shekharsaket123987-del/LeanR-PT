@@ -1,11 +1,35 @@
-import { getCallerContext } from "./_auth";
+import { getCallerContext, requireRole } from "./_auth";
 
 export interface OpenSlot {
   start: string; // ISO
   end: string; // ISO
 }
 
-/** Free windows for a coach between two dates, of at least durationMinutes,
+/** Only whole-hour slots exist platform-wide (5am, 6am, ... up to the last
+ * hour before close) — no half-hour or odd-aligned start times. Bounds are
+ * admin-configurable via system_settings (booking_window_start_hour/end_hour)
+ * rather than hardcoded, per the existing business-rules convention. */
+export async function getBookingWindow(accessToken: string): Promise<{ startHour: number; endHour: number }> {
+  const ctx = await getCallerContext(accessToken);
+  const { data, error } = await ctx.client
+    .from("system_settings")
+    .select("key, value")
+    .in("key", ["booking_window_start_hour", "booking_window_end_hour"]);
+  if (error) throw error;
+  const map = new Map((data ?? []).map((r) => [r.key, r.value as number]));
+  return {
+    startHour: map.get("booking_window_start_hour") ?? 5,
+    endHour: map.get("booking_window_end_hour") ?? 22,
+  };
+}
+
+function hourlyGrid(startHour: number, endHour: number): string[] {
+  const slots: string[] = [];
+  for (let h = startHour; h < endHour; h++) slots.push(`${String(h).padStart(2, "0")}:00`);
+  return slots;
+}
+
+/** Free windows for a coach between two dates, restricted to the hourly grid,
  * accounting for their availability template, leave, and existing bookings/
  * held temporary bookings. Read-only — the actual conflict-safe reservation
  * happens in holdSlot/confirmHold via the DB functions in migration 0011,
@@ -18,6 +42,8 @@ export async function getOpenSlots(
   durationMinutes: number
 ): Promise<OpenSlot[]> {
   const ctx = await getCallerContext(accessToken);
+  const { startHour, endHour } = await getBookingWindow(accessToken);
+  const grid = hourlyGrid(startHour, endHour);
 
   const [{ data: availability, error: availError }, { data: leave, error: leaveError }, { data: booked, error: bookedError }] =
     await Promise.all([
@@ -47,33 +73,52 @@ export async function getOpenSlots(
     return { start, end: new Date(start.getTime() + b.duration_minutes * 60_000) };
   });
 
+  const fitsWithinWindow = (h: number, m: number, windows: { start_time: string; end_time: string }[]) =>
+    windows.some((w) => {
+      const [wsH, wsM] = w.start_time.split(":").map(Number);
+      const [weH, weM] = w.end_time.split(":").map(Number);
+      return h * 60 + m >= wsH * 60 + wsM && h * 60 + m + durationMinutes <= weH * 60 + weM;
+    });
+
   const slots: OpenSlot[] = [];
   const cursor = new Date(`${fromDate}T00:00:00Z`);
   const end = new Date(`${toDate}T00:00:00Z`);
   while (cursor <= end) {
     const dow = cursor.getUTCDay();
     const onLeave = leaveDates.some((l) => cursor >= l.starts && cursor <= l.ends);
-    if (!onLeave) {
-      for (const window of byDayOfWeek.get(dow) ?? []) {
-        let [h, m] = window.start_time.split(":").map(Number);
-        const [endH, endM] = window.end_time.split(":").map(Number);
-        while (h * 60 + m + durationMinutes <= endH * 60 + endM) {
-          const slotStart = new Date(cursor);
-          slotStart.setUTCHours(h, m, 0, 0);
-          const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60_000);
-          const overlapsBusy = busy.some((b) => slotStart < b.end && slotEnd > b.start);
-          if (!overlapsBusy) slots.push({ start: slotStart.toISOString(), end: slotEnd.toISOString() });
-          m += durationMinutes;
-          if (m >= 60) {
-            h += Math.floor(m / 60);
-            m = m % 60;
-          }
-        }
+    const windows = byDayOfWeek.get(dow) ?? [];
+    if (!onLeave && windows.length > 0) {
+      for (const slotTime of grid) {
+        const [h, m] = slotTime.split(":").map(Number);
+        if (!fitsWithinWindow(h, m, windows)) continue;
+        const slotStart = new Date(cursor);
+        slotStart.setUTCHours(h, m, 0, 0);
+        const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60_000);
+        const overlapsBusy = busy.some((b) => slotStart < b.end && slotEnd > b.start);
+        if (!overlapsBusy) slots.push({ start: slotStart.toISOString(), end: slotEnd.toISOString() });
       }
     }
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return slots;
+}
+
+/** The signed-in client's own active recurring slots, if any — used to avoid
+ * offering the pattern-setup screen a second time once one exists. */
+export async function getMyActiveRecurringSlots(accessToken: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["client"]);
+  const { data: client, error: clientError } = await ctx.client.from("client_profiles").select("id").eq("profile_id", ctx.userId).single();
+  if (clientError || !client) throw clientError ?? new Error("Client profile not found");
+
+  const { data, error } = await ctx.client
+    .from("recurring_slots")
+    .select("id, day_of_week, start_time, duration_minutes")
+    .eq("client_id", client.id)
+    .eq("status", "active")
+    .order("day_of_week");
+  if (error) throw error;
+  return data;
 }
 
 export async function holdSlot(accessToken: string, input: { clientId: string; coachId: string; slotStart: string; durationMinutes: number }) {
@@ -108,4 +153,200 @@ export async function confirmHold(
   });
   if (error) throw error;
   return data as string; // booking id
+}
+
+// ── Recurring pattern matching (Screen 1: "Set Your Recurring Schedule") ──
+
+export const DAY_GROUPS = {
+  mwf: [1, 3, 5], // Mon, Wed, Fri
+  tts: [2, 4, 6], // Tue, Thu, Sat
+  sixday: [1, 2, 3, 4, 5, 6], // Mon–Sat, Sunday always off
+} as const;
+
+// Same-trio pairs only — not all 21 possible day combinations.
+const PAIRS_MWF = [
+  [1, 3],
+  [1, 5],
+  [3, 5],
+];
+const PAIRS_TTS = [
+  [2, 4],
+  [2, 6],
+  [4, 6],
+];
+
+export type PatternKey = "mwf" | "tts" | "sixday" | "custom";
+
+export interface PatternMatchResult {
+  days: number[];
+  timeOfDay: string; // "06:00"
+  patternUsed: PatternKey | "pair";
+  exact: boolean; // false if we had to offer a different time/pairing than requested
+}
+
+/** Is this coach free for a NEW recurring reservation on this day/time?
+ * Checks the weekly availability template AND collides against other
+ * clients' existing active recurring_slots — has_scheduling_conflict() only
+ * checks real bookings/holds, not other not-yet-generated recurring
+ * reservations, so without this check two clients could both "reserve" the
+ * same coach/day/time and only find out later when generation silently
+ * skips one of them. Leave is deliberately NOT checked here — leave is
+ * temporary and already handled per-occurrence by
+ * generate_bookings_from_recurring_slot; it shouldn't block a permanent
+ * pattern from being set up. */
+async function isDayTimeFreeForCoach(
+  ctx: Awaited<ReturnType<typeof getCallerContext>>,
+  coachId: string,
+  dayOfWeek: number,
+  timeOfDay: string,
+  durationMinutes: number
+): Promise<boolean> {
+  const [h, m] = timeOfDay.split(":").map(Number);
+  const startMin = h * 60 + m;
+  const endMin = startMin + durationMinutes;
+
+  const { data: windows, error: availError } = await ctx.client
+    .from("coach_availability")
+    .select("start_time, end_time")
+    .eq("coach_id", coachId)
+    .eq("day_of_week", dayOfWeek)
+    .eq("is_active", true);
+  if (availError) throw availError;
+  const withinTemplate = (windows ?? []).some((w) => {
+    const [wsH, wsM] = w.start_time.split(":").map(Number);
+    const [weH, weM] = w.end_time.split(":").map(Number);
+    return startMin >= wsH * 60 + wsM && endMin <= weH * 60 + weM;
+  });
+  if (!withinTemplate) return false;
+
+  const { data: collisions, error: collisionError } = await ctx.client
+    .from("recurring_slots")
+    .select("id")
+    .eq("coach_id", coachId)
+    .eq("day_of_week", dayOfWeek)
+    .eq("start_time", `${timeOfDay}:00`)
+    .eq("status", "active")
+    .limit(1);
+  if (collisionError) throw collisionError;
+  return (collisions ?? []).length === 0;
+}
+
+async function patternFreeAt(
+  ctx: Awaited<ReturnType<typeof getCallerContext>>,
+  coachId: string,
+  days: number[],
+  timeOfDay: string,
+  durationMinutes: number
+): Promise<boolean> {
+  for (const day of days) {
+    if (!(await isDayTimeFreeForCoach(ctx, coachId, day, timeOfDay, durationMinutes))) return false;
+  }
+  return true;
+}
+
+/** Walks: requested pattern @ requested time -> requested pattern @ any grid
+ * time -> same-trio pairs (both trios if pattern was "sixday") @ requested
+ * time -> same-trio pairs @ any grid time. Returns null if nothing fits —
+ * the caller should then either let the client try "custom" days, or (if
+ * custom was already what was tried) notify admin. */
+export async function matchRecurringPattern(
+  accessToken: string,
+  input: {
+    coachId: string;
+    pattern: PatternKey;
+    preferredTime: string;
+    customDays?: number[];
+    durationMinutes?: number;
+  }
+): Promise<PatternMatchResult | null> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["client"]);
+  const durationMinutes = input.durationMinutes ?? 60;
+  const { startHour, endHour } = await getBookingWindow(accessToken);
+  const grid = hourlyGrid(startHour, endHour);
+
+  if (input.pattern === "custom") {
+    if (!input.customDays || input.customDays.length < 2 || input.customDays.length > 5) {
+      throw new Error("Custom schedule needs between 2 and 5 days");
+    }
+    if (await patternFreeAt(ctx, input.coachId, input.customDays, input.preferredTime, durationMinutes)) {
+      return { days: input.customDays, timeOfDay: input.preferredTime, patternUsed: "custom", exact: true };
+    }
+    for (const t of grid) {
+      if (t === input.preferredTime) continue;
+      if (await patternFreeAt(ctx, input.coachId, input.customDays, t, durationMinutes)) {
+        return { days: input.customDays, timeOfDay: t, patternUsed: "custom", exact: false };
+      }
+    }
+    return null;
+  }
+
+  const days = [...DAY_GROUPS[input.pattern]];
+
+  if (await patternFreeAt(ctx, input.coachId, days, input.preferredTime, durationMinutes)) {
+    return { days, timeOfDay: input.preferredTime, patternUsed: input.pattern, exact: true };
+  }
+  for (const t of grid) {
+    if (t === input.preferredTime) continue;
+    if (await patternFreeAt(ctx, input.coachId, days, t, durationMinutes)) {
+      return { days, timeOfDay: t, patternUsed: input.pattern, exact: false };
+    }
+  }
+
+  const pairsToTry = input.pattern === "tts" ? PAIRS_TTS : input.pattern === "mwf" ? PAIRS_MWF : [...PAIRS_MWF, ...PAIRS_TTS];
+  for (const pair of pairsToTry) {
+    if (await patternFreeAt(ctx, input.coachId, pair, input.preferredTime, durationMinutes)) {
+      return { days: pair, timeOfDay: input.preferredTime, patternUsed: "pair", exact: false };
+    }
+  }
+  for (const pair of pairsToTry) {
+    for (const t of grid) {
+      if (t === input.preferredTime) continue;
+      if (await patternFreeAt(ctx, input.coachId, pair, t, durationMinutes)) {
+        return { days: pair, timeOfDay: t, patternUsed: "pair", exact: false };
+      }
+    }
+  }
+
+  return null;
+}
+
+/** Creates one recurring_slots row per day in the matched pattern, and
+ * generates the first few upcoming occurrences of each via the existing
+ * (previously orphaned) generate_bookings_from_recurring_slot DB function. */
+export async function createRecurringSlots(
+  accessToken: string,
+  input: { coachId: string; days: number[]; timeOfDay: string; durationMinutes?: number; subscriptionId?: string }
+): Promise<string[]> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["client"]);
+  const { data: client, error: clientError } = await ctx.client.from("client_profiles").select("id").eq("profile_id", ctx.userId).single();
+  if (clientError || !client) throw clientError ?? new Error("Client profile not found");
+
+  const durationMinutes = input.durationMinutes ?? 60;
+  const createdIds: string[] = [];
+  for (const day of input.days) {
+    const { data: slot, error: slotError } = await ctx.client
+      .from("recurring_slots")
+      .insert({
+        client_id: client.id,
+        coach_id: input.coachId,
+        subscription_id: input.subscriptionId ?? null,
+        day_of_week: day,
+        start_time: `${input.timeOfDay}:00`,
+        duration_minutes: durationMinutes,
+        status: "active",
+      })
+      .select("id")
+      .single();
+    if (slotError || !slot) throw slotError ?? new Error("Failed to create recurring slot");
+    createdIds.push(slot.id);
+
+    const { error: genError } = await ctx.client.rpc("generate_bookings_from_recurring_slot", {
+      p_recurring_slot_id: slot.id,
+      p_count: 4,
+    });
+    if (genError) throw genError;
+  }
+  return createdIds;
 }
