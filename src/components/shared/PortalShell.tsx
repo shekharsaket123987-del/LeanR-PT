@@ -25,6 +25,7 @@ import {
   LogOut,
   ChevronDown,
   AlertTriangle,
+  History,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import Badge from "../ui/Badge";
@@ -58,8 +59,10 @@ const NAV: Record<Role, { label: string; href: string; icon: any }[]> = {
     { label: "Clients", href: "/admin/clients", icon: Users },
     { label: "Coaches", href: "/admin/coaches", icon: UserCog },
     { label: "Sessions", href: "/admin/sessions", icon: CalendarDays },
+    { label: "Scheduling", href: "/admin/scheduling", icon: ClipboardList },
     { label: "Coach Change Requests", href: "/admin/coach-change-requests", icon: RefreshCw },
     { label: "Leave Requests", href: "/admin/leave-requests", icon: Clock },
+    { label: "Activity Log", href: "/admin/activity-log", icon: History },
     { label: "Reports", href: "/admin/reports", icon: FileText },
     { label: "Settings", href: "/admin/settings", icon: Settings },
   ],

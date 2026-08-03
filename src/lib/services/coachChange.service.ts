@@ -240,3 +240,20 @@ export async function listMyShadowAssignments(accessToken: string) {
   if (error) throw error;
   return data;
 }
+
+/** Platform-wide shadow assignments -- backs the Admin scheduling view's
+ * "Shadow Sessions" group (unlike listMyShadowAssignments, not scoped to
+ * the caller). */
+export async function listAllShadowAssignments(accessToken: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+
+  const { data, error } = await ctx.client
+    .from("shadow_coach_assignments")
+    .select(
+      "id, client:client_profiles(id, profile:profiles(full_name)), primary_coach:coach_profiles!primary_coach_id(profile:profiles(full_name)), shadow_coach:coach_profiles!shadow_coach_id(profile:profiles(full_name)), starts_on, ends_on, status, created_at"
+    )
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data;
+}

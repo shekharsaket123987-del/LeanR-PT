@@ -2,11 +2,11 @@ import { AlertTriangle } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import MySessionsClient from "@/components/client/MySessionsClient";
-import { getClientSessionsAction } from "@/lib/actions/client-portal.actions";
+import { getClientSessionsAction, getSchedulingRulesAction } from "@/lib/actions/client-portal.actions";
 import { isFailure } from "@/lib/actions/action-result";
 
 export default async function MySessionsPage() {
-  const result = await getClientSessionsAction();
+  const [result, rulesResult] = await Promise.all([getClientSessionsAction(), getSchedulingRulesAction()]);
 
   if (isFailure(result)) {
     return (
@@ -17,5 +17,9 @@ export default async function MySessionsPage() {
     );
   }
 
-  return <MySessionsClient initialSessions={result.data} />;
+  const rules = isFailure(rulesResult)
+    ? { cancellationCutoffHours: 12, rescheduleCutoffHours: 1, reschedulesUsedThisWeek: 0, reschedulesRemaining: 2 }
+    : rulesResult.data;
+
+  return <MySessionsClient initialSessions={result.data} rules={rules} />;
 }

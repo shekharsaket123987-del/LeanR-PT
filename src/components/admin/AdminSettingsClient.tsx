@@ -21,7 +21,8 @@ function settingValue(settings: AdminSettingsData["settings"], key: string, fall
 export default function AdminSettingsClient({ data }: { data: AdminSettingsData }) {
   const router = useRouter();
   const [duration, setDuration] = useState(settingValue(data.settings, "default_session_duration_minutes", 45));
-  const [cutoff, setCutoff] = useState(settingValue(data.settings, "reschedule_cutoff_hours", 12));
+  const [rescheduleCutoff, setRescheduleCutoff] = useState(settingValue(data.settings, "reschedule_cutoff_hours", 1));
+  const [cancellationCutoff, setCancellationCutoff] = useState(settingValue(data.settings, "cancellation_cutoff_hours", 12));
   const [inactivity, setInactivity] = useState(settingValue(data.settings, "inactivity_threshold_days", 30));
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -42,7 +43,8 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
     setSaved(false);
     const results = await Promise.all([
       updateSettingAction("default_session_duration_minutes", duration),
-      updateSettingAction("reschedule_cutoff_hours", cutoff),
+      updateSettingAction("reschedule_cutoff_hours", rescheduleCutoff),
+      updateSettingAction("cancellation_cutoff_hours", cancellationCutoff),
       updateSettingAction("inactivity_threshold_days", inactivity),
     ]);
     setSaving(false);
@@ -114,9 +116,31 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
           </div>
           <div>
             <label className="mb-1.5 flex justify-between text-xs font-bold uppercase text-black/40">
-              Reschedule / Cancel Cutoff Window <span className="text-black/60">{cutoff} hrs</span>
+              Cancellation Cutoff Window <span className="text-black/60">{cancellationCutoff} hrs</span>
             </label>
-            <input type="range" min={4} max={48} step={4} value={cutoff} onChange={(e) => setCutoff(Number(e.target.value))} className="w-full accent-brand-yellow" />
+            <input
+              type="range"
+              min={4}
+              max={48}
+              step={4}
+              value={cancellationCutoff}
+              onChange={(e) => setCancellationCutoff(Number(e.target.value))}
+              className="w-full accent-brand-yellow"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 flex justify-between text-xs font-bold uppercase text-black/40">
+              Reschedule Cutoff Window <span className="text-black/60">{rescheduleCutoff} hrs</span>
+            </label>
+            <input
+              type="range"
+              min={1}
+              max={24}
+              step={1}
+              value={rescheduleCutoff}
+              onChange={(e) => setRescheduleCutoff(Number(e.target.value))}
+              className="w-full accent-brand-yellow"
+            />
           </div>
           <div>
             <label className="mb-1.5 flex justify-between text-xs font-bold uppercase text-black/40">

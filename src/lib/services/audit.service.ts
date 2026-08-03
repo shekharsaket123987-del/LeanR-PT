@@ -13,6 +13,30 @@ export async function listAuditLogs(accessToken: string, filter?: { entityType?:
   return data;
 }
 
+/** Backs the Admin scheduling view's "Manual Sessions Created" group --
+ * there's no dedicated column marking a booking as admin-created, so this
+ * derives it from the audit trigger's own INSERT record (fn_audit_trigger(),
+ * migration 0009), which already captures the real actor for every
+ * bookings row regardless of which code path created it. */
+export async function listAdminCreatedBookingIds(accessToken: string): Promise<string[]> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+
+  const { data: admins, error: adminsError } = await ctx.client.from("profiles").select("id").eq("role", "admin");
+  if (adminsError) throw adminsError;
+  const adminIds = (admins ?? []).map((a) => a.id);
+  if (adminIds.length === 0) return [];
+
+  const { data, error } = await ctx.client
+    .from("audit_logs")
+    .select("entity_id")
+    .eq("entity_type", "bookings")
+    .eq("action", "INSERT")
+    .in("actor_id", adminIds);
+  if (error) throw error;
+  return (data ?? []).map((r) => r.entity_id).filter((id): id is string => !!id);
+}
+
 /** No payment gateway exists in this codebase (deliberate Phase 1 boundary,
  * see docs/business-rules.md) — this logs a refund request for ops
  * follow-up rather than moving any money. Backs the admin client-detail

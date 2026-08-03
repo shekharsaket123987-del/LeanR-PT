@@ -1,17 +1,21 @@
 import Image from "next/image";
-import { CalendarCheck2, TrendingUp, XOctagon, Video, Clock, AlertTriangle } from "lucide-react";
+import { CalendarCheck2, TrendingUp, XOctagon, Video, Clock, AlertTriangle, RotateCcw } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import Card from "@/components/ui/Card";
 import StatCard from "@/components/ui/StatCard";
 import Badge, { AssessmentBadge } from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
-import { getCoachDashboardAction } from "@/lib/actions/coach-portal.actions";
+import { getCoachCancelledSessionsAction, getCoachDashboardAction, getCoachRescheduledSessionsAction } from "@/lib/actions/coach-portal.actions";
 import { isFailure } from "@/lib/actions/action-result";
-import { formatTime } from "@/lib/utils";
+import { formatDate, formatTime } from "@/lib/utils";
 
 export default async function CoachDashboardPage() {
-  const result = await getCoachDashboardAction();
+  const [result, cancelledResult, rescheduledResult] = await Promise.all([
+    getCoachDashboardAction(),
+    getCoachCancelledSessionsAction(),
+    getCoachRescheduledSessionsAction(),
+  ]);
 
   if (isFailure(result)) {
     return (
@@ -23,6 +27,8 @@ export default async function CoachDashboardPage() {
   }
 
   const data = result.data;
+  const cancelled = isFailure(cancelledResult) ? [] : cancelledResult.data.slice(0, 5);
+  const rescheduled = isFailure(rescheduledResult) ? [] : rescheduledResult.data.slice(0, 5);
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -56,6 +62,53 @@ export default async function CoachDashboardPage() {
                 <Button href={`/coach/session/${s.id}`}>
                   <Video className="h-4 w-4" /> Join
                 </Button>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-display mb-4 text-xl font-bold italic">Cancelled Sessions</h2>
+        {cancelled.length === 0 ? (
+          <p className="text-sm text-black/45">No cancelled sessions.</p>
+        ) : (
+          <div className="space-y-3">
+            {cancelled.map((c) => (
+              <Card key={c.id} className="p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-bold">{c.clientName}</p>
+                  <span className="font-mono text-[11px] text-black/40">{c.clientCode}</span>
+                  <Badge variant="red">Cancelled by {c.cancelledByRole === "admin" ? "Admin" : c.cancelledByRole === "coach" ? "Coach" : "Client"}</Badge>
+                </div>
+                <p className="mt-1.5 text-xs text-black/50">
+                  Session: {formatDate(c.sessionDate)} · {formatTime(c.sessionDate)} — cancelled {formatDate(c.cancelledAt)} · {formatTime(c.cancelledAt)}
+                </p>
+                {c.reason && <p className="mt-1.5 text-xs text-black/60">Reason: {c.reason}</p>}
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-display mb-4 text-xl font-bold italic">Rescheduled Sessions</h2>
+        {rescheduled.length === 0 ? (
+          <p className="text-sm text-black/45">No rescheduled sessions.</p>
+        ) : (
+          <div className="space-y-3">
+            {rescheduled.map((r) => (
+              <Card key={r.id} className="p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-bold">{r.clientName}</p>
+                  <span className="font-mono text-[11px] text-black/40">{r.clientCode}</span>
+                  <Badge variant="outline-yellow">
+                    <RotateCcw className="h-3 w-3" /> Rescheduled
+                  </Badge>
+                </div>
+                <p className="mt-1.5 text-xs text-black/50">
+                  {formatDate(r.originalDate)} · {formatTime(r.originalDate)} → {formatDate(r.newDate)} · {formatTime(r.newDate)}
+                </p>
               </Card>
             ))}
           </div>

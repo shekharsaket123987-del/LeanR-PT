@@ -23,7 +23,9 @@ import {
   getAttendanceForBooking,
   getBooking,
   getWorkoutNoteForBooking,
+  listCancelledBookingsForCoach,
   listMyBookingsAsCoach,
+  listRescheduledBookingsForCoach,
   listWorkoutNotesForClient,
   markAttendance,
   submitSessionNotes,
@@ -514,5 +516,62 @@ export async function getMyActivityAction(): Promise<ActionResult<CoachActivityI
     }
 
     return items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 30);
+  });
+}
+
+export interface CoachCancelledSessionView {
+  id: string;
+  clientId: string;
+  clientCode: string;
+  clientName: string;
+  sessionDate: string;
+  cancelledAt: string;
+  cancelledByRole: "client" | "admin" | "coach" | null;
+  reason: string | null;
+}
+
+/** Cancellation Policy PRD §3 "Cancelled Sessions" -- cancelled_by_profile.role
+ * distinguishes "Cancelled by Client" from "Cancelled by Admin"; updated_at
+ * doubles as "Cancellation Time" since a cancelled booking is terminal (no
+ * further updates happen to it). */
+export async function getCoachCancelledSessionsAction(): Promise<ActionResult<CoachCancelledSessionView[]>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const rows = await listCancelledBookingsForCoach(token);
+    return (rows as any[]).map((b) => ({
+      id: b.id,
+      clientId: b.client?.id ?? b.client_id,
+      clientCode: b.client?.client_code ?? "",
+      clientName: b.client?.profile?.full_name ?? "Client",
+      sessionDate: b.scheduled_start,
+      cancelledAt: b.updated_at,
+      cancelledByRole: b.cancelled_by_profile?.role ?? null,
+      reason: b.cancel_reason,
+    }));
+  });
+}
+
+export interface CoachRescheduledSessionView {
+  id: string;
+  clientId: string;
+  clientCode: string;
+  clientName: string;
+  originalDate: string;
+  newDate: string;
+}
+
+/** Cancellation Policy PRD §3 "Rescheduled Sessions". */
+export async function getCoachRescheduledSessionsAction(): Promise<ActionResult<CoachRescheduledSessionView[]>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const rows = await listRescheduledBookingsForCoach(token);
+    return (rows as any[]).map((b) => ({
+      id: b.id,
+      clientId: b.client?.id ?? b.client_id,
+      clientCode: b.client?.client_code ?? "",
+      clientName: b.client?.profile?.full_name ?? "Client",
+      originalDate: b.original_scheduled_start,
+      newDate: b.scheduled_start,
+    }));
   });
 }

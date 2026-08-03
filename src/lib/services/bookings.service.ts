@@ -1,8 +1,40 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { holdSlot, confirmHold } from "./scheduling.service";
-import { logTimelineEvent } from "./timeline.service";
-import { createFromTemplate } from "./notifications.service";
+import { logTimelineEvent, listClientTimeline } from "./timeline.service";
+import { createFromTemplate, notifyAdmins } from "./notifications.service";
+
+/** Monday 00:00 UTC of the week containing `d` — same convention as
+ * computeStreakWeeks() in client-portal.actions.ts, duplicated here rather
+ * than imported since services shouldn't depend on the action layer. */
+export function startOfWeekUTC(d: Date): Date {
+  const copy = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const mondayOffset = (copy.getUTCDay() + 6) % 7;
+  copy.setUTCDate(copy.getUTCDate() - mondayOffset);
+  return copy;
+}
+export function endOfWeekUTC(d: Date): Date {
+  const end = startOfWeekUTC(d);
+  end.setUTCDate(end.getUTCDate() + 7);
+  return end;
+}
+
+export const MAX_RESCHEDULES_PER_WEEK = 2;
+
+/** How many times this client has already rescheduled a session during the
+ * current calendar week (Monday-start) -- shared by rescheduleBooking()'s
+ * enforcement and the client-facing "X of 2 used this week" display. */
+export async function countReschedulesThisWeek(accessToken: string, clientId: string): Promise<number> {
+  const now = new Date();
+  const weekStart = startOfWeekUTC(now);
+  const weekEnd = endOfWeekUTC(now);
+  const timeline = await listClientTimeline(accessToken, clientId);
+  return timeline.filter((t) => {
+    if (t.event_type !== "session_rescheduled") return false;
+    const at = new Date(t.created_at);
+    return at >= weekStart && at < weekEnd;
+  }).length;
+}
 
 const BOOKING_SELECT =
   "*, client:client_profiles(id, profile:profiles(full_name, photo_url)), coach:coach_profiles(id, employee_code, profile:profiles(full_name, photo_url))";
@@ -29,6 +61,42 @@ export async function listMyBookingsAsCoach(accessToken: string, status?: string
   let query = ctx.client.from("bookings").select(BOOKING_SELECT).eq("coach_id", coach.id).order("scheduled_start", { ascending: false });
   if (status) query = query.eq("status", status);
   const { data, error } = await query;
+  if (error) throw error;
+  return data;
+}
+
+/** Coach Dashboard "Cancelled Sessions" section (PRD §3) -- embeds who
+ * cancelled it (role, not just the profiles.id) so the UI can label
+ * "Cancelled by Client" vs "Cancelled by Admin". */
+export async function listCancelledBookingsForCoach(accessToken: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["coach"]);
+  const { data: coach, error: coachError } = await ctx.client.from("coach_profiles").select("id").eq("profile_id", ctx.userId).single();
+  if (coachError || !coach) throw coachError ?? new Error("Coach profile not found");
+
+  const { data, error } = await ctx.client
+    .from("bookings")
+    .select("*, client:client_profiles(id, client_code, profile:profiles(full_name, photo_url)), cancelled_by_profile:profiles!cancelled_by(role)")
+    .eq("coach_id", coach.id)
+    .eq("status", "cancelled")
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+/** Coach Dashboard "Rescheduled Sessions" section (PRD §3). */
+export async function listRescheduledBookingsForCoach(accessToken: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["coach"]);
+  const { data: coach, error: coachError } = await ctx.client.from("coach_profiles").select("id").eq("profile_id", ctx.userId).single();
+  if (coachError || !coach) throw coachError ?? new Error("Coach profile not found");
+
+  const { data, error } = await ctx.client
+    .from("bookings")
+    .select("*, client:client_profiles(id, client_code, profile:profiles(full_name, photo_url))")
+    .eq("coach_id", coach.id)
+    .eq("was_rescheduled", true)
+    .order("scheduled_start", { ascending: false });
   if (error) throw error;
   return data;
 }
@@ -132,12 +200,49 @@ export async function cancelBooking(accessToken: string, bookingId: string, reas
     actorId: ctx.userId,
     metadata: { bookingId },
   });
+
+  if (ctx.role === "client") {
+    const clientName = (booking as any).client?.profile?.full_name ?? "Client";
+    const sessionTime = new Date((booking as any).scheduled_start).toLocaleString();
+    const { data: coach } = await supabaseAdmin
+      .from("coach_profiles")
+      .select("profile_id")
+      .eq("id", (booking as any).coach_id)
+      .maybeSingle();
+    if (coach) {
+      await createFromTemplate("session_cancelled_by_client", coach.profile_id, {
+        client_name: clientName,
+        session_time: sessionTime,
+      });
+    }
+    await notifyAdmins("admin_alert", {
+      alert_message: `${clientName} cancelled their session scheduled for ${sessionTime}.`,
+    });
+  }
 }
 
 export async function rescheduleBooking(accessToken: string, bookingId: string, newStart: string, newDurationMinutes?: number) {
   const ctx = await getCallerContext(accessToken);
   const enforceCutoff = ctx.role !== "admin";
   const booking = await getBooking(accessToken, bookingId);
+
+  // Weekly-limit + same-week checks are client-only business rules (Admin
+  // overrides everything, per policy) -- kept in the app layer rather than
+  // the RPC, same precedent as the once-per-week progress-log rule.
+  if (ctx.role === "client") {
+    const now = new Date();
+    const weekEnd = endOfWeekUTC(now);
+    const newStartDate = new Date(newStart);
+    if (newStartDate < now || newStartDate >= weekEnd) {
+      throw new Error("The new session time must fall within the remainder of this calendar week.");
+    }
+
+    const reschedulesThisWeek = await countReschedulesThisWeek(accessToken, (booking as any).client_id);
+    if (reschedulesThisWeek >= MAX_RESCHEDULES_PER_WEEK) {
+      throw new Error("You have already used your maximum reschedule limit for this week.");
+    }
+  }
+
   const { error } = await ctx.client.rpc("reschedule_booking", {
     p_booking_id: bookingId,
     p_new_start: newStart,
@@ -152,6 +257,8 @@ export async function rescheduleBooking(accessToken: string, bookingId: string, 
     metadata: { bookingId },
   });
 
+  const clientName = (booking as any).client?.profile?.full_name ?? "Client";
+
   // Only notify the coach when Admin is the one moving the session -- a
   // client rescheduling their own booking doesn't need a "schedule changed
   // by Admin" alert about their own action.
@@ -162,12 +269,32 @@ export async function rescheduleBooking(accessToken: string, bookingId: string, 
       .eq("id", (booking as any).coach_id)
       .maybeSingle();
     if (coach) {
-      const clientName = (booking as any).client?.profile?.full_name ?? "Client";
       await createFromTemplate("admin_changed_schedule", coach.profile_id, {
         client_name: clientName,
         session_time: new Date(newStart).toLocaleString(),
       });
     }
+  }
+
+  // Client-initiated reschedule notifies the coach and Admin.
+  if (ctx.role === "client") {
+    const { data: coach } = await supabaseAdmin
+      .from("coach_profiles")
+      .select("profile_id")
+      .eq("id", (booking as any).coach_id)
+      .maybeSingle();
+    const oldTime = new Date((booking as any).scheduled_start).toLocaleString();
+    const newTime = new Date(newStart).toLocaleString();
+    if (coach) {
+      await createFromTemplate("session_rescheduled_by_client", coach.profile_id, {
+        client_name: clientName,
+        old_time: oldTime,
+        new_time: newTime,
+      });
+    }
+    await notifyAdmins("admin_alert", {
+      alert_message: `${clientName} rescheduled their session from ${oldTime} to ${newTime}.`,
+    });
   }
 }
 

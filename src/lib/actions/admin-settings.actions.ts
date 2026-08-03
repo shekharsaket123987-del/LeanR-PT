@@ -16,7 +16,12 @@ export interface AdminSettingsData {
   packages: { id: string; name: string; category: "advance" | "addon"; sessions: number; price: number; isActive: boolean }[];
 }
 
-const NUMERIC_SETTING_KEYS = ["reschedule_cutoff_hours", "default_session_duration_minutes", "inactivity_threshold_days"];
+const NUMERIC_SETTING_KEYS = [
+  "reschedule_cutoff_hours",
+  "cancellation_cutoff_hours",
+  "default_session_duration_minutes",
+  "inactivity_threshold_days",
+];
 
 export async function getAdminSettingsAction(): Promise<ActionResult<AdminSettingsData>> {
   return runAction(async () => {

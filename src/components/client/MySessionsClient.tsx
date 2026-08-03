@@ -10,27 +10,33 @@ import Badge, { AssessmentBadge, SessionStatusBadge } from "@/components/ui/Badg
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EmptyState from "@/components/ui/EmptyState";
 import FeedbackModal from "@/components/client/FeedbackModal";
+import RescheduleModal from "@/components/client/RescheduleModal";
 import { formatDate, formatTime, hoursUntil } from "@/lib/utils";
-import { SessionView, cancelSessionAction, rateSessionAction } from "@/lib/actions/client-portal.actions";
+import { SchedulingRules, SessionView, cancelSessionAction, rateSessionAction } from "@/lib/actions/client-portal.actions";
 import { isFailure } from "@/lib/actions/action-result";
 
-type Tab = "upcoming" | "completed" | "cancelled" | "missed";
+type Tab = "upcoming" | "completed" | "cancelled" | "missed" | "rescheduled";
 const tabs: { key: Tab; label: string }[] = [
   { key: "upcoming", label: "Upcoming" },
   { key: "completed", label: "Completed" },
   { key: "cancelled", label: "Cancelled" },
   { key: "missed", label: "Missed" },
+  { key: "rescheduled", label: "Rescheduled" },
 ];
 
-export default function MySessionsClient({ initialSessions }: { initialSessions: SessionView[] }) {
+export default function MySessionsClient({ initialSessions, rules: initialRules }: { initialSessions: SessionView[]; rules: SchedulingRules }) {
   const [sessions, setSessions] = useState(initialSessions);
+  const [rules, setRules] = useState(initialRules);
   const [tab, setTab] = useState<Tab>("upcoming");
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState("");
   const [feedbackFor, setFeedbackFor] = useState<string | null>(null);
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null);
 
-  const filtered = sessions.filter((s) => s.status === tab).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const filtered = sessions
+    .filter((s) => (tab === "rescheduled" ? s.wasRescheduled : s.status === tab))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   async function handleCancel() {
     if (!cancelId) return;
@@ -73,6 +79,12 @@ export default function MySessionsClient({ initialSessions }: { initialSessions:
         ))}
       </div>
 
+      {tab === "upcoming" && (
+        <p className="mb-4 text-xs font-semibold text-black/45">
+          {rules.reschedulesUsedThisWeek} of {rules.reschedulesUsedThisWeek + rules.reschedulesRemaining} reschedules used this week
+        </p>
+      )}
+
       {filtered.length === 0 && (
         <EmptyState
           icon={CalendarX2}
@@ -89,7 +101,10 @@ export default function MySessionsClient({ initialSessions }: { initialSessions:
       <div className="space-y-3">
         {filtered.map((s) => {
           const hrs = hoursUntil(s.date);
-          const canModify = s.status === "upcoming" && hrs > 12;
+          const canCancel = s.status === "upcoming" && hrs > rules.cancellationCutoffHours;
+          const canReschedule = s.status === "upcoming" && hrs > rules.rescheduleCutoffHours;
+          const cancellableUntil = new Date(new Date(s.date).getTime() - rules.cancellationCutoffHours * 3600000);
+          const reschedulableUntil = new Date(new Date(s.date).getTime() - rules.rescheduleCutoffHours * 3600000);
           return (
             <Card key={s.id} className="p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -109,20 +124,30 @@ export default function MySessionsClient({ initialSessions }: { initialSessions:
                 </div>
                 {s.status === "upcoming" && (
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" disabled={!canModify}>
+                    <Button variant="outline" size="sm" disabled={!canReschedule} onClick={() => setRescheduleId(s.id)}>
                       <RotateCcw className="h-3.5 w-3.5" />
                       Reschedule
                     </Button>
-                    <Button variant="destructive-outline" size="sm" disabled={!canModify} onClick={() => setCancelId(s.id)}>
+                    <Button variant="destructive-outline" size="sm" disabled={!canCancel} onClick={() => setCancelId(s.id)}>
                       <XCircle className="h-3.5 w-3.5" />
                       Cancel
                     </Button>
                   </div>
                 )}
               </div>
-              {s.status === "upcoming" && !canModify && (
-                <p className="mt-3 text-[11px] text-black/35">
-                  Reschedule / cancel is only available more than 12 hours before the session.
+              {s.status === "upcoming" && (
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-black/35">
+                  <span>
+                    {canCancel ? "Cancellable until" : "Cancellation window closed —"} {formatDate(cancellableUntil)} · {formatTime(cancellableUntil)}
+                  </span>
+                  <span>
+                    {canReschedule ? "Reschedulable until" : "Reschedule window closed —"} {formatDate(reschedulableUntil)} · {formatTime(reschedulableUntil)}
+                  </span>
+                </div>
+              )}
+              {s.wasRescheduled && s.originalDate && (
+                <p className="mt-2 text-[11px] text-black/35">
+                  Originally: {formatDate(s.originalDate)} · {formatTime(s.originalDate)}
                 </p>
               )}
               {s.status === "completed" && s.coachNotes && (
@@ -159,6 +184,25 @@ export default function MySessionsClient({ initialSessions }: { initialSessions:
         onClose={() => setFeedbackFor(null)}
         coachName={feedbackSession?.coach?.name}
         onSubmit={handleRate}
+      />
+
+      <RescheduleModal
+        open={!!rescheduleId}
+        onClose={() => setRescheduleId(null)}
+        bookingId={rescheduleId}
+        onRescheduled={(newStart) => {
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id === rescheduleId ? { ...s, date: newStart, wasRescheduled: true, originalDate: s.originalDate ?? s.date } : s
+            )
+          );
+          setRules((prev) => ({
+            ...prev,
+            reschedulesUsedThisWeek: prev.reschedulesUsedThisWeek + 1,
+            reschedulesRemaining: Math.max(0, prev.reschedulesRemaining - 1),
+          }));
+          setRescheduleId(null);
+        }}
       />
     </div>
   );

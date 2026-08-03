@@ -6,12 +6,18 @@ import { getMyClientProfile, getMyCurrentCoachId } from "@/lib/services/clients.
 import { getCoach } from "@/lib/services/coaches.service";
 import { getOpenSlots } from "@/lib/services/scheduling.service";
 import { getSubscriptionsForClient } from "@/lib/services/subscriptions.service";
+import { getAllSettings } from "@/lib/services/settings.service";
 import {
   cancelBooking,
+  countReschedulesThisWeek,
   createBooking,
+  endOfWeekUTC,
+  getBooking,
   listMyBookingsAsClient,
   listMyWorkoutNotes,
+  MAX_RESCHEDULES_PER_WEEK,
   rateBooking,
+  rescheduleBooking,
 } from "@/lib/services/bookings.service";
 
 export interface CoachView {
@@ -32,6 +38,8 @@ export interface SessionView {
   rating: number | null;
   feedback: string | null;
   coachNotes: string | null;
+  wasRescheduled: boolean;
+  originalDate: string | null;
 }
 
 const FALLBACK_PHOTO = (seed: string) => `https://i.pravatar.cc/300?u=${seed}`;
@@ -66,6 +74,8 @@ function toSessionView(row: any, notesByBooking: Map<string, string>): SessionVi
     rating: row.rating ?? null,
     feedback: row.client_feedback ?? null,
     coachNotes: notesByBooking.get(row.id) ?? null,
+    wasRescheduled: row.was_rescheduled ?? false,
+    originalDate: row.original_scheduled_start ?? null,
   };
 }
 
@@ -237,5 +247,94 @@ export async function confirmBookingAction(input: {
     });
 
     return { bookingId };
+  });
+}
+
+export interface RescheduleOptions {
+  coach: CoachView;
+  durationMinutes: number;
+  slots: { start: string; end: string }[];
+  reschedulesUsedThisWeek: number;
+  reschedulesRemaining: number;
+}
+
+export async function getRescheduleOptionsAction(bookingId: string): Promise<ActionResult<RescheduleOptions>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const client = await getMyClientProfile(token);
+    const booking: any = await getBooking(token, bookingId);
+    if (booking.client?.id !== client.id) throw new Error("Not your session");
+    if (booking.status !== "upcoming") throw new Error("Only upcoming sessions can be rescheduled");
+
+    const settings = await getAllSettings(token);
+    const cutoffHours = Number(settings.find((s) => s.key === "reschedule_cutoff_hours")?.value ?? 1);
+    const hoursUntil = (new Date(booking.scheduled_start).getTime() - Date.now()) / 3600000;
+    if (hoursUntil < cutoffHours) {
+      throw new Error(`Too close to the session start to reschedule (cutoff is ${cutoffHours} hour${cutoffHours === 1 ? "" : "s"}).`);
+    }
+
+    const usedThisWeek = await countReschedulesThisWeek(token, client.id);
+    const remaining = Math.max(0, MAX_RESCHEDULES_PER_WEEK - usedThisWeek);
+    if (remaining <= 0) {
+      throw new Error("You have already used your maximum reschedule limit for this week.");
+    }
+
+    const coach = toCoachView(booking.coach);
+    if (!coach) throw new Error("Coach not found");
+
+    const now = new Date();
+    const weekEnd = endOfWeekUTC(now);
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const rawSlots = await getOpenSlots(token, coach.id, fmt(now), fmt(weekEnd), booking.duration_minutes);
+    const nowMs = now.getTime();
+    const weekEndMs = weekEnd.getTime();
+    const slots = rawSlots.filter((s) => {
+      const startMs = new Date(s.start).getTime();
+      return startMs > nowMs && startMs < weekEndMs;
+    });
+
+    return {
+      coach,
+      durationMinutes: booking.duration_minutes,
+      slots,
+      reschedulesUsedThisWeek: usedThisWeek,
+      reschedulesRemaining: remaining,
+    };
+  });
+}
+
+export async function rescheduleSessionAction(bookingId: string, newStart: string): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    await rescheduleBooking(token, bookingId, newStart);
+    return null;
+  });
+}
+
+export interface SchedulingRules {
+  cancellationCutoffHours: number;
+  rescheduleCutoffHours: number;
+  reschedulesUsedThisWeek: number;
+  reschedulesRemaining: number;
+}
+
+/** Backs the "Cancellable until.../Reschedulable until..." and "X of 2 used
+ * this week" display on My Sessions (Cancellation Policy PRD §6) -- a
+ * lightweight companion to getClientSessionsAction() rather than folded into
+ * it, so the sessions list's return shape doesn't change for existing callers. */
+export async function getSchedulingRulesAction(): Promise<ActionResult<SchedulingRules>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const client = await getMyClientProfile(token);
+    const settings = await getAllSettings(token);
+    const cancellationCutoffHours = Number(settings.find((s) => s.key === "cancellation_cutoff_hours")?.value ?? 12);
+    const rescheduleCutoffHours = Number(settings.find((s) => s.key === "reschedule_cutoff_hours")?.value ?? 1);
+    const reschedulesUsedThisWeek = await countReschedulesThisWeek(token, client.id);
+    return {
+      cancellationCutoffHours,
+      rescheduleCutoffHours,
+      reschedulesUsedThisWeek,
+      reschedulesRemaining: Math.max(0, MAX_RESCHEDULES_PER_WEEK - reschedulesUsedThisWeek),
+    };
   });
 }
