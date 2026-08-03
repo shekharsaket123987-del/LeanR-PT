@@ -24,6 +24,7 @@ import {
   X,
   LogOut,
   ChevronDown,
+  AlertTriangle,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import Badge from "../ui/Badge";
@@ -38,6 +39,7 @@ const NAV: Record<Role, { label: string; href: string; icon: any }[]> = {
     { label: "My Schedule", href: "/client/schedule", icon: Clock },
     { label: "My Coach", href: "/client/coach", icon: UserRound },
     { label: "Progress", href: "/client/progress", icon: TrendingUp },
+    { label: "My Concerns", href: "/client/concerns", icon: AlertTriangle },
     { label: "Notifications", href: "/client/notifications", icon: Bell },
     { label: "Profile", href: "/client/profile", icon: User },
   ],
@@ -54,6 +56,7 @@ const NAV: Record<Role, { label: string; href: string; icon: any }[]> = {
     { label: "Coaches", href: "/admin/coaches", icon: UserCog },
     { label: "Sessions", href: "/admin/sessions", icon: CalendarDays },
     { label: "Coach Change Requests", href: "/admin/coach-change-requests", icon: RefreshCw },
+    { label: "Leave Requests", href: "/admin/leave-requests", icon: Clock },
     { label: "Reports", href: "/admin/reports", icon: FileText },
     { label: "Settings", href: "/admin/settings", icon: Settings },
   ],

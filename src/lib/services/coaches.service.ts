@@ -137,6 +137,19 @@ export async function createCoach(
   return coachRow.id as string;
 }
 
+/** Admin "Disable Coach" control. coach_profiles.status also drives
+ * coach_status-dependent UI elsewhere (badge color, etc.) — no separate
+ * "deleted" state exists, since a hard delete would orphan booking/audit
+ * history via FK; the client-detail "Delete Coach" button is relabeled to
+ * call this same function instead. */
+export async function updateCoachStatus(accessToken: string, coachId: string, status: "active" | "inactive" | "on-leave") {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+  const { data, error } = await ctx.client.from("coach_profiles").update({ status }).eq("id", coachId).select().single();
+  if (error) throw error;
+  return data;
+}
+
 export async function updateMyCoachProfile(
   accessToken: string,
   patch: Partial<{

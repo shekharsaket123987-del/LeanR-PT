@@ -1,8 +1,10 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { holdSlot, confirmHold } from "./scheduling.service";
+import { logTimelineEvent } from "./timeline.service";
 
-const BOOKING_SELECT = "*, client:client_profiles(id, profile:profiles(full_name, photo_url)), coach:coach_profiles(id, profile:profiles(full_name, photo_url))";
+const BOOKING_SELECT =
+  "*, client:client_profiles(id, profile:profiles(full_name, photo_url)), coach:coach_profiles(id, employee_code, profile:profiles(full_name, photo_url))";
 
 export async function listMyBookingsAsClient(accessToken: string, status?: string) {
   const ctx = await getCallerContext(accessToken);
@@ -30,9 +32,52 @@ export async function listMyBookingsAsCoach(accessToken: string, status?: string
   return data;
 }
 
+/** Admin/coach view of one client's full booking history (not scoped to the
+ * caller's own bookings, unlike listMyBookingsAsClient/AsCoach). */
+export async function listBookingsForClient(accessToken: string, clientId: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin", "coach"]);
+  const { data, error } = await ctx.client
+    .from("bookings")
+    .select(BOOKING_SELECT)
+    .eq("client_id", clientId)
+    .order("scheduled_start", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+/** Platform-wide booking list for the admin sessions master view — unlike
+ * listMyBookingsAsClient/AsCoach, not scoped to the caller. */
+export async function listAllBookings(accessToken: string, filters?: { coachId?: string; status?: string }) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+  let query = ctx.client.from("bookings").select(BOOKING_SELECT).order("scheduled_start", { ascending: false });
+  if (filters?.coachId) query = query.eq("coach_id", filters.coachId);
+  if (filters?.status) query = query.eq("status", filters.status);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+}
+
 export async function getBooking(accessToken: string, bookingId: string) {
   const ctx = await getCallerContext(accessToken);
   const { data, error } = await ctx.client.from("bookings").select(BOOKING_SELECT).eq("id", bookingId).single();
+  if (error) throw error;
+  return data;
+}
+
+/** Session-detail lookups -- one row each, admin/coach/linked-client visible
+ * per the existing attendance/workout_notes RLS policies. */
+export async function getAttendanceForBooking(accessToken: string, bookingId: string) {
+  const ctx = await getCallerContext(accessToken);
+  const { data, error } = await ctx.client.from("attendance").select("*").eq("booking_id", bookingId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function getWorkoutNoteForBooking(accessToken: string, bookingId: string) {
+  const ctx = await getCallerContext(accessToken);
+  const { data, error } = await ctx.client.from("workout_notes").select("*").eq("booking_id", bookingId).maybeSingle();
   if (error) throw error;
   return data;
 }
@@ -52,17 +97,27 @@ export async function createBooking(
   }
 ) {
   const tempId = await holdSlot(accessToken, input);
-  return confirmHold(accessToken, {
+  const bookingId = await confirmHold(accessToken, {
     tempBookingId: tempId,
     subscriptionId: input.subscriptionId,
     recurringSlotId: input.recurringSlotId,
     sessionType: input.sessionType,
   });
+
+  if (!input.recurringSlotId) {
+    await logTimelineEvent(input.clientId, "manual_session_added", "Session added", {
+      description: new Date(input.slotStart).toLocaleString(),
+      metadata: { bookingId, coachId: input.coachId },
+    });
+  }
+
+  return bookingId;
 }
 
 export async function cancelBooking(accessToken: string, bookingId: string, reason?: string) {
   const ctx = await getCallerContext(accessToken);
   const enforceCutoff = ctx.role !== "admin";
+  const booking = await getBooking(accessToken, bookingId);
   const { error } = await ctx.client.rpc("cancel_booking", {
     p_booking_id: bookingId,
     p_cancelled_by: ctx.userId,
@@ -70,11 +125,18 @@ export async function cancelBooking(accessToken: string, bookingId: string, reas
     p_enforce_cutoff: enforceCutoff,
   });
   if (error) throw error;
+
+  await logTimelineEvent((booking as any).client_id, "session_cancelled", "Session cancelled", {
+    description: reason,
+    actorId: ctx.userId,
+    metadata: { bookingId },
+  });
 }
 
 export async function rescheduleBooking(accessToken: string, bookingId: string, newStart: string, newDurationMinutes?: number) {
   const ctx = await getCallerContext(accessToken);
   const enforceCutoff = ctx.role !== "admin";
+  const booking = await getBooking(accessToken, bookingId);
   const { error } = await ctx.client.rpc("reschedule_booking", {
     p_booking_id: bookingId,
     p_new_start: newStart,
@@ -82,6 +144,12 @@ export async function rescheduleBooking(accessToken: string, bookingId: string, 
     p_enforce_cutoff: enforceCutoff,
   });
   if (error) throw error;
+
+  await logTimelineEvent((booking as any).client_id, "session_rescheduled", "Session rescheduled", {
+    description: `${new Date((booking as any).scheduled_start).toLocaleString()} → ${new Date(newStart).toLocaleString()}`,
+    actorId: ctx.userId,
+    metadata: { bookingId },
+  });
 }
 
 /** Client rates a completed session (the prototype's "Rate Session" flow). */
@@ -123,16 +191,25 @@ export async function completeBooking(accessToken: string, bookingId: string, in
       homework: input.homework ?? null,
     });
     if (notesError) throw notesError;
+
+    await logTimelineEvent(booking.client_id, "coach_notes_uploaded", "Coach notes added", { actorId: ctx.userId, metadata: { bookingId } });
   }
 
+  const now = new Date().toISOString();
   const { error: attendanceError } = await ctx.client.from("attendance").insert({
     booking_id: booking.id,
     status: "present",
     checked_in_at: booking.scheduled_start,
-    checked_out_at: new Date().toISOString(),
+    checked_out_at: now,
     marked_by: ctx.userId,
+    client_joined_at: booking.scheduled_start,
+    client_left_at: now,
+    coach_joined_at: booking.scheduled_start,
+    coach_left_at: now,
   });
   if (attendanceError) throw attendanceError;
+
+  await logTimelineEvent(booking.client_id, "session_completed", "Session completed", { actorId: ctx.userId, metadata: { bookingId } });
 
   return booking;
 }

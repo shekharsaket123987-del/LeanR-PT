@@ -1,5 +1,6 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
+import { logTimelineEvent } from "./timeline.service";
 
 export interface OpenSlot {
   start: string; // ISO
@@ -24,7 +25,7 @@ export async function getBookingWindow(accessToken: string): Promise<{ startHour
   };
 }
 
-function hourlyGrid(startHour: number, endHour: number): string[] {
+export function hourlyGrid(startHour: number, endHour: number): string[] {
   const slots: string[] = [];
   for (let h = startHour; h < endHour; h++) slots.push(`${String(h).padStart(2, "0")}:00`);
   return slots;
@@ -259,7 +260,7 @@ export interface CoachMatchResult {
  * landing on the first one found. */
 export async function findAvailableCoach(
   accessToken: string,
-  input: { pattern: PatternKey; preferredTime: string; customDays?: number[]; durationMinutes?: number }
+  input: { pattern: PatternKey; preferredTime: string; customDays?: number[]; durationMinutes?: number; excludeCoachId?: string }
 ): Promise<CoachMatchResult | null> {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["client"]);
@@ -275,7 +276,9 @@ export async function findAvailableCoach(
     days = [...DAY_GROUPS[input.pattern]];
   }
 
-  const { data: coaches, error: coachesError } = await ctx.client.from("coach_profiles").select("id").eq("status", "active");
+  let coachQuery = ctx.client.from("coach_profiles").select("id").eq("status", "active");
+  if (input.excludeCoachId) coachQuery = coachQuery.neq("id", input.excludeCoachId);
+  const { data: coaches, error: coachesError } = await coachQuery;
   if (coachesError) throw coachesError;
   if (!coaches || coaches.length === 0) return null;
 
@@ -366,6 +369,163 @@ export async function matchRecurringPattern(
   return null;
 }
 
+export interface ShadowCoachCandidate {
+  coachId: string;
+  name: string;
+  specialization: string | null;
+  utilizationPct: number;
+}
+
+/** Finds coaches who can stand in for a client's PRIMARY coach across every
+ * occurrence of the client's existing recurring pattern within [startsOn,
+ * endsOn]. Unlike findAvailableCoach() (which searches a fresh pattern and
+ * deliberately skips leave, per its own doc comment), this checks an
+ * EXISTING pattern and must exclude leave — the whole point is standing in
+ * while the primary coach is unavailable. Reuses the same DB functions the
+ * real booking flow depends on (is_slot_within_working_hours already checks
+ * coach_leave + coach_shifts + coach_availability in one call;
+ * has_scheduling_conflict checks real bookings/holds) rather than
+ * re-implementing that logic here. Ranked by utilization ascending, same
+ * tie-break as findAvailableCoach. */
+export async function findShadowCoachCandidates(
+  accessToken: string,
+  input: { clientId: string; primaryCoachId: string; startsOn: string; endsOn: string }
+): Promise<ShadowCoachCandidate[]> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+
+  const { data: slots, error: slotsError } = await ctx.client
+    .from("recurring_slots")
+    .select("day_of_week, start_time, duration_minutes")
+    .eq("client_id", input.clientId)
+    .eq("coach_id", input.primaryCoachId)
+    .eq("status", "active");
+  if (slotsError) throw slotsError;
+  if (!slots || slots.length === 0) return [];
+
+  const start = new Date(`${input.startsOn}T00:00:00Z`);
+  const end = new Date(`${input.endsOn}T00:00:00Z`);
+  if (end < start) throw new Error("End date must be on or after start date");
+
+  const occurrences: { slotStart: string; durationMinutes: number }[] = [];
+  for (const slot of slots) {
+    const [h, m] = slot.start_time.split(":").map(Number);
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      if (cursor.getUTCDay() === slot.day_of_week) {
+        const slotStart = new Date(cursor);
+        slotStart.setUTCHours(h, m, 0, 0);
+        occurrences.push({ slotStart: slotStart.toISOString(), durationMinutes: slot.duration_minutes });
+      }
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+  }
+  if (occurrences.length === 0) return [];
+
+  const { data: coaches, error: coachesError } = await ctx.client
+    .from("coach_profiles")
+    .select("id, specialization, profile:profiles(full_name)")
+    .eq("status", "active")
+    .neq("id", input.primaryCoachId);
+  if (coachesError) throw coachesError;
+  if (!coaches || coaches.length === 0) return [];
+
+  const { data: util, error: utilError } = await ctx.client
+    .from("coach_utilization_view")
+    .select("coach_id, utilization_pct")
+    .in(
+      "coach_id",
+      coaches.map((c: any) => c.id)
+    );
+  if (utilError) throw utilError;
+  const utilByCoach = new Map((util ?? []).map((u) => [u.coach_id, u.utilization_pct]));
+
+  const candidates: ShadowCoachCandidate[] = [];
+  for (const coach of coaches as any[]) {
+    let free = true;
+    for (const occ of occurrences) {
+      const [{ data: withinHours, error: hoursError }, { data: hasConflict, error: conflictError }] = await Promise.all([
+        ctx.client.rpc("is_slot_within_working_hours", {
+          p_coach_id: coach.id,
+          p_slot_start: occ.slotStart,
+          p_duration_minutes: occ.durationMinutes,
+        }),
+        ctx.client.rpc("has_scheduling_conflict", {
+          p_coach_id: coach.id,
+          p_slot_start: occ.slotStart,
+          p_duration_minutes: occ.durationMinutes,
+        }),
+      ]);
+      if (hoursError) throw hoursError;
+      if (conflictError) throw conflictError;
+      if (!withinHours || hasConflict) {
+        free = false;
+        break;
+      }
+    }
+    if (free) {
+      candidates.push({
+        coachId: coach.id,
+        name: coach.profile?.full_name ?? "Coach",
+        specialization: coach.specialization ?? null,
+        utilizationPct: utilByCoach.get(coach.id) ?? 0,
+      });
+    }
+  }
+
+  return candidates.sort((a, b) => a.utilizationPct - b.utilizationPct);
+}
+
+/** Client-initiated "change my schedule, same coach" -- unlike
+ * createRecurringSlots() (which only ADDS slots, used for first-time setup),
+ * this replaces the client's current active pattern: deactivates the old
+ * recurring_slots rows, cancels their still-upcoming generated bookings
+ * (freeing the coach's calendar), then matches + creates the new pattern
+ * with the same coach. No reschedule-cutoff applies here since this is the
+ * client's own choice, not an admin/coach action on an existing booking. */
+export async function changeMyRecurringSchedule(
+  accessToken: string,
+  input: { pattern: PatternKey; preferredTime: string; customDays?: number[]; durationMinutes?: number }
+): Promise<PatternMatchResult | null> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["client"]);
+
+  const { data: client, error: clientError } = await ctx.client.from("client_profiles").select("id").eq("profile_id", ctx.userId).single();
+  if (clientError || !client) throw clientError ?? new Error("Client profile not found");
+
+  const { data: activeSlots, error: slotsError } = await ctx.client
+    .from("recurring_slots")
+    .select("id, coach_id")
+    .eq("client_id", client.id)
+    .eq("status", "active");
+  if (slotsError) throw slotsError;
+  if (!activeSlots || activeSlots.length === 0) throw new Error("No active recurring schedule to change -- set one up first.");
+  const coachId = activeSlots[0].coach_id;
+
+  const match = await matchRecurringPattern(accessToken, { coachId, pattern: input.pattern, preferredTime: input.preferredTime, customDays: input.customDays, durationMinutes: input.durationMinutes });
+  if (!match) return null;
+
+  const slotIds = activeSlots.map((s) => s.id);
+  const { error: deactivateError } = await ctx.client.from("recurring_slots").update({ status: "cancelled" }).in("id", slotIds);
+  if (deactivateError) throw deactivateError;
+
+  const { error: cancelBookingsError } = await ctx.client
+    .from("bookings")
+    .update({ status: "cancelled", cancel_reason: "Client changed their recurring schedule" })
+    .in("recurring_slot_id", slotIds)
+    .eq("status", "upcoming");
+  if (cancelBookingsError) throw cancelBookingsError;
+
+  await createRecurringSlots(accessToken, { coachId, days: match.days, timeOfDay: match.timeOfDay, durationMinutes: input.durationMinutes });
+
+  await logTimelineEvent(client.id, "session_rescheduled", "Recurring schedule changed", {
+    description: `${match.days.join(",")} at ${match.timeOfDay}`,
+    actorId: ctx.userId,
+  });
+
+  return match;
+}
+
 /** Creates one recurring_slots row per day in the matched pattern, and
  * generates the first few upcoming occurrences of each via the existing
  * (previously orphaned) generate_bookings_from_recurring_slot DB function. */
@@ -377,6 +537,9 @@ export async function createRecurringSlots(
   requireRole(ctx, ["client"]);
   const { data: client, error: clientError } = await ctx.client.from("client_profiles").select("id").eq("profile_id", ctx.userId).single();
   if (clientError || !client) throw clientError ?? new Error("Client profile not found");
+
+  const { data: priorSlot } = await ctx.client.from("recurring_slots").select("id").eq("client_id", client.id).eq("status", "active").limit(1).maybeSingle();
+  const isFirstCoach = !priorSlot;
 
   const durationMinutes = input.durationMinutes ?? 60;
   const createdIds: string[] = [];
@@ -403,5 +566,16 @@ export async function createRecurringSlots(
     });
     if (genError) throw genError;
   }
+
+  if (isFirstCoach) {
+    await logTimelineEvent(client.id, "coach_assigned", "Coach assigned", { actorId: ctx.userId, metadata: { coachId: input.coachId } });
+  }
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  await logTimelineEvent(client.id, "slot_assigned", "Recurring schedule set", {
+    description: `${input.days.map((d) => dayNames[d]).join("/")} at ${input.timeOfDay}`,
+    actorId: ctx.userId,
+    metadata: { coachId: input.coachId, days: input.days, timeOfDay: input.timeOfDay },
+  });
+
   return createdIds;
 }

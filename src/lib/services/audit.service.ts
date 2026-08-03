@@ -1,5 +1,6 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
+import { logTimelineEvent } from "./timeline.service";
 
 export async function listAuditLogs(accessToken: string, filter?: { entityType?: string; entityId?: string }) {
   const ctx = await getCallerContext(accessToken);
@@ -10,6 +11,17 @@ export async function listAuditLogs(accessToken: string, filter?: { entityType?:
   const { data, error } = await query;
   if (error) throw error;
   return data;
+}
+
+/** No payment gateway exists in this codebase (deliberate Phase 1 boundary,
+ * see docs/business-rules.md) — this logs a refund request for ops
+ * follow-up rather than moving any money. Backs the admin client-detail
+ * "Log Refund Request" control. */
+export async function logRefundRequest(accessToken: string, clientId: string, amountRupees: number, reason: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+  await writeAuditLog(ctx.userId, "refund_requested", "client_profiles", clientId, { amountRupees, reason });
+  await logTimelineEvent(clientId, "refund_requested", `Refund requested: ₹${amountRupees}`, { description: reason, actorId: ctx.userId });
 }
 
 /** Most auditing happens automatically via the fn_audit_trigger() DB trigger

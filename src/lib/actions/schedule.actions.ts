@@ -9,6 +9,7 @@ import { notifyAdmins } from "@/lib/services/notifications.service";
 import {
   PatternKey,
   PatternMatchResult,
+  changeMyRecurringSchedule,
   createRecurringSlots,
   findAvailableCoach,
   getBookingWindow,
@@ -97,6 +98,17 @@ export async function confirmScheduleAction(input: { days: number[]; timeOfDay: 
     if (!coachId) throw new Error("No coach is assigned to your account yet — contact support to get started.");
     const createdSlotIds = await createRecurringSlots(token, { coachId, days: input.days, timeOfDay: input.timeOfDay });
     return { createdSlotIds };
+  });
+}
+
+/** Client already has a coach + active pattern and wants a different
+ * day/time with the SAME coach -- unlike confirmScheduleAction (first-time
+ * setup, only adds slots), this replaces the existing pattern. */
+export async function changeScheduleAction(input: { days: number[]; timeOfDay: string; pattern?: PatternKey }): Promise<ActionResult<PatternMatchResult | null>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const pattern: PatternKey = input.pattern ?? "custom";
+    return changeMyRecurringSchedule(token, { pattern, preferredTime: input.timeOfDay, customDays: input.days });
   });
 }
 

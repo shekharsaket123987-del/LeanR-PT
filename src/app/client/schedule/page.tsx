@@ -1,12 +1,10 @@
 import { AlertTriangle } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
-import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import ScheduleSetupClient from "@/components/client/ScheduleSetupClient";
+import ChangeScheduleClient from "@/components/client/ChangeScheduleClient";
 import { getScheduleSetupOptionsAction } from "@/lib/actions/schedule.actions";
 import { isFailure } from "@/lib/actions/action-result";
-
-const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export default async function SchedulePage() {
   const result = await getScheduleSetupOptionsAction();
@@ -27,17 +25,7 @@ export default async function SchedulePage() {
       <PageHeader title="Set Your Recurring Schedule" description="Reserve a permanent weekly training pattern with your coach." />
 
       {data.existingSchedule ? (
-        <Card className="p-6">
-          <p className="text-sm font-bold">You already have an active recurring schedule</p>
-          <ul className="mt-3 space-y-1 text-sm text-black/60">
-            {data.existingSchedule.map((s, i) => (
-              <li key={i}>
-                {DAY_LABELS[s.dayOfWeek]} at {s.startTime.slice(0, 5)}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-4 text-xs text-black/40">Contact support to change your recurring schedule.</p>
-        </Card>
+        <ChangeScheduleClient existingSchedule={data.existingSchedule} />
       ) : (
         <ScheduleSetupClient options={data} />
       )}
