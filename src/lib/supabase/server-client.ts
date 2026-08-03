@@ -37,3 +37,16 @@ export async function getAccessToken(): Promise<string | null> {
   } = await supabase.auth.getSession();
   return session?.access_token ?? null;
 }
+
+/** Same session lookup as getAccessToken, but also surfaces the signed-in
+ * user's id/email — needed by actions that display account info (email
+ * lives on auth.users, not on the profiles table `lib/services` queries
+ * operate against). */
+export async function getSessionUser(): Promise<{ token: string; id: string; email: string | null } | null> {
+  const supabase = await getServerSupabase();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) return null;
+  return { token: session.access_token, id: session.user.id, email: session.user.email ?? null };
+}

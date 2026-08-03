@@ -1,5 +1,32 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { logTimelineEvent } from "./timeline.service";
+import { createFromTemplate } from "./notifications.service";
+import { supabaseAdmin } from "@/lib/supabase/admin-client";
+
+/** Internal, role-agnostic lookup (bypasses the admin/coach-only
+ * getClientCurrentCoachId in clients.service.ts, which would reject a
+ * client-role caller) -- same prefer-active-slot, fall-back-to-latest-
+ * booking resolution, used only to address the progress-update notification
+ * below. */
+async function findCurrentCoachIdForNotification(clientId: string): Promise<string | null> {
+  const { data: activeSlot } = await supabaseAdmin
+    .from("recurring_slots")
+    .select("coach_id")
+    .eq("client_id", clientId)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+  if (activeSlot?.coach_id) return activeSlot.coach_id;
+
+  const { data: latestBooking } = await supabaseAdmin
+    .from("bookings")
+    .select("coach_id")
+    .eq("client_id", clientId)
+    .order("scheduled_start", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return latestBooking?.coach_id ?? null;
+}
 
 export interface ProgressLogInput {
   weight?: number;
@@ -63,6 +90,24 @@ export async function createProgressLog(accessToken: string, clientId: string, i
     actorId: ctx.userId,
     metadata: { progressLogId: data.id },
   });
+
+  // Only a genuine client-initiated update notifies the coach -- an admin
+  // backfill/correction on the client's behalf isn't "the client updated
+  // their progress" per PRD §1's notification list.
+  if (ctx.role === "client") {
+    const coachId = await findCurrentCoachIdForNotification(targetClientId);
+    if (coachId) {
+      const [{ data: coach }, { data: client }] = await Promise.all([
+        supabaseAdmin.from("coach_profiles").select("profile_id").eq("id", coachId).maybeSingle(),
+        supabaseAdmin.from("client_profiles").select("profile:profiles(full_name)").eq("id", targetClientId).maybeSingle(),
+      ]);
+      if (coach) {
+        await createFromTemplate("client_progress_updated", coach.profile_id, {
+          client_name: (client as any)?.profile?.full_name ?? "Client",
+        });
+      }
+    }
+  }
 
   return data;
 }

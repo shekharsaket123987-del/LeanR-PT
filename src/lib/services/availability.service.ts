@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { listActiveClientIdsForCoach } from "./clients.service";
 import { findShadowCoachCandidates } from "./scheduling.service";
 import { assignShadowCoach } from "./coachChange.service";
-import { notifyAdmins } from "./notifications.service";
+import { createFromTemplate, notifyAdmins } from "./notifications.service";
 
 export async function getCoachAvailability(accessToken: string, coachId: string) {
   const ctx = await getCallerContext(accessToken);
@@ -31,7 +31,7 @@ export async function getMyLeaveRequests(accessToken: string) {
   if (coachError || !coach) throw coachError ?? new Error("Coach profile not found");
   const { data, error } = await ctx.client
     .from("coach_leave")
-    .select("id, starts_on, ends_on, reason, status")
+    .select("id, starts_on, ends_on, reason, status, created_at")
     .eq("coach_id", coach.id)
     .order("starts_on", { ascending: false });
   if (error) throw error;
@@ -137,6 +137,14 @@ export async function resolveLeave(accessToken: string, leaveId: string, status:
   requireRole(ctx, ["admin"]);
   const { data: leave, error } = await supabaseAdmin.from("coach_leave").update({ status }).eq("id", leaveId).select().single();
   if (error) throw error;
+
+  const { data: coach } = await supabaseAdmin.from("coach_profiles").select("profile_id").eq("id", leave.coach_id).maybeSingle();
+  if (coach) {
+    await createFromTemplate(status === "approved" ? "leave_approved" : "leave_rejected", coach.profile_id, {
+      starts_on: leave.starts_on,
+      ends_on: leave.ends_on,
+    });
+  }
 
   const summary: LeaveResolutionSummary = {
     leave: { id: leave.id, coachId: leave.coach_id, startsOn: leave.starts_on, endsOn: leave.ends_on, status: leave.status },

@@ -1,6 +1,7 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { logTimelineEvent } from "./timeline.service";
+import { createFromTemplate } from "./notifications.service";
 
 const ESCALATION_SELECT =
   "*, client:client_profiles(id, profile:profiles(full_name, photo_url)), coach:coach_profiles(id, profile:profiles(full_name))";
@@ -36,6 +37,17 @@ export async function createEscalation(
     actorId: raisedBy,
     metadata: { escalationId: data.id },
   });
+
+  if (input.coachId) {
+    const { data: coach } = await supabaseAdmin.from("coach_profiles").select("profile_id").eq("id", input.coachId).maybeSingle();
+    const { data: client } = await supabaseAdmin.from("client_profiles").select("profile:profiles(full_name)").eq("id", input.clientId).maybeSingle();
+    if (coach) {
+      await createFromTemplate("escalation_raised_to_coach", coach.profile_id, {
+        client_name: (client as any)?.profile?.full_name ?? "Client",
+        reason: input.reason,
+      });
+    }
+  }
 
   return data;
 }
@@ -84,6 +96,20 @@ export async function listEscalationsForClient(accessToken: string, clientId: st
     .from("escalations")
     .select(ESCALATION_SELECT)
     .eq("client_id", clientId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+/** Coach's read-only view of escalations linked to their clients — PRD
+ * "Client Escalations (Read Only)": no update/resolve capability is exposed
+ * here, matching escalations_select_by_coach RLS (select-only for coaches). */
+export async function listEscalationsForCoach(accessToken: string, coachId: string) {
+  const ctx = await getCallerContext(accessToken);
+  const { data, error } = await ctx.client
+    .from("escalations")
+    .select(ESCALATION_SELECT)
+    .eq("coach_id", coachId)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data;

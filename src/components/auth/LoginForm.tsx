@@ -87,9 +87,6 @@ export default function LoginForm({
         )}
         {loading && "Signing in..."}
       </Button>
-      <p className="mt-5 text-center text-xs text-white/30">
-        This is a design prototype — any email &amp; password will log you in.
-      </p>
     </form>
   );
 }

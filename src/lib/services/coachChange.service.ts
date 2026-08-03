@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { getMyCurrentCoachId, reassignClientCoach } from "./clients.service";
 import { logTimelineEvent } from "./timeline.service";
 import { findAvailableCoach, createRecurringSlots, PatternKey } from "./scheduling.service";
+import { createFromTemplate } from "./notifications.service";
 
 export async function requestCoachChange(
   accessToken: string,
@@ -196,5 +197,46 @@ export async function assignShadowCoach(
     metadata: { primaryCoachId: input.primaryCoachId, shadowCoachId: input.shadowCoachId, startsOn: input.startsOn, endsOn: input.endsOn },
   });
 
+  const [{ data: client }, { data: shadowCoach }, { data: primaryCoach }] = await Promise.all([
+    supabaseAdmin.from("client_profiles").select("profile_id, profile:profiles(full_name)").eq("id", input.clientId).maybeSingle(),
+    supabaseAdmin.from("coach_profiles").select("profile_id, profile:profiles(full_name)").eq("id", input.shadowCoachId).maybeSingle(),
+    supabaseAdmin.from("coach_profiles").select("profile:profiles(full_name)").eq("id", input.primaryCoachId).maybeSingle(),
+  ]);
+  const primaryCoachName = (primaryCoach as any)?.profile?.full_name ?? "your coach";
+  if (client) {
+    await createFromTemplate("shadow_coach_assigned", (client as any).profile_id, {
+      shadow_coach_name: (shadowCoach as any)?.profile?.full_name ?? "A coach",
+      primary_coach_name: primaryCoachName,
+      starts_on: input.startsOn,
+      ends_on: input.endsOn,
+    });
+  }
+  if (shadowCoach) {
+    await createFromTemplate("shadow_assignment_for_coach", (shadowCoach as any).profile_id, {
+      client_name: (client as any)?.profile?.full_name ?? "a client",
+      primary_coach_name: primaryCoachName,
+      starts_on: input.startsOn,
+      ends_on: input.endsOn,
+    });
+  }
+
   return data as string; // assignment id
+}
+
+/** Shadow assignments where the caller is the *shadow* coach — backs the
+ * coach's Activity Timeline ("Shadow Session Conducted"/assigned entries).
+ * RLS (shadow_select_participant) already scopes this to the caller. */
+export async function listMyShadowAssignments(accessToken: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["coach"]);
+  const { data: coach, error: coachError } = await ctx.client.from("coach_profiles").select("id").eq("profile_id", ctx.userId).single();
+  if (coachError || !coach) throw coachError ?? new Error("Coach profile not found");
+
+  const { data, error } = await ctx.client
+    .from("shadow_coach_assignments")
+    .select("id, client:client_profiles(id, profile:profiles(full_name)), primary_coach:coach_profiles!primary_coach_id(profile:profiles(full_name)), starts_on, ends_on, status, created_at")
+    .eq("shadow_coach_id", coach.id)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data;
 }

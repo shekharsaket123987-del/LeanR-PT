@@ -1,5 +1,7 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { logTimelineEvent } from "./timeline.service";
+import { createFromTemplate } from "./notifications.service";
+import { supabaseAdmin } from "@/lib/supabase/admin-client";
 
 /** Admin roster view — merges each client's active subscription (package
  * name + session counts) and active recurring coach, same "fetch once,
@@ -78,7 +80,10 @@ export async function updateMyClientProfile(
 
 /** All clients linked to the signed-in coach via a booking or recurring
  * slot — RLS (coach_client_linked) already scopes this, so no explicit join
- * is needed here. */
+ * is needed here. Also merges each client's recurring-slot schedule (one row
+ * per day_of_week under this coach, same "fetch once, merge in JS" pattern
+ * as the subscription merge below) — backs the Coach Portal PRD's "My
+ * Clients" columns (Assigned Day(s), Assigned Time Slot). */
 export async function listMyClients(accessToken: string) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["coach"]);
@@ -87,15 +92,35 @@ export async function listMyClients(accessToken: string) {
 
   const clientIds = (data ?? []).map((c) => c.id);
   if (clientIds.length === 0) return [];
-  const { data: subs, error: subsError } = await ctx.client
-    .from("subscriptions")
-    .select("client_id, status, package:package_tiers(name)")
-    .in("client_id", clientIds)
-    .eq("status", "active");
+  const [{ data: subs, error: subsError }, { data: slots, error: slotsError }] = await Promise.all([
+    ctx.client
+      .from("subscriptions")
+      .select("client_id, status, package:package_tiers(name)")
+      .in("client_id", clientIds)
+      .eq("status", "active"),
+    ctx.client
+      .from("recurring_slots")
+      .select("client_id, day_of_week, start_time")
+      .in("client_id", clientIds)
+      .eq("status", "active"),
+  ]);
   if (subsError) throw subsError;
+  if (slotsError) throw slotsError;
   const subByClient = new Map((subs ?? []).map((s) => [s.client_id, s]));
 
-  return (data ?? []).map((c) => ({ ...c, activeSubscription: subByClient.get(c.id) ?? null }));
+  const scheduleByClient = new Map<string, { days: number[]; startTime: string | null }>();
+  for (const s of slots ?? []) {
+    const existing = scheduleByClient.get(s.client_id) ?? { days: [], startTime: null };
+    existing.days.push(s.day_of_week);
+    existing.startTime = existing.startTime ?? s.start_time;
+    scheduleByClient.set(s.client_id, existing);
+  }
+
+  return (data ?? []).map((c) => ({
+    ...c,
+    activeSubscription: subByClient.get(c.id) ?? null,
+    schedule: scheduleByClient.get(c.id) ?? { days: [], startTime: null },
+  }));
 }
 
 export async function getMyClientProfile(accessToken: string) {
@@ -149,6 +174,15 @@ export async function reassignClientCoach(accessToken: string, clientId: string,
   if (bookingsError) throw bookingsError;
 
   await logTimelineEvent(clientId, "coach_changed", "Coach changed", { actorId: ctx.userId, metadata: { fromCoachId, toCoachId } });
+
+  const [{ data: client }, { data: fromCoach }, { data: toCoach }] = await Promise.all([
+    supabaseAdmin.from("client_profiles").select("profile:profiles(full_name)").eq("id", clientId).maybeSingle(),
+    supabaseAdmin.from("coach_profiles").select("profile_id").eq("id", fromCoachId).maybeSingle(),
+    supabaseAdmin.from("coach_profiles").select("profile_id").eq("id", toCoachId).maybeSingle(),
+  ]);
+  const clientName = (client as any)?.profile?.full_name ?? "Client";
+  if (fromCoach) await createFromTemplate("client_transferred", fromCoach.profile_id, { client_name: clientName });
+  if (toCoach) await createFromTemplate("new_client_assigned", toCoach.profile_id, { client_name: clientName });
 }
 
 /** Admin/coach-facing equivalent of getMyCurrentCoachId, parameterized by

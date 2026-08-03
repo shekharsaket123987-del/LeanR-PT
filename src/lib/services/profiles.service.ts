@@ -9,7 +9,7 @@ export async function getMyProfile(accessToken: string) {
 
 export async function updateMyProfile(
   accessToken: string,
-  patch: Partial<{ full_name: string; phone: string; photo_url: string }>
+  patch: Partial<{ full_name: string; phone: string; photo_url: string; emergency_contact: string }>
 ) {
   const ctx = await getCallerContext(accessToken);
   const { data, error } = await ctx.client

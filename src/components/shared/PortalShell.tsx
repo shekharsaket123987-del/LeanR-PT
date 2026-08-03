@@ -47,7 +47,10 @@ const NAV: Record<Role, { label: string; href: string; icon: any }[]> = {
     { label: "Dashboard", href: "/coach/dashboard", icon: LayoutDashboard },
     { label: "Schedule", href: "/coach/schedule", icon: CalendarDays },
     { label: "Clients", href: "/coach/clients", icon: Users },
+    { label: "Escalations", href: "/coach/escalations", icon: AlertTriangle },
+    { label: "Performance", href: "/coach/performance", icon: BarChart3 },
     { label: "Availability", href: "/coach/availability", icon: Clock },
+    { label: "Notifications", href: "/coach/notifications", icon: Bell },
     { label: "Profile", href: "/coach/profile", icon: User },
   ],
   admin: [

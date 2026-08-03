@@ -2,6 +2,7 @@ import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { holdSlot, confirmHold } from "./scheduling.service";
 import { logTimelineEvent } from "./timeline.service";
+import { createFromTemplate } from "./notifications.service";
 
 const BOOKING_SELECT =
   "*, client:client_profiles(id, profile:profiles(full_name, photo_url)), coach:coach_profiles(id, employee_code, profile:profiles(full_name, photo_url))";
@@ -150,6 +151,24 @@ export async function rescheduleBooking(accessToken: string, bookingId: string, 
     actorId: ctx.userId,
     metadata: { bookingId },
   });
+
+  // Only notify the coach when Admin is the one moving the session -- a
+  // client rescheduling their own booking doesn't need a "schedule changed
+  // by Admin" alert about their own action.
+  if (ctx.role === "admin") {
+    const { data: coach } = await supabaseAdmin
+      .from("coach_profiles")
+      .select("profile_id")
+      .eq("id", (booking as any).coach_id)
+      .maybeSingle();
+    if (coach) {
+      const clientName = (booking as any).client?.profile?.full_name ?? "Client";
+      await createFromTemplate("admin_changed_schedule", coach.profile_id, {
+        client_name: clientName,
+        session_time: new Date(newStart).toLocaleString(),
+      });
+    }
+  }
 }
 
 /** Client rates a completed session (the prototype's "Rate Session" flow). */
@@ -167,48 +186,110 @@ export async function rateBooking(accessToken: string, bookingId: string, rating
   return data;
 }
 
-/** Coach ends a live session: marks it completed and logs structured notes
- * (the prototype's "Mark Completed" action, which today doesn't persist). */
-export async function completeBooking(accessToken: string, bookingId: string, input: { notes?: string; homework?: string }) {
+/** Step 1 of the coach's session workflow (PRD §6): attendance must be
+ * marked before notes can be submitted. Present leaves the booking
+ * "upcoming" so submitSessionNotes() can still gate on it below; Absent
+ * closes the booking out immediately as a client no-show, no notes phase. */
+export async function markAttendance(
+  accessToken: string,
+  bookingId: string,
+  status: "present" | "absent",
+  remark?: string
+) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["coach"]);
 
   const { data: booking, error: bookingError } = await ctx.client
     .from("bookings")
-    .update({ status: "completed" })
+    .select("id, client_id, coach_id, scheduled_start")
     .eq("id", bookingId)
     .eq("status", "upcoming")
-    .select("id, client_id, coach_id, duration_minutes, scheduled_start")
     .single();
-  if (bookingError || !booking) throw bookingError ?? new Error("Booking not found");
-
-  if (input.notes || input.homework) {
-    const { error: notesError } = await ctx.client.from("workout_notes").insert({
-      booking_id: booking.id,
-      client_id: booking.client_id,
-      coach_id: booking.coach_id,
-      notes: input.notes ?? null,
-      homework: input.homework ?? null,
-    });
-    if (notesError) throw notesError;
-
-    await logTimelineEvent(booking.client_id, "coach_notes_uploaded", "Coach notes added", { actorId: ctx.userId, metadata: { bookingId } });
-  }
+  if (bookingError || !booking) throw bookingError ?? new Error("Booking not found, or not upcoming");
 
   const now = new Date().toISOString();
-  const { error: attendanceError } = await ctx.client.from("attendance").insert({
-    booking_id: booking.id,
-    status: "present",
-    checked_in_at: booking.scheduled_start,
-    checked_out_at: now,
-    marked_by: ctx.userId,
-    client_joined_at: booking.scheduled_start,
-    client_left_at: now,
-    coach_joined_at: booking.scheduled_start,
-    coach_left_at: now,
-  });
+  const { error: attendanceError } = await ctx.client.from("attendance").upsert(
+    {
+      booking_id: booking.id,
+      status,
+      checked_in_at: booking.scheduled_start,
+      checked_out_at: status === "present" ? null : now,
+      marked_by: ctx.userId,
+    },
+    { onConflict: "booking_id" }
+  );
   if (attendanceError) throw attendanceError;
 
+  if (status === "absent") {
+    const { error: updateError } = await ctx.client
+      .from("bookings")
+      .update({ status: "missed", no_show_party: "client" })
+      .eq("id", booking.id);
+    if (updateError) throw updateError;
+
+    await logTimelineEvent(booking.client_id, "session_missed", "Client absent", {
+      description: remark,
+      actorId: ctx.userId,
+      metadata: { bookingId },
+    });
+  }
+
+  return booking;
+}
+
+/** Step 2: only reachable once markAttendance() has recorded "present" for
+ * this booking (checked server-side, not just gated in the UI) — mandatory
+ * per PRD §7. Submitting closes the session out as completed. */
+export async function submitSessionNotes(
+  accessToken: string,
+  bookingId: string,
+  input: {
+    summary?: string;
+    exercisesPerformed?: string;
+    performance?: "excellent" | "good" | "average" | "needs_improvement";
+    improvements?: string[];
+    homework?: string;
+    additionalRemarks?: string;
+  }
+) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["coach"]);
+
+  const { data: booking, error: bookingError } = await ctx.client
+    .from("bookings")
+    .select("id, client_id, coach_id")
+    .eq("id", bookingId)
+    .eq("status", "upcoming")
+    .single();
+  if (bookingError || !booking) throw bookingError ?? new Error("Booking not found, or already completed");
+
+  const { data: attendance, error: attendanceError } = await ctx.client
+    .from("attendance")
+    .select("status")
+    .eq("booking_id", bookingId)
+    .maybeSingle();
+  if (attendanceError) throw attendanceError;
+  if (attendance?.status !== "present") {
+    throw new Error("Attendance must be marked Present before session notes can be submitted");
+  }
+
+  const { error: notesError } = await ctx.client.from("workout_notes").insert({
+    booking_id: booking.id,
+    client_id: booking.client_id,
+    coach_id: booking.coach_id,
+    notes: input.summary ?? null,
+    exercises_performed: input.exercisesPerformed ?? null,
+    performance_rating: input.performance ?? null,
+    improvements: input.improvements ?? [],
+    homework: input.homework ?? null,
+    additional_remarks: input.additionalRemarks ?? null,
+  });
+  if (notesError) throw notesError;
+
+  const { error: completeError } = await ctx.client.from("bookings").update({ status: "completed" }).eq("id", booking.id);
+  if (completeError) throw completeError;
+
+  await logTimelineEvent(booking.client_id, "coach_notes_uploaded", "Coach notes added", { actorId: ctx.userId, metadata: { bookingId } });
   await logTimelineEvent(booking.client_id, "session_completed", "Session completed", { actorId: ctx.userId, metadata: { bookingId } });
 
   return booking;

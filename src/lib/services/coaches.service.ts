@@ -149,26 +149,3 @@ export async function updateCoachStatus(accessToken: string, coachId: string, st
   if (error) throw error;
   return data;
 }
-
-export async function updateMyCoachProfile(
-  accessToken: string,
-  patch: Partial<{
-    specialization: string;
-    secondary_specializations: string[];
-    years_experience: number;
-    bio: string;
-    certifications: string[];
-    languages: string[];
-  }>
-) {
-  const ctx = await getCallerContext(accessToken);
-  requireRole(ctx, ["coach"]);
-  const { data, error } = await ctx.client
-    .from("coach_profiles")
-    .update(patch)
-    .eq("profile_id", ctx.userId)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
-}

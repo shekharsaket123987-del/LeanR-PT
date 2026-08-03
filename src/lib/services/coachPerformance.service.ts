@@ -1,4 +1,4 @@
-import { getCallerContext, requireRole } from "./_auth";
+import { CallerContext, getCallerContext, requireRole } from "./_auth";
 import { countEscalationsForCoach } from "./escalations.service";
 
 export interface CoachPerformance {
@@ -19,13 +19,10 @@ export interface CoachPerformance {
   averageRating: number;
 }
 
-/** Aggregates the admin coach-detail "Performance" panel. Read-only —
- * nothing here mutates data, it's purely for admin decision-making
- * (workload balancing, coaching-quality review, future assignments). */
-export async function getCoachPerformance(accessToken: string, coachId: string): Promise<CoachPerformance> {
-  const ctx = await getCallerContext(accessToken);
-  requireRole(ctx, ["admin"]);
-
+/** Shared by the admin-only getCoachPerformance() and the coach-facing
+ * getMyCoachPerformance() below -- identical computation, only who's allowed
+ * to call it (and whose coachId) differs. */
+async function computePerformance(ctx: CallerContext, coachId: string): Promise<CoachPerformance> {
   const now = new Date();
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
@@ -81,8 +78,8 @@ export async function getCoachPerformance(accessToken: string, coachId: string):
   const clientNoShowPct = totalOutcomes > 0 ? Math.round((outcomes.filter((o) => o.no_show_party === "client").length / totalOutcomes) * 100) : 0;
   const coachNoShowPct = totalOutcomes > 0 ? Math.round((outcomes.filter((o) => o.no_show_party === "coach").length / totalOutcomes) * 100) : 0;
 
-  // attendance rows only exist for completed bookings (completeBooking()
-  // inserts one) -- attendance % here is "of the sessions that were
+  // attendance rows only exist once markAttendance()/submitSessionNotes()
+  // have run for a booking -- attendance % here is "of the sessions that were
   // completed, how many have a 'present' attendance record" rather than a
   // theoretical join/no-join rate, since there's no real video-call
   // join/leave instrumentation in this codebase yet.
@@ -118,4 +115,23 @@ export async function getCoachPerformance(accessToken: string, coachId: string):
     coachChangeRequestsReceived: coachChangeRequestsReceived ?? 0,
     averageRating: Number(coach?.rating ?? 0),
   };
+}
+
+/** Aggregates the admin coach-detail "Performance" panel. Read-only —
+ * nothing here mutates data, it's purely for admin decision-making
+ * (workload balancing, coaching-quality review, future assignments). */
+export async function getCoachPerformance(accessToken: string, coachId: string): Promise<CoachPerformance> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+  return computePerformance(ctx, coachId);
+}
+
+/** Coach-facing "Coach Performance Dashboard" (PRD §10) — same metrics as
+ * the admin panel, scoped to the caller's own coach_profiles row. */
+export async function getMyCoachPerformance(accessToken: string): Promise<CoachPerformance> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["coach"]);
+  const { data: coach, error } = await ctx.client.from("coach_profiles").select("id").eq("profile_id", ctx.userId).single();
+  if (error || !coach) throw error ?? new Error("Coach profile not found");
+  return computePerformance(ctx, coach.id);
 }
