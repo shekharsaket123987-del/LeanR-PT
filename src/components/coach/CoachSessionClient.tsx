@@ -26,7 +26,7 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
   const [seconds, setSeconds] = useState(0);
 
   const [attendance, setAttendance] = useState(session.attendanceStatus);
-  const [markingAttendance, setMarkingAttendance] = useState(false);
+  const [markingAttendance, setMarkingAttendance] = useState<"present" | "absent" | null>(null);
   const [absentRemark, setAbsentRemark] = useState("");
   const [attendanceError, setAttendanceError] = useState("");
 
@@ -51,10 +51,10 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
   const secs = String(seconds % 60).padStart(2, "0");
 
   async function markPresent() {
-    setMarkingAttendance(true);
+    setMarkingAttendance("present");
     setAttendanceError("");
     const result = await markAttendanceAction(session.id, "present");
-    setMarkingAttendance(false);
+    setMarkingAttendance(null);
     if (isFailure(result)) {
       setAttendanceError(result.error.message);
       return;
@@ -63,10 +63,10 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
   }
 
   async function markAbsent() {
-    setMarkingAttendance(true);
+    setMarkingAttendance("absent");
     setAttendanceError("");
     const result = await markAttendanceAction(session.id, "absent", absentRemark || undefined);
-    setMarkingAttendance(false);
+    setMarkingAttendance(null);
     if (isFailure(result)) {
       setAttendanceError(result.error.message);
       return;
@@ -140,10 +140,10 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
               <p className="mb-1 text-sm font-bold">Attendance</p>
               <p className="mb-4 text-xs text-black/45">Mark attendance before you can start session notes. Marking Absent closes this session immediately.</p>
               <div className="flex flex-wrap gap-3">
-                <Button onClick={markPresent} loading={markingAttendance}>
+                <Button onClick={markPresent} loading={markingAttendance === "present"} disabled={markingAttendance === "absent"}>
                   <UserCheck className="h-4 w-4" /> Present
                 </Button>
-                <Button variant="destructive-outline" onClick={markAbsent} loading={markingAttendance}>
+                <Button variant="destructive-outline" onClick={markAbsent} loading={markingAttendance === "absent"} disabled={markingAttendance === "present"}>
                   <UserX className="h-4 w-4" /> Absent
                 </Button>
               </div>
@@ -280,7 +280,7 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
             </div>
             {session.type === "assessment" && (
               <div className="mt-3">
-                <AssessmentBadge />
+                <AssessmentBadge amountPaid={session.amountPaid} />
               </div>
             )}
 

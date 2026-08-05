@@ -163,6 +163,7 @@ export async function createBooking(
     subscriptionId?: string;
     recurringSlotId?: string;
     sessionType?: "regular" | "assessment";
+    amountPaid?: number;
   }
 ) {
   const tempId = await holdSlot(accessToken, input);
@@ -171,6 +172,7 @@ export async function createBooking(
     subscriptionId: input.subscriptionId,
     recurringSlotId: input.recurringSlotId,
     sessionType: input.sessionType,
+    amountPaid: input.amountPaid,
   });
 
   if (!input.recurringSlotId) {

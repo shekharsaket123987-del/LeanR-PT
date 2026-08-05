@@ -105,7 +105,7 @@ export default function AdminSessionsClient({ sessions, coaches }: { sessions: A
               <Link href={`/admin/sessions/${s.id}`} className="col-span-1 text-sm text-black/60 sm:col-span-2">
                 {formatDate(s.date)} · {formatTime(s.date)}
               </Link>
-              <div className="col-span-1">{s.type === "assessment" ? <AssessmentBadge /> : <Badge variant="gray">Regular</Badge>}</div>
+              <div className="col-span-1">{s.type === "assessment" ? <AssessmentBadge amountPaid={s.amountPaid} /> : <Badge variant="gray">Regular</Badge>}</div>
               <div className="col-span-1">
                 <SessionStatusBadge status={s.status} />
               </div>

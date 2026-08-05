@@ -98,7 +98,7 @@ export default function ProgressClient({ progress, history }: { progress: MyProg
           {history.map((s) => (
             <Card key={s.id} className="p-5">
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                {s.type === "assessment" && <AssessmentBadge />}
+                {s.type === "assessment" && <AssessmentBadge amountPaid={s.amountPaid} />}
                 <Badge variant="gray">{formatDate(s.date)}</Badge>
                 {s.rating && <Badge variant="green">{"★".repeat(s.rating)}</Badge>}
               </div>

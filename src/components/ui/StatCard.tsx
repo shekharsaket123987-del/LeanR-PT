@@ -18,7 +18,7 @@ export default function StatCard({
   accent?: boolean;
 }) {
   return (
-    <Card className={cn("p-5", accent && "bg-black text-white")}>
+    <Card dark={accent} className="p-5">
       <div className="flex items-start justify-between">
         <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", accent ? "bg-brand-yellow" : "bg-brand-yellow/15")}>
           <Icon className={cn("h-5 w-5", accent ? "text-black" : "text-black/70")} strokeWidth={2} />

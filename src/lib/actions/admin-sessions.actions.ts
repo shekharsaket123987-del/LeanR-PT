@@ -19,6 +19,7 @@ export interface AdminSessionView {
   durationMinutes: number;
   type: "assessment" | "regular";
   status: "upcoming" | "completed" | "cancelled" | "missed";
+  amountPaid: number | null;
 }
 
 export async function listAdminSessionsAction(filters?: { coachId?: string; status?: string }): Promise<ActionResult<AdminSessionView[]>> {
@@ -34,6 +35,7 @@ export async function listAdminSessionsAction(filters?: { coachId?: string; stat
       durationMinutes: b.duration_minutes,
       type: b.session_type,
       status: b.status,
+      amountPaid: b.amount_paid ?? null,
     }));
   });
 }

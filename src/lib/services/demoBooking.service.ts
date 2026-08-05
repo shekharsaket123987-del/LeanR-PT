@@ -1,7 +1,8 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
-import { getBookingWindow, hourlyGrid } from "./scheduling.service";
+import { getBookingWindow, hourlyGrid, istWallClockToInstant } from "./scheduling.service";
 import { createBooking } from "./bookings.service";
+import { DEMO_SESSION_FEE } from "@/lib/constants/pricing";
 
 export interface DemoSlotOption {
   coachId: string;
@@ -57,9 +58,7 @@ export async function findDemoSlots(
 
   const options: DemoSlotOption[] = [];
   for (const time of timesToTry) {
-    const [h, m] = time.split(":").map(Number);
-    const slotStart = new Date(`${input.date}T00:00:00Z`);
-    slotStart.setUTCHours(h, m, 0, 0);
+    const slotStart = istWallClockToInstant(input.date, time);
     if (slotStart.getTime() <= Date.now()) continue;
 
     for (const coach of sortedCoaches as any[]) {
@@ -101,5 +100,6 @@ export async function confirmDemoBooking(accessToken: string, coachId: string, s
     slotStart,
     durationMinutes,
     sessionType: "assessment",
+    amountPaid: DEMO_SESSION_FEE,
   });
 }

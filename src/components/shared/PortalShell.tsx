@@ -68,18 +68,26 @@ const NAV: Record<Role, { label: string; href: string; icon: any }[]> = {
   ],
 };
 
-const IDENTITY: Record<Role, { name: string; photo: string; sub: string }> = {
-  client: { name: "Saket Shekhar", photo: "https://i.pravatar.cc/300?img=68", sub: "LeanR Advance" },
-  coach: { name: "Arjun Mehta", photo: "https://i.pravatar.cc/300?img=12", sub: "Strength & Conditioning" },
+const IDENTITY_FALLBACK: Record<Role, { name: string; photo: string; sub: string }> = {
+  client: { name: "Client", photo: "https://i.pravatar.cc/300?img=68", sub: "" },
+  coach: { name: "Coach", photo: "https://i.pravatar.cc/300?img=12", sub: "" },
   admin: { name: "Admin", photo: "https://i.pravatar.cc/300?img=5", sub: "Operations Team" },
 };
 
-export default function PortalShell({ role, children }: { role: Role; children: React.ReactNode }) {
+export default function PortalShell({
+  role,
+  identity,
+  children,
+}: {
+  role: Role;
+  identity?: { name: string; photo: string; sub: string };
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const nav = NAV[role];
-  const identity = IDENTITY[role];
+  const resolvedIdentity = identity ?? IDENTITY_FALLBACK[role];
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -148,10 +156,10 @@ export default function PortalShell({ role, children }: { role: Role; children: 
 
             <div className="border-t border-black/[0.06] p-4">
               <div className="flex items-center gap-3 rounded-xl px-2 py-2">
-                <Avatar src={identity.photo} alt={identity.name} size={38} />
+                <Avatar src={resolvedIdentity.photo} alt={resolvedIdentity.name} size={38} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold">{identity.name}</p>
-                  <p className="truncate text-xs text-black/45">{identity.sub}</p>
+                  <p className="truncate text-sm font-bold">{resolvedIdentity.name}</p>
+                  <p className="truncate text-xs text-black/45">{resolvedIdentity.sub}</p>
                 </div>
               </div>
               <button

@@ -74,6 +74,10 @@ export async function requestLeave(accessToken: string, input: { starts_on: stri
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["coach"]);
 
+  if (input.ends_on < input.starts_on) {
+    throw new Error("End date must be on or after the start date.");
+  }
+
   const { data: coach, error: coachError } = await ctx.client
     .from("coach_profiles")
     .select("id")

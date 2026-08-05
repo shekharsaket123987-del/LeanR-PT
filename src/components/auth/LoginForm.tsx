@@ -87,6 +87,14 @@ export default function LoginForm({
         )}
         {loading && "Signing in..."}
       </Button>
+      {role === "client" && (
+        <p className="mt-5 text-center text-xs text-white/40">
+          New here?{" "}
+          <a href="/signup" className="font-semibold text-brand-yellow hover:underline">
+            Create an account
+          </a>
+        </p>
+      )}
     </form>
   );
 }

@@ -6,6 +6,7 @@ import { Plus, Trash2 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import {
   AdminSettingsData,
   updateSettingAction,
@@ -36,6 +37,8 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
   const [addBusy, setAddBusy] = useState(false);
   const [addError, setAddError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteTarget, setConfirmDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleteError, setDeleteError] = useState("");
 
   async function saveSettings() {
     setSaving(true);
@@ -71,11 +74,18 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
     router.refresh();
   }
 
-  async function deletePackage(id: string) {
-    setDeletingId(id);
-    const result = await deletePackageAction(id);
+  async function confirmDeletePackage() {
+    if (!confirmDeleteTarget) return;
+    setDeletingId(confirmDeleteTarget.id);
+    setDeleteError("");
+    const result = await deletePackageAction(confirmDeleteTarget.id);
     setDeletingId(null);
-    if (!isFailure(result)) router.refresh();
+    if (isFailure(result)) {
+      setDeleteError(result.error.message);
+      return;
+    }
+    setConfirmDeleteTarget(null);
+    router.refresh();
   }
 
   return (
@@ -96,7 +106,7 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
                   {p.sessions} sessions · ₹{p.price.toLocaleString("en-IN")}
                 </p>
               </div>
-              <button onClick={() => deletePackage(p.id)} disabled={deletingId === p.id}>
+              <button onClick={() => setConfirmDeleteTarget({ id: p.id, name: p.name })} disabled={deletingId === p.id}>
                 <Trash2 className="h-4 w-4 text-black/30 hover:text-red-500" />
               </button>
             </div>
@@ -185,6 +195,20 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
           </Button>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={!!confirmDeleteTarget}
+        onClose={() => {
+          setConfirmDeleteTarget(null);
+          setDeleteError("");
+        }}
+        onConfirm={confirmDeletePackage}
+        title="Delete Package"
+        description={`Delete "${confirmDeleteTarget?.name}"? Clients with an active subscription on this package keep it -- this only stops it from being offered to new purchases.`}
+        confirmLabel="Delete"
+        loading={deletingId === confirmDeleteTarget?.id}
+        error={deleteError}
+      />
     </>
   );
 }

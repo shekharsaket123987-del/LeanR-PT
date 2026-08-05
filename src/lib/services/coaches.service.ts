@@ -27,6 +27,27 @@ export async function getCoachPublicInfo(coachId: string) {
   return data;
 }
 
+/** Public marketing display (name, photo, specialization, rating) for the
+ * logged-out landing page's "Meet the Coaches" section -- no caller/session
+ * at all, unlike everything else in this file, so this deliberately doesn't
+ * take an accessToken or go through getCallerContext. Uses supabaseAdmin for
+ * the same reason getCoachPublicInfo() does: exposes nothing beyond what's
+ * already public marketing content, and RLS has no "anonymous visitor"
+ * policy to satisfy here. Previously the landing page rendered entirely
+ * from static mock data that had drifted from the real roster (fictional
+ * coaches with "Book with X" buttons that led nowhere real, and stale
+ * ratings for the ones that did exist) -- this makes it live. */
+export async function listPublicActiveCoaches(limit = 8) {
+  const { data, error } = await supabaseAdmin
+    .from("coach_profiles")
+    .select("id, specialization, years_experience, rating, review_count, profile:profiles(full_name, photo_url)")
+    .eq("status", "active")
+    .order("rating", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data;
+}
+
 export async function listCoaches(accessToken: string) {
   const ctx = await getCallerContext(accessToken);
   const { data, error } = await ctx.client

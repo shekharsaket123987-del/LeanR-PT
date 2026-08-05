@@ -56,6 +56,7 @@ export default function AdminClientDetailClient({
 
   const [sessionDelta, setSessionDelta] = useState(0);
   const [transferTo, setTransferTo] = useState("");
+  const [transferAvailabilityWarning, setTransferAvailabilityWarning] = useState("");
   const [refundAmount, setRefundAmount] = useState("");
   const [refundReason, setRefundReason] = useState("");
 
@@ -79,6 +80,7 @@ export default function AdminClientDetailClient({
     setError("");
     setSessionDelta(0);
     setTransferTo("");
+    setTransferAvailabilityWarning("");
     setRefundAmount("");
     setRefundReason("");
     setEscalationReason("");
@@ -97,13 +99,20 @@ export default function AdminClientDetailClient({
     router.refresh();
   }
 
-  async function confirmTransfer() {
+  async function confirmTransfer(force = false) {
     if (!client.coach || !transferTo) return;
     setBusy(true);
     setError("");
-    const result = await transferClientCoachAction(client.id, client.coach.id, transferTo);
+    if (!force) setTransferAvailabilityWarning("");
+    const result = await transferClientCoachAction(client.id, client.coach.id, transferTo, force);
     setBusy(false);
-    if (isFailure(result)) return setError(result.error.message);
+    if (isFailure(result)) {
+      if (!force && result.error.message.includes("hasn't set availability for")) {
+        setTransferAvailabilityWarning(result.error.message);
+        return;
+      }
+      return setError(result.error.message);
+    }
     closeModal();
     router.refresh();
   }
@@ -300,7 +309,7 @@ export default function AdminClientDetailClient({
           {client.history.map((s) => (
             <Card key={s.id} className="p-4">
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                {s.type === "assessment" ? <AssessmentBadge /> : <Badge variant="gray">Regular</Badge>}
+                {s.type === "assessment" ? <AssessmentBadge amountPaid={s.amountPaid} /> : <Badge variant="gray">Regular</Badge>}
                 <SessionStatusBadge status={s.status as any} />
                 <span className="text-xs text-black/40">{formatDate(s.date)}</span>
               </div>
@@ -351,7 +360,10 @@ export default function AdminClientDetailClient({
           </p>
           <select
             value={transferTo}
-            onChange={(e) => setTransferTo(e.target.value)}
+            onChange={(e) => {
+              setTransferTo(e.target.value);
+              setTransferAvailabilityWarning("");
+            }}
             className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
           >
             <option value="">Select a coach...</option>
@@ -365,9 +377,18 @@ export default function AdminClientDetailClient({
               ))}
           </select>
           {error && <p className="text-xs text-red-600">{error}</p>}
-          <Button className="w-full" disabled={!transferTo} loading={busy} onClick={confirmTransfer}>
-            Confirm Transfer
-          </Button>
+          {transferAvailabilityWarning ? (
+            <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
+              <p className="text-xs text-amber-800">{transferAvailabilityWarning}</p>
+              <Button className="w-full" variant="destructive-outline" loading={busy} onClick={() => confirmTransfer(true)}>
+                Transfer Anyway
+              </Button>
+            </div>
+          ) : (
+            <Button className="w-full" disabled={!transferTo} loading={busy} onClick={() => confirmTransfer(false)}>
+              Confirm Transfer
+            </Button>
+          )}
         </div>
       </Modal>
 

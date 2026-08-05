@@ -70,7 +70,7 @@ export default function CoachScheduleClient({ sessions }: { sessions: CoachSessi
                 </div>
                 <div className="flex-1">
                   <div className="mb-1 flex items-center gap-2">
-                    {s.type === "assessment" ? <AssessmentBadge /> : <Badge variant="gray">Regular</Badge>}
+                    {s.type === "assessment" ? <AssessmentBadge amountPaid={s.amountPaid} /> : <Badge variant="gray">Regular</Badge>}
                   </div>
                   <p className="text-sm font-bold">{s.client?.name}</p>
                 </div>

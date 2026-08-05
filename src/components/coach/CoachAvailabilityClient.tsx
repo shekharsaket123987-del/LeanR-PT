@@ -14,6 +14,10 @@ import { formatDate } from "@/lib/utils";
 
 const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 interface DayRow {
   enabled: boolean;
   start: string;
@@ -179,6 +183,7 @@ export default function CoachAvailabilityClient({
               <input
                 type="date"
                 value={leaveFrom}
+                min={todayISO()}
                 onChange={(e) => setLeaveFrom(e.target.value)}
                 className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
               />
@@ -188,6 +193,7 @@ export default function CoachAvailabilityClient({
               <input
                 type="date"
                 value={leaveTo}
+                min={leaveFrom || todayISO()}
                 onChange={(e) => setLeaveTo(e.target.value)}
                 className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
               />

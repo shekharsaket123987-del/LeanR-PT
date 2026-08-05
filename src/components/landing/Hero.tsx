@@ -42,7 +42,7 @@ export default function Hero() {
             sessions built around your goals — no gym required.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <Button href="/login/client" size="lg">
+            <Button href="/signup" size="lg">
               Book Your First Session
             </Button>
             <Button variant="outline" size="lg" className="border-white/20 text-white hover:bg-white/5">

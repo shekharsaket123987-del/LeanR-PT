@@ -40,6 +40,7 @@ export interface SessionView {
   coachNotes: string | null;
   wasRescheduled: boolean;
   originalDate: string | null;
+  amountPaid: number | null;
 }
 
 const FALLBACK_PHOTO = (seed: string) => `https://i.pravatar.cc/300?u=${seed}`;
@@ -76,6 +77,7 @@ function toSessionView(row: any, notesByBooking: Map<string, string>): SessionVi
     coachNotes: notesByBooking.get(row.id) ?? null,
     wasRescheduled: row.was_rescheduled ?? false,
     originalDate: row.original_scheduled_start ?? null,
+    amountPaid: row.amount_paid ?? null,
   };
 }
 

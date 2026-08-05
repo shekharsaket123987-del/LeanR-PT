@@ -46,6 +46,7 @@ export interface CoachSessionView {
   durationMinutes: number;
   type: "assessment" | "regular";
   status: "upcoming" | "completed" | "cancelled" | "missed";
+  amountPaid: number | null;
 }
 
 function toCoachSessionView(row: any): CoachSessionView {
@@ -58,6 +59,7 @@ function toCoachSessionView(row: any): CoachSessionView {
     durationMinutes: row.duration_minutes,
     type: row.session_type,
     status: row.status,
+    amountPaid: row.amount_paid ?? null,
   };
 }
 
@@ -318,6 +320,7 @@ export interface CoachSessionDetail {
   status: "upcoming" | "completed" | "cancelled" | "missed";
   type: "assessment" | "regular";
   date: string;
+  amountPaid: number | null;
   client: { id: string; name: string; photo: string; goals: string[]; medicalNotes: string | null; equipment: string[] } | null;
   previousNotes: { date: string; notes: string | null }[];
   attendanceStatus: "present" | "absent" | "late" | null;
@@ -360,6 +363,7 @@ export async function getCoachSessionDetailAction(bookingId: string): Promise<Ac
       status: booking.status,
       type: booking.session_type,
       date: booking.scheduled_start,
+      amountPaid: booking.amount_paid ?? null,
       client: clientDetail,
       previousNotes,
       attendanceStatus: attendance?.status ?? null,

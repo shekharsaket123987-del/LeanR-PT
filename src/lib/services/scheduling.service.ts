@@ -7,6 +7,17 @@ export interface OpenSlot {
   end: string; // ISO
 }
 
+/** Business hours (coach_availability, package rules, the schedule-setup UI)
+ * are all defined as India wall-clock time. Every instant we hand to the DB
+ * (bookings.scheduled_start, temporary_bookings.slot_start) must be the
+ * correct UTC instant for that IST wall-clock time -- NOT the UTC clock
+ * reading of the same digits. Use this instead of `Date#setUTCHours` whenever
+ * turning a "YYYY-MM-DD" + "HH:MM" business-local pair into an instant. */
+export function istWallClockToInstant(dateStr: string, timeStr: string): Date {
+  const [h, m] = timeStr.split(":").map(Number);
+  return new Date(`${dateStr}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00+05:30`);
+}
+
 /** Only whole-hour slots exist platform-wide (5am, 6am, ... up to the last
  * hour before close) — no half-hour or odd-aligned start times. Bounds are
  * admin-configurable via system_settings (booking_window_start_hour/end_hour)
@@ -93,8 +104,7 @@ export async function getOpenSlots(
       for (const slotTime of grid) {
         const [h, m] = slotTime.split(":").map(Number);
         if (!fitsWithinWindow(h, m, windows)) continue;
-        const slotStart = new Date(cursor);
-        slotStart.setUTCHours(h, m, 0, 0);
+        const slotStart = istWallClockToInstant(cursor.toISOString().slice(0, 10), slotTime);
         const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60_000);
         const overlapsBusy = busy.some((b) => slotStart < b.end && slotEnd > b.start);
         if (!overlapsBusy) slots.push({ start: slotStart.toISOString(), end: slotEnd.toISOString() });
@@ -143,6 +153,7 @@ export async function confirmHold(
     recurringSlotId?: string;
     assessmentSessionId?: string;
     sessionType?: "regular" | "assessment";
+    amountPaid?: number;
   }
 ) {
   const ctx = await getCallerContext(accessToken);
@@ -152,6 +163,7 @@ export async function confirmHold(
     p_recurring_slot_id: input.recurringSlotId ?? null,
     p_assessment_session_id: input.assessmentSessionId ?? null,
     p_session_type: input.sessionType ?? "regular",
+    p_amount_paid: input.amountPaid ?? null,
   });
   if (error) throw error;
   return data as string; // booking id
@@ -409,12 +421,10 @@ export async function findShadowCoachCandidates(
 
   const occurrences: { slotStart: string; durationMinutes: number }[] = [];
   for (const slot of slots) {
-    const [h, m] = slot.start_time.split(":").map(Number);
     const cursor = new Date(start);
     while (cursor <= end) {
       if (cursor.getUTCDay() === slot.day_of_week) {
-        const slotStart = new Date(cursor);
-        slotStart.setUTCHours(h, m, 0, 0);
+        const slotStart = istWallClockToInstant(cursor.toISOString().slice(0, 10), slot.start_time.slice(0, 5));
         occurrences.push({ slotStart: slotStart.toISOString(), durationMinutes: slot.duration_minutes });
       }
       cursor.setUTCDate(cursor.getUTCDate() + 1);

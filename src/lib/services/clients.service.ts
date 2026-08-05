@@ -148,13 +148,82 @@ export async function listActiveClientIdsForCoach(accessToken: string, coachId: 
 /** Moves a client's active recurring slots + upcoming bookings from one coach
  * to another. Shared by coachChange.service.ts (per-client approved request)
  * and the admin client-detail "Transfer to Another Coach" control. */
-export async function reassignClientCoach(accessToken: string, clientId: string, fromCoachId: string, toCoachId: string) {
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** Does the new coach's weekly availability template cover every day/time in
+ * the client's active recurring pattern? Checked here (not left to the DB)
+ * because reassignClientCoach used to blindly repoint recurring_slots.coach_id
+ * with no check at all -- an admin could transfer a client with a Mon/Wed/Fri
+ * pattern to a coach who's only ever set herself available on Mondays, and
+ * the system would silently keep generating Wednesday/Friday bookings that
+ * coach never agreed to. Mirrors the day/time-window check already used by
+ * scheduling.service.ts's isDayTimeFreeForCoach, minus the collision check
+ * (a same-coach double-booking here is caught separately by
+ * has_scheduling_conflict when the next occurrence is generated). */
+async function findUncoveredDays(
+  ctx: Awaited<ReturnType<typeof getCallerContext>>,
+  toCoachId: string,
+  slots: { day_of_week: number; start_time: string; duration_minutes: number }[]
+): Promise<string[]> {
+  if (slots.length === 0) return [];
+  const { data: availability, error } = await ctx.client
+    .from("coach_availability")
+    .select("day_of_week, start_time, end_time")
+    .eq("coach_id", toCoachId)
+    .eq("is_active", true);
+  if (error) throw error;
+
+  const byDay = new Map<number, { start_time: string; end_time: string }[]>();
+  for (const a of availability ?? []) {
+    const list = byDay.get(a.day_of_week) ?? [];
+    list.push(a);
+    byDay.set(a.day_of_week, list);
+  }
+
+  const uncoveredDays: string[] = [];
+  for (const slot of slots) {
+    const [sh, sm] = slot.start_time.split(":").map(Number);
+    const startMin = sh * 60 + sm;
+    const endMin = startMin + slot.duration_minutes;
+    const windows = byDay.get(slot.day_of_week) ?? [];
+    const covered = windows.some((w) => {
+      const [wsH, wsM] = w.start_time.split(":").map(Number);
+      const [weH, weM] = w.end_time.split(":").map(Number);
+      return startMin >= wsH * 60 + wsM && endMin <= weH * 60 + weM;
+    });
+    if (!covered) uncoveredDays.push(DAY_NAMES[slot.day_of_week]);
+  }
+  return uncoveredDays;
+}
+
+export async function reassignClientCoach(
+  accessToken: string,
+  clientId: string,
+  fromCoachId: string,
+  toCoachId: string,
+  options?: { force?: boolean }
+) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["admin", "client"]);
 
   if (ctx.role === "client") {
     const { data: own, error: ownError } = await ctx.client.from("client_profiles").select("id").eq("profile_id", ctx.userId).single();
     if (ownError || !own || own.id !== clientId) throw new Error("Not your record");
+  }
+
+  const { data: activeSlots, error: activeSlotsError } = await ctx.client
+    .from("recurring_slots")
+    .select("day_of_week, start_time, duration_minutes")
+    .eq("client_id", clientId)
+    .eq("coach_id", fromCoachId)
+    .eq("status", "active");
+  if (activeSlotsError) throw activeSlotsError;
+
+  const uncoveredDays = await findUncoveredDays(ctx, toCoachId, activeSlots ?? []);
+  if (uncoveredDays.length > 0 && !options?.force) {
+    throw new Error(
+      `The new coach hasn't set availability for ${uncoveredDays.join(", ")} — the client's existing sessions on ${uncoveredDays.length > 1 ? "those days" : "that day"} would be left uncovered. Update the coach's availability first, or confirm the transfer anyway if you'll fix the schedule separately.`
+    );
   }
 
   const { error: slotsError } = await ctx.client

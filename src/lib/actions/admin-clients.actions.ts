@@ -59,7 +59,7 @@ export interface AdminClientDetailView {
   medicalNotes: string | null;
   coach: { id: string; name: string; specialization: string | null; photo: string } | null;
   subscription: { id: string; packageName: string; sessionsUsed: number; sessionsRemaining: number; sessionsTotal: number } | null;
-  history: { id: string; type: "assessment" | "regular"; status: string; date: string; remarks: string | null }[];
+  history: { id: string; type: "assessment" | "regular"; status: string; date: string; remarks: string | null; amountPaid: number | null }[];
 }
 
 export async function getAdminClientDetailAction(clientId: string): Promise<ActionResult<AdminClientDetailView>> {
@@ -114,6 +114,7 @@ export async function getAdminClientDetailAction(clientId: string): Promise<Acti
         status: b.status,
         date: b.scheduled_start,
         remarks: b.client_feedback ?? null,
+        amountPaid: b.amount_paid ?? null,
       })),
     };
   });
@@ -141,10 +142,15 @@ export async function adjustClientSessionsAction(subscriptionId: string, newTota
   });
 }
 
-export async function transferClientCoachAction(clientId: string, fromCoachId: string, toCoachId: string): Promise<ActionResult<null>> {
+export async function transferClientCoachAction(
+  clientId: string,
+  fromCoachId: string,
+  toCoachId: string,
+  force?: boolean
+): Promise<ActionResult<null>> {
   return runAction(async () => {
     const token = await requireToken();
-    await reassignClientCoach(token, clientId, fromCoachId, toCoachId);
+    await reassignClientCoach(token, clientId, fromCoachId, toCoachId, { force });
     return null;
   });
 }

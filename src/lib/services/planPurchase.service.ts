@@ -54,6 +54,14 @@ export async function activateMyPlan(accessToken: string, subscriptionId: string
   if (subError || !sub) throw subError ?? new Error("Subscription not found");
   if (sub.activated_at) throw new Error("This plan has already been activated.");
 
+  // Business "today" is IST, same convention as the rest of scheduling --
+  // compare calendar dates (not instants) so activating "today" itself is
+  // never mistakenly rejected regardless of what time it currently is.
+  const todayIST = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  if (startDate < todayIST) {
+    throw new Error("Start date can't be in the past -- pick today or a future date.");
+  }
+
   const { data: client, error: clientError } = await ctx.client.from("client_profiles").select("id").eq("profile_id", ctx.userId).single();
   if (clientError || !client || client.id !== sub.client_id) throw new Error("Not your subscription");
 

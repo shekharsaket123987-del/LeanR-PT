@@ -15,6 +15,8 @@ const ENTITY_FILTERS = [
   { value: "coach_change_requests", label: "Coach Changes" },
   { value: "client_profiles", label: "Client Profiles" },
   { value: "coach_profiles", label: "Coach Profiles" },
+  { value: "package_tiers", label: "Packages" },
+  { value: "system_settings", label: "Settings" },
 ];
 
 const ACTION_BADGE: Record<string, "green" | "outline-yellow" | "red"> = {

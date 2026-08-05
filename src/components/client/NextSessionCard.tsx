@@ -33,7 +33,7 @@ export default function NextSessionCard({ session }: { session: SessionView | nu
         </div>
         <div className="flex-1">
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            {session.type === "assessment" ? <AssessmentBadge /> : <Badge variant="black">Regular Session</Badge>}
+            {session.type === "assessment" ? <AssessmentBadge amountPaid={session.amountPaid} /> : <Badge variant="black">Regular Session</Badge>}
             <Badge variant="gray">Next Up</Badge>
           </div>
           <p className="text-display text-2xl font-bold italic">{coach?.name}</p>

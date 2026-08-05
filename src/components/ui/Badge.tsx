@@ -29,8 +29,8 @@ export default function Badge({ children, variant = "gray", className }: BadgePr
   );
 }
 
-export function AssessmentBadge() {
-  return <Badge variant="outline-yellow">Assessment · Free</Badge>;
+export function AssessmentBadge({ amountPaid }: { amountPaid?: number | null } = {}) {
+  return <Badge variant="outline-yellow">Assessment · {amountPaid ? `₹${amountPaid.toLocaleString("en-IN")}` : "Free"}</Badge>;
 }
 
 export function SessionStatusBadge({ status }: { status: string }) {

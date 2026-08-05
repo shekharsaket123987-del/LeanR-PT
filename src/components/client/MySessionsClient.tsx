@@ -113,7 +113,7 @@ export default function MySessionsClient({ initialSessions, rules: initialRules 
                 </div>
                 <div className="flex-1">
                   <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                    {s.type === "assessment" ? <AssessmentBadge /> : <Badge variant="gray">Regular</Badge>}
+                    {s.type === "assessment" ? <AssessmentBadge amountPaid={s.amountPaid} /> : <Badge variant="gray">Regular</Badge>}
                     <SessionStatusBadge status={s.status} />
                   </div>
                   <p className="text-sm font-bold">{s.coach?.name}</p>

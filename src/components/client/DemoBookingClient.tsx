@@ -11,8 +11,7 @@ import { findDemoSlotsAction, confirmDemoBookingAction } from "@/lib/actions/cli
 import { DemoSlotOption } from "@/lib/services/demoBooking.service";
 import { isFailure } from "@/lib/actions/action-result";
 import { formatDate, formatTime } from "@/lib/utils";
-
-const DEMO_FEE = 700;
+import { DEMO_SESSION_FEE } from "@/lib/constants/pricing";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -133,7 +132,7 @@ export default function DemoBookingClient() {
         <StubPaymentModal
           open={paying}
           onClose={() => setPaying(false)}
-          amountRupees={DEMO_FEE}
+          amountRupees={DEMO_SESSION_FEE}
           title="Confirm Demo Session"
           onSuccess={onPaymentSuccess}
         />
