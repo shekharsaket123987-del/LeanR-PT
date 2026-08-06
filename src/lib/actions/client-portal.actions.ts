@@ -119,6 +119,10 @@ export interface ClientDashboardData {
   sessionsRemaining: number;
   streakWeeks: number;
   completedCount: number;
+  /** "Day N of your journey" (§3.3) -- 1-indexed days since the active
+   * subscription started, falling back to account creation if no
+   * subscription is active yet. */
+  journeyDay: number;
   nextSession: SessionView | null;
   recentCompleted: SessionView[];
 }
@@ -147,6 +151,9 @@ export async function getClientDashboardAction(): Promise<ActionResult<ClientDas
     const subscriptions = await getSubscriptionsForClient(token, client.id);
     const activeSub = (subscriptions as any[]).find((s) => s.status === "active") ?? null;
 
+    const journeyStart = new Date(activeSub?.started_at ?? (client as any).joined_date);
+    const journeyDay = Math.max(1, Math.floor((Date.now() - journeyStart.getTime()) / 86_400_000) + 1);
+
     return {
       firstName: (client as any).profile?.full_name?.split(" ")[0] ?? "there",
       packageName: activeSub?.package?.name ?? null,
@@ -155,6 +162,7 @@ export async function getClientDashboardAction(): Promise<ActionResult<ClientDas
       sessionsRemaining: activeSub?.usage?.sessions_remaining ?? 0,
       streakWeeks: computeStreakWeeks(completed.map((b: any) => b.scheduled_start)),
       completedCount: completed.length,
+      journeyDay,
       nextSession,
       recentCompleted: completed
         .sort((a: any, b: any) => new Date(b.scheduled_start).getTime() - new Date(a.scheduled_start).getTime())

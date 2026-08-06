@@ -52,7 +52,7 @@ export default async function ClientDashboardPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader title={`Welcome back, ${data.firstName}`} description="Here's where things stand today." />
+      <PageHeader title={`Welcome back, ${data.firstName}`} description={`Day ${data.journeyDay} of your journey — here's where things stand today.`} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="flex flex-col items-center justify-center gap-4 p-6 text-center lg:col-span-1">

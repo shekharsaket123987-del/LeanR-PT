@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Mail, Phone, Target, Dumbbell, HeartPulse } from "lucide-react";
+import { Mail, Phone, Target, Dumbbell, HeartPulse, KeyRound } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import TagEditor from "@/components/ui/TagEditor";
+import { supabase } from "@/lib/supabase";
 import { ClientProfileView, updateMyProfileAction } from "@/lib/actions/client-profile.actions";
 import { isFailure } from "@/lib/actions/action-result";
 
@@ -22,6 +23,41 @@ export default function ClientProfileClient({ profile }: { profile: ClientProfil
   const [goals, setGoals] = useState(profile.goals);
   const [equipment, setEquipment] = useState(profile.equipment);
   const [medicalNotes, setMedicalNotes] = useState(profile.medicalNotes ?? "");
+
+  const [pwOpen, setPwOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwError, setPwError] = useState("");
+  const [pwSuccess, setPwSuccess] = useState(false);
+
+  function openPasswordModal() {
+    setNewPassword("");
+    setConfirmPassword("");
+    setPwError("");
+    setPwSuccess(false);
+    setPwOpen(true);
+  }
+
+  async function changePassword() {
+    if (newPassword.length < 8) {
+      setPwError("Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPwError("Passwords don't match.");
+      return;
+    }
+    setPwBusy(true);
+    setPwError("");
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+    setPwBusy(false);
+    if (updateError) {
+      setPwError(updateError.message);
+      return;
+    }
+    setPwSuccess(true);
+  }
 
   function openEdit() {
     setName(profile.name);
@@ -107,7 +143,55 @@ export default function ClientProfileClient({ profile }: { profile: ClientProfil
           </p>
           <p className="text-sm text-black/60">{profile.medicalNotes || "None on file."}</p>
         </div>
+
+        <div className="mt-6 border-t border-black/[0.06] pt-6">
+          <Button variant="outline" size="sm" onClick={openPasswordModal}>
+            <KeyRound className="h-3.5 w-3.5" /> Change Password
+          </Button>
+        </div>
       </Card>
+
+      <Modal open={pwOpen} onClose={() => setPwOpen(false)} title="Change Password">
+        {!pwSuccess ? (
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">New Password</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Confirm Password</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+              />
+            </div>
+            {pwError && <p className="text-xs text-red-600">{pwError}</p>}
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setPwOpen(false)}>
+                Cancel
+              </Button>
+              <Button loading={pwBusy} onClick={changePassword}>
+                Update Password
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="py-4 text-center">
+            <p className="text-display text-lg font-bold italic">Password updated</p>
+            <p className="mt-1 text-sm text-black/50">Use your new password next time you sign in.</p>
+            <Button className="mt-4" variant="outline" onClick={() => setPwOpen(false)}>
+              Close
+            </Button>
+          </div>
+        )}
+      </Modal>
 
       <Modal open={open} onClose={() => setOpen(false)} title="Edit Profile">
         <div className="space-y-4">
