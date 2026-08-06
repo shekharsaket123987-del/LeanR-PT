@@ -20,6 +20,8 @@ import {
   TrendingUp,
   Banknote,
   Clock3,
+  ShieldCheck,
+  Gift,
 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import { TimelineEventRow, TimelineEventType } from "@/lib/services/timeline.service";
@@ -31,6 +33,7 @@ const EVENT_ICONS: Record<TimelineEventType, any> = {
   coach_assigned: UserPlus,
   slot_assigned: CalendarPlus,
   session_completed: CheckCircle2,
+  attendance_marked_present: ShieldCheck,
   session_missed: XCircle,
   session_cancelled: XCircle,
   coach_notes_uploaded: FileText,
@@ -49,6 +52,7 @@ const EVENT_ICONS: Record<TimelineEventType, any> = {
   refund_requested: Banknote,
   refund_approved: Banknote,
   plan_completed: CheckCheck,
+  plan_promise_adjusted: Gift,
 };
 
 function groupByDay(events: TimelineEventRow[]): { date: string; events: TimelineEventRow[] }[] {

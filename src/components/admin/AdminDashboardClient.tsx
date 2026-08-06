@@ -1,7 +1,7 @@
 "use client";
 
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { Users, UserCheck, CalendarCheck2, XCircle, TrendingUp, Clock, LayoutGrid, IndianRupee } from "lucide-react";
+import { Users, UserCheck, CalendarCheck2, XCircle, TrendingUp, Clock, LayoutGrid, IndianRupee, UserCog, Star, Activity } from "lucide-react";
 import Card from "@/components/ui/Card";
 import StatCard from "@/components/ui/StatCard";
 import { AdminDashboardData } from "@/lib/services/adminDashboard.service";
@@ -20,6 +20,9 @@ export default function AdminDashboardClient({ data }: { data: AdminDashboardDat
         <StatCard icon={Clock} label="Peak Booking Hours" value={metrics.peakBookingHour} />
         <StatCard icon={LayoutGrid} label="Empty Slots" value={metrics.emptySlotCount} positive={false} change={`${metrics.emptySlotCount} open`} />
         <StatCard icon={IndianRupee} label="Revenue This Month" value={`₹${(metrics.revenueThisMonth / 100000).toFixed(1)}L`} />
+        <StatCard icon={UserCog} label="Active Coaches" value={metrics.activeCoachesCount} />
+        <StatCard icon={Star} label="Avg. Coach Rating" value={metrics.avgCoachRating.toFixed(1)} />
+        <StatCard icon={Activity} label="Avg. Sessions / Day" value={metrics.avgSessionsPerDay} />
       </div>
 
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">

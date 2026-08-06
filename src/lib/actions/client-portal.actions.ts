@@ -5,7 +5,8 @@ import { ActionResult, fail, ok, runAction } from "./action-result";
 import { getMyClientProfile, getMyCurrentCoachId } from "@/lib/services/clients.service";
 import { getCoach } from "@/lib/services/coaches.service";
 import { getOpenSlots } from "@/lib/services/scheduling.service";
-import { getSubscriptionsForClient } from "@/lib/services/subscriptions.service";
+import { getSubscriptionsForClient, getPauseDaysStatus } from "@/lib/services/subscriptions.service";
+import { listMySales } from "@/lib/services/sales.service";
 import { getAllSettings } from "@/lib/services/settings.service";
 import {
   cancelBooking,
@@ -35,8 +36,9 @@ export interface SessionView {
   durationMinutes: number;
   type: "assessment" | "regular";
   status: "upcoming" | "completed" | "cancelled" | "missed";
-  rating: number | null;
-  feedback: string | null;
+  qualityRating: number | null;
+  trainerRating: number | null;
+  ratingNote: string | null;
   coachNotes: string | null;
   wasRescheduled: boolean;
   originalDate: string | null;
@@ -72,8 +74,9 @@ function toSessionView(row: any, notesByBooking: Map<string, string>): SessionVi
     durationMinutes: row.duration_minutes,
     type: row.session_type,
     status: row.status,
-    rating: row.rating ?? null,
-    feedback: row.client_feedback ?? null,
+    qualityRating: row.quality_rating ?? null,
+    trainerRating: row.trainer_rating ?? null,
+    ratingNote: row.rating_note ?? null,
     coachNotes: notesByBooking.get(row.id) ?? null,
     wasRescheduled: row.was_rescheduled ?? false,
     originalDate: row.original_scheduled_start ?? null,
@@ -178,10 +181,15 @@ export async function cancelSessionAction(bookingId: string): Promise<ActionResu
   });
 }
 
-export async function rateSessionAction(bookingId: string, rating: number, feedback?: string): Promise<ActionResult<null>> {
+export async function rateSessionAction(
+  bookingId: string,
+  qualityRating: number,
+  trainerRating: number,
+  note?: string
+): Promise<ActionResult<null>> {
   return runAction(async () => {
     const token = await requireToken();
-    await rateBooking(token, bookingId, rating, feedback);
+    await rateBooking(token, bookingId, { qualityRating, trainerRating, note });
     return null;
   });
 }
@@ -258,6 +266,7 @@ export interface RescheduleOptions {
   slots: { start: string; end: string }[];
   reschedulesUsedThisWeek: number;
   reschedulesRemaining: number;
+  cutoffHours: number;
 }
 
 export async function getRescheduleOptionsAction(bookingId: string): Promise<ActionResult<RescheduleOptions>> {
@@ -301,6 +310,7 @@ export async function getRescheduleOptionsAction(bookingId: string): Promise<Act
       slots,
       reschedulesUsedThisWeek: usedThisWeek,
       reschedulesRemaining: remaining,
+      cutoffHours,
     };
   });
 }
@@ -337,6 +347,44 @@ export async function getSchedulingRulesAction(): Promise<ActionResult<Schedulin
       rescheduleCutoffHours,
       reschedulesUsedThisWeek,
       reschedulesRemaining: Math.max(0, MAX_RESCHEDULES_PER_WEEK - reschedulesUsedThisWeek),
+    };
+  });
+}
+
+export interface MySubscriptionView {
+  packageName: string | null;
+  sessionsTotal: number;
+  sessionsUsed: number;
+  sessionsRemaining: number;
+  pauseDaysAllowed: number;
+  pauseDaysUsed: number;
+  payments: { saleDate: string; packageName: string; amount: number }[];
+}
+
+/** Subscription & Payments tab (FEATURE_SPEC_PORTAL_ENHANCEMENTS.md §3.11) --
+ * session tracking already existed on the dashboard; this adds the two
+ * pieces that didn't: pause-days remaining (getPauseDaysStatus, RLS-scoped
+ * so it works unmodified for a client caller) and a payment ledger
+ * (sales_view via listMySales, same view the admin sales list uses). */
+export async function getMySubscriptionAction(): Promise<ActionResult<MySubscriptionView>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const client = await getMyClientProfile(token);
+    const [subscriptions, sales] = await Promise.all([getSubscriptionsForClient(token, client.id), listMySales(token)]);
+
+    const activeSub: any = (subscriptions as any[]).find((s) => s.status === "active") ?? null;
+    const pauseDays = activeSub ? await getPauseDaysStatus(token, activeSub.id) : null;
+
+    return {
+      packageName: activeSub?.package?.name ?? null,
+      sessionsTotal: activeSub?.sessions_total ?? 0,
+      sessionsUsed: activeSub?.usage?.sessions_used ?? 0,
+      sessionsRemaining: activeSub?.usage?.sessions_remaining ?? 0,
+      pauseDaysAllowed: pauseDays?.pauseDaysAllowed ?? 0,
+      pauseDaysUsed: pauseDays?.pauseDaysUsed ?? 0,
+      payments: (sales as any[])
+        .map((s) => ({ saleDate: s.sale_date, packageName: s.package_name, amount: Number(s.amount ?? 0) }))
+        .sort((a, b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime()),
     };
   });
 }

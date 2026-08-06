@@ -151,6 +151,55 @@ export async function getWorkoutNoteForBooking(accessToken: string, bookingId: s
   return data;
 }
 
+/** Bulk attendance rows for a set of bookings -- attendance has no FK
+ * PostgREST can embed onto bookings directly, so fetch by booking_id list
+ * and merge in the caller (same pattern as listMyWorkoutNotes below). */
+export async function listAttendanceForBookings(accessToken: string, bookingIds: string[]) {
+  if (bookingIds.length === 0) return [];
+  const ctx = await getCallerContext(accessToken);
+  const { data, error } = await ctx.client.from("attendance").select("booking_id, status").in("booking_id", bookingIds);
+  if (error) throw error;
+  return data;
+}
+
+/** Bulk "has notes been submitted" check for a set of bookings -- same
+ * merge-separately reasoning as listAttendanceForBookings. */
+export async function listWorkoutNotesForBookings(accessToken: string, bookingIds: string[]) {
+  if (bookingIds.length === 0) return [];
+  const ctx = await getCallerContext(accessToken);
+  const { data, error } = await ctx.client.from("workout_notes").select("booking_id").in("booking_id", bookingIds);
+  if (error) throw error;
+  return data;
+}
+
+/** Flags bookings whose attendance still hasn't been marked 2+ hours after
+ * they ended (flag_overdue_attendance(), migration 0032), then notifies each
+ * affected coach exactly once per booking -- the RPC only ever returns
+ * bookings transitioning from unflagged to flagged, so calling this
+ * repeatedly (e.g. on every dashboard load) never re-notifies for the same
+ * booking. No cron in this codebase (see mark_missed_bookings()'s own
+ * precedent), so this runs opportunistically whenever a coach loads their
+ * Today's Tasks view rather than on a schedule. */
+export async function sweepOverdueAttendance(accessToken: string) {
+  const ctx = await getCallerContext(accessToken);
+  const { data: newlyOverdue, error } = await ctx.client.rpc("flag_overdue_attendance");
+  if (error) throw error;
+  if (!newlyOverdue || (newlyOverdue as string[]).length === 0) return;
+
+  const { data: bookings } = await supabaseAdmin
+    .from("bookings")
+    .select("id, scheduled_start, coach:coach_profiles(profile_id), client:client_profiles(profile:profiles(full_name))")
+    .in("id", newlyOverdue as string[]);
+
+  for (const b of (bookings as any[]) ?? []) {
+    if (!b.coach?.profile_id) continue;
+    await createFromTemplate("attendance_overdue", b.coach.profile_id, {
+      client_name: b.client?.profile?.full_name ?? "a client",
+      session_time: new Date(b.scheduled_start).toLocaleString(),
+    });
+  }
+}
+
 /** Convenience wrapper for immediate booking (hold then confirm back-to-back)
  * — used when the UI doesn't need a separate "reviewing your pick" step. */
 export async function createBooking(
@@ -300,18 +349,76 @@ export async function rescheduleBooking(accessToken: string, bookingId: string, 
   }
 }
 
-/** Client rates a completed session (the prototype's "Rate Session" flow). */
-export async function rateBooking(accessToken: string, bookingId: string, rating: number, feedback?: string) {
+/** coach_profiles.rating had no confirmed write-path from actual booking
+ * ratings before this -- likely a stale seed value forever. Recomputed
+ * opportunistically right after a new rating is submitted (no cron in this
+ * codebase, same "recompute on the write that could have changed it"
+ * convention used throughout), from AVG(trainer_rating) -- the
+ * trainer-specific dimension, not session quality, same choice made for the
+ * dashboard KPIs. Uses supabaseAdmin since a client caller has no RLS grant
+ * to update a coach's row. */
+async function recomputeCoachRating(coachId: string) {
+  const { data: rated, error } = await supabaseAdmin.from("bookings").select("trainer_rating").eq("coach_id", coachId).not("trainer_rating", "is", null);
+  if (error) throw error;
+  const ratings = (rated ?? []).map((r) => r.trainer_rating as number);
+  if (ratings.length === 0) return;
+
+  const avg = Math.round((ratings.reduce((s, r) => s + r, 0) / ratings.length) * 100) / 100;
+  const { error: updateError } = await supabaseAdmin
+    .from("coach_profiles")
+    .update({ rating: avg, review_count: ratings.length })
+    .eq("id", coachId);
+  if (updateError) throw updateError;
+}
+
+/** Client rates a completed session (the prototype's "Rate Session" flow).
+ * Two dimensions per FEATURE_SPEC_PORTAL_ENHANCEMENTS.md §3.7 -- session
+ * quality vs. the trainer specifically -- capped at once per week, mirroring
+ * the identical pattern in progressLogs.service.ts::createProgressLog. */
+export async function rateBooking(
+  accessToken: string,
+  bookingId: string,
+  input: { qualityRating: number; trainerRating: number; note?: string }
+) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["client"]);
+
+  const { data: client, error: clientError } = await ctx.client
+    .from("client_profiles")
+    .select("id")
+    .eq("profile_id", ctx.userId)
+    .single();
+  if (clientError || !client) throw clientError ?? new Error("Client profile not found");
+
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const { data: recent, error: recentError } = await ctx.client
+    .from("bookings")
+    .select("id")
+    .eq("client_id", client.id)
+    .gte("rated_at", weekAgo.toISOString())
+    .limit(1)
+    .maybeSingle();
+  if (recentError) throw recentError;
+  if (recent) throw new Error("You've already submitted a rating this week -- next rating available in a few days.");
+
   const { data, error } = await ctx.client
     .from("bookings")
-    .update({ rating, client_feedback: feedback ?? null })
+    .update({
+      quality_rating: input.qualityRating,
+      trainer_rating: input.trainerRating,
+      rating_note: input.note ?? null,
+      rated_at: new Date().toISOString(),
+    })
     .eq("id", bookingId)
+    .eq("client_id", client.id)
     .eq("status", "completed")
     .select()
     .single();
   if (error) throw error;
+
+  await recomputeCoachRating(data.coach_id);
+
   return data;
 }
 
@@ -361,7 +468,21 @@ export async function markAttendance(
       actorId: ctx.userId,
       metadata: { bookingId },
     });
+  } else {
+    // Distinct from "session_completed" (logged later, once notes are
+    // submitted) -- otherwise presence would be silent in the timeline until
+    // a separate action happens to save notes.
+    await logTimelineEvent(booking.client_id, "attendance_marked_present", "Attendance marked present", {
+      description: remark,
+      actorId: ctx.userId,
+      metadata: { bookingId },
+    });
   }
+
+  // Clears any overdue highlight (migration 0032) now that attendance has
+  // been marked at all, regardless of present/absent.
+  const { error: clearOverdueError } = await ctx.client.from("bookings").update({ attendance_overdue: false }).eq("id", booking.id);
+  if (clearOverdueError) throw clearOverdueError;
 
   return booking;
 }

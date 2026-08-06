@@ -7,6 +7,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import Badge, { AssessmentBadge } from "@/components/ui/Badge";
+import MeasurementChart from "@/components/shared/MeasurementChart";
 import { MyProgressData, submitMyProgressAction } from "@/lib/actions/client-progress.actions";
 import { SessionView } from "@/lib/actions/client-portal.actions";
 import { isFailure } from "@/lib/actions/action-result";
@@ -91,6 +92,13 @@ export default function ProgressClient({ progress, history }: { progress: MyProg
         </Card>
       )}
 
+      {progress.logs.length > 0 && (
+        <Card className="mt-6 p-6">
+          <p className="mb-4 text-sm font-bold">Progress Over Time</p>
+          <MeasurementChart logs={progress.logs} />
+        </Card>
+      )}
+
       <div className="mt-8">
         <h2 className="text-display mb-4 text-xl font-bold italic">Session History &amp; Coach Notes</h2>
         <div className="space-y-3">
@@ -100,10 +108,10 @@ export default function ProgressClient({ progress, history }: { progress: MyProg
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 {s.type === "assessment" && <AssessmentBadge amountPaid={s.amountPaid} />}
                 <Badge variant="gray">{formatDate(s.date)}</Badge>
-                {s.rating && <Badge variant="green">{"★".repeat(s.rating)}</Badge>}
+                {s.qualityRating && <Badge variant="green">{"★".repeat(s.qualityRating)}</Badge>}
               </div>
               {s.coachNotes && <p className="text-sm text-black/65">{s.coachNotes}</p>}
-              {s.feedback && <p className="mt-2 text-xs italic text-black/40">Your feedback: &ldquo;{s.feedback}&rdquo;</p>}
+              {s.ratingNote && <p className="mt-2 text-xs italic text-black/40">Your feedback: &ldquo;{s.ratingNote}&rdquo;</p>}
             </Card>
           ))}
         </div>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Sparkles, CalendarDays, Check, ChevronRight, BellRing, CalendarPlus, AlertCircle } from "lucide-react";
+import { Sparkles, CalendarDays, Check, ChevronRight, CalendarPlus, AlertCircle } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -17,7 +17,6 @@ type Step = "intro" | "schedule" | "confirm";
 export default function BookSessionClient({ options }: { options: BookingOptions }) {
   const [step, setStep] = useState<Step>("intro");
   const [selectedSlot, setSelectedSlot] = useState<{ start: string; end: string } | null>(null);
-  const [reminderOptIn, setReminderOptIn] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState("");
   const [bookedId, setBookedId] = useState<string | null>(null);
@@ -172,17 +171,6 @@ export default function BookSessionClient({ options }: { options: BookingOptions
               <span className="font-bold">{isFirstSession ? "Assessment (Free)" : "Regular"}</span>
             </div>
           </div>
-
-          <label className="mt-5 flex items-center gap-3 rounded-xl border border-black/10 p-4">
-            <input
-              type="checkbox"
-              checked={reminderOptIn}
-              onChange={(e) => setReminderOptIn(e.target.checked)}
-              className="h-4 w-4 accent-brand-yellow"
-            />
-            <BellRing className="h-4 w-4 text-black/50" />
-            <span className="text-sm">Add to calendar &amp; send me reminders</span>
-          </label>
 
           {confirmError && (
             <p className="mt-4 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600">

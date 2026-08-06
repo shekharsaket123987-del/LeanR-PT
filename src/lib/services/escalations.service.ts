@@ -4,7 +4,7 @@ import { logTimelineEvent } from "./timeline.service";
 import { createFromTemplate } from "./notifications.service";
 
 const ESCALATION_SELECT =
-  "*, client:client_profiles(id, profile:profiles(full_name, photo_url)), coach:coach_profiles(id, profile:profiles(full_name))";
+  "*, client:client_profiles(id, client_code, profile:profiles(full_name, photo_url)), coach:coach_profiles(id, profile:profiles(full_name))";
 
 /** Client raising their own concern (client portal, once built) or admin
  * logging one on the client's behalf during a support call -- raisedBy is
@@ -111,6 +111,18 @@ export async function listEscalationsForCoach(accessToken: string, coachId: stri
     .select(ESCALATION_SELECT)
     .eq("coach_id", coachId)
     .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+/** Global admin escalations queue (§2.7) -- every escalation platform-wide,
+ * unfiltered by status; the admin page applies its own Active/Resolved tabs
+ * client-side (same pattern as the coach-side equivalent), rather than this
+ * function only ever returning 'open' like listOpenEscalations() does. */
+export async function listAllEscalations(accessToken: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+  const { data, error } = await ctx.client.from("escalations").select(ESCALATION_SELECT).order("created_at", { ascending: false });
   if (error) throw error;
   return data;
 }

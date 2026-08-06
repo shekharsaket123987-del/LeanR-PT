@@ -46,11 +46,17 @@ export default function LeaveRequestsClient({ requests }: { requests: AdminLeave
           </p>
           {justApproved.summary.assigned.length > 0 && (
             <div>
-              <p className="text-xs font-bold uppercase text-emerald-700">Shadow coaches auto-assigned</p>
+              <p className="text-xs font-bold uppercase text-emerald-700">Shadow coverage auto-assigned</p>
               <ul className="mt-1 space-y-0.5 text-xs text-emerald-800">
                 {justApproved.summary.assigned.map((a) => (
                   <li key={a.clientId}>
-                    {a.clientName} → {a.shadowCoachName}
+                    {a.clientName} →{" "}
+                    {a.shadowCoaches
+                      .map(
+                        (sc) =>
+                          `${sc.shadowCoachName} (${formatDate(sc.startsOn)}${sc.endsOn !== sc.startsOn ? `–${formatDate(sc.endsOn)}` : ""})`
+                      )
+                      .join(", ")}
                   </li>
                 ))}
               </ul>
@@ -61,7 +67,9 @@ export default function LeaveRequestsClient({ requests }: { requests: AdminLeave
               <p className="text-xs font-bold uppercase text-red-700">Needs manual assignment -- no shadow coach available</p>
               <ul className="mt-1 space-y-0.5 text-xs text-red-700">
                 {justApproved.summary.unassignedFlagged.map((c) => (
-                  <li key={c.clientId}>{c.clientName}</li>
+                  <li key={c.clientId}>
+                    {c.clientName} ({c.uncoveredDates.map((d) => formatDate(d)).join(", ")})
+                  </li>
                 ))}
               </ul>
               <Link href={`/admin/coaches/${justApproved.request.coachId}`}>
@@ -89,7 +97,9 @@ export default function LeaveRequestsClient({ requests }: { requests: AdminLeave
                 <div>
                   <p className="text-sm font-bold">{r.coachName}</p>
                   <p className="text-xs text-black/45">
-                    {formatDate(r.startsOn)} – {formatDate(r.endsOn)}
+                    {r.leaveType === "partial"
+                      ? `${formatDate(r.startsOn)} · ${r.partialStartTime?.slice(0, 5)}–${r.partialEndTime?.slice(0, 5)}`
+                      : `${formatDate(r.startsOn)} – ${formatDate(r.endsOn)}`}
                   </p>
                 </div>
               </div>

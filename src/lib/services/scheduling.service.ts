@@ -18,6 +18,24 @@ export function istWallClockToInstant(dateStr: string, timeStr: string): Date {
   return new Date(`${dateStr}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00+05:30`);
 }
 
+/** Inverse of istWallClockToInstant's time-of-day: minutes since IST
+ * midnight for a given UTC instant. IST has no DST, so a fixed +5:30 shift
+ * of the UTC reading is exact. */
+export function istTimeOfDayMinutes(iso: string): number {
+  const istMs = new Date(iso).getTime() + 5.5 * 60 * 60 * 1000;
+  const d = new Date(istMs);
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
+}
+
+/** Inverse of istWallClockToInstant's date: the IST calendar date
+ * ("YYYY-MM-DD") for a given UTC instant -- NOT the same as slicing the raw
+ * ISO string, which reads the UTC calendar date and can be a day off near
+ * midnight IST (00:30 IST is 19:00 UTC the previous day). */
+export function istDateString(iso: string): string {
+  const istMs = new Date(iso).getTime() + 5.5 * 60 * 60 * 1000;
+  return new Date(istMs).toISOString().slice(0, 10);
+}
+
 /** Only whole-hour slots exist platform-wide (5am, 6am, ... up to the last
  * hour before close) — no half-hour or odd-aligned start times. Bounds are
  * admin-configurable via system_settings (booking_window_start_hour/end_hour)
@@ -61,7 +79,11 @@ export async function getOpenSlots(
   const [{ data: availability, error: availError }, { data: leave, error: leaveError }, { data: booked, error: bookedError }] =
     await Promise.all([
       ctx.client.from("coach_availability").select("day_of_week, start_time, end_time").eq("coach_id", coachId).eq("is_active", true),
-      ctx.client.from("coach_leave").select("starts_on, ends_on").eq("coach_id", coachId).eq("status", "approved"),
+      ctx.client
+        .from("coach_leave")
+        .select("starts_on, ends_on, leave_type, partial_start_time, partial_end_time")
+        .eq("coach_id", coachId)
+        .eq("status", "approved"),
       ctx.client
         .from("bookings")
         .select("scheduled_start, duration_minutes")
@@ -80,7 +102,21 @@ export async function getOpenSlots(
     list.push(a);
     byDayOfWeek.set(a.day_of_week, list);
   }
-  const leaveDates = (leave ?? []).map((l) => ({ starts: new Date(l.starts_on), ends: new Date(l.ends_on) }));
+  // Full-day leave blocks the entire date, same as before. Partial-day leave
+  // (migration 0031) only blocks its own time window on ONE date, tracked
+  // separately so the rest of that day stays bookable.
+  const fullDayLeave = (leave ?? [])
+    .filter((l: any) => l.leave_type !== "partial")
+    .map((l) => ({ starts: new Date(l.starts_on), ends: new Date(l.ends_on) }));
+  const partialLeaveByDate = new Map<string, { startMin: number; endMin: number }[]>();
+  for (const l of (leave ?? []) as any[]) {
+    if (l.leave_type !== "partial" || !l.partial_start_time || !l.partial_end_time) continue;
+    const [psH, psM] = l.partial_start_time.split(":").map(Number);
+    const [peH, peM] = l.partial_end_time.split(":").map(Number);
+    const list = partialLeaveByDate.get(l.starts_on) ?? [];
+    list.push({ startMin: psH * 60 + psM, endMin: peH * 60 + peM });
+    partialLeaveByDate.set(l.starts_on, list);
+  }
   const busy = (booked ?? []).map((b) => {
     const start = new Date(b.scheduled_start);
     return { start, end: new Date(start.getTime() + b.duration_minutes * 60_000) };
@@ -98,13 +134,19 @@ export async function getOpenSlots(
   const end = new Date(`${toDate}T00:00:00Z`);
   while (cursor <= end) {
     const dow = cursor.getUTCDay();
-    const onLeave = leaveDates.some((l) => cursor >= l.starts && cursor <= l.ends);
+    const dateStr = cursor.toISOString().slice(0, 10);
+    const onFullDayLeave = fullDayLeave.some((l) => cursor >= l.starts && cursor <= l.ends);
+    const partialWindows = partialLeaveByDate.get(dateStr) ?? [];
     const windows = byDayOfWeek.get(dow) ?? [];
-    if (!onLeave && windows.length > 0) {
+    if (!onFullDayLeave && windows.length > 0) {
       for (const slotTime of grid) {
         const [h, m] = slotTime.split(":").map(Number);
         if (!fitsWithinWindow(h, m, windows)) continue;
-        const slotStart = istWallClockToInstant(cursor.toISOString().slice(0, 10), slotTime);
+        const slotStartMin = h * 60 + m;
+        const slotEndMin = slotStartMin + durationMinutes;
+        const overlapsPartialLeave = partialWindows.some((w) => slotStartMin < w.endMin && slotEndMin > w.startMin);
+        if (overlapsPartialLeave) continue;
+        const slotStart = istWallClockToInstant(dateStr, slotTime);
         const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60_000);
         const overlapsBusy = busy.some((b) => slotStart < b.end && slotEnd > b.start);
         if (!overlapsBusy) slots.push({ start: slotStart.toISOString(), end: slotEnd.toISOString() });
@@ -112,6 +154,130 @@ export async function getOpenSlots(
     }
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
+  return slots;
+}
+
+export interface CoachCalendarSlot {
+  date: string; // YYYY-MM-DD
+  time: string; // "HH:MM"
+  status: "open" | "booked" | "unavailable";
+  booking: {
+    id: string;
+    clientId: string;
+    clientName: string;
+    status: "upcoming" | "completed" | "cancelled" | "missed";
+    wasRescheduled: boolean;
+  } | null;
+}
+
+/** Admin coach-detail "7-day slot calendar" (FEATURE_SPEC_PORTAL_ENHANCEMENTS.md
+ * §2.3): every grid slot in the coach's own working hours from today through
+ * today+6, labeled open/booked/unavailable. Deliberately NOT reusing
+ * getOpenSlots() as-is -- that function only ever returns the open subset;
+ * this needs every slot including booked/blocked ones, with which client
+ * holds it and whether it was rescheduled. Shares the same availability +
+ * leave (full-day/partial, migration 0031) handling as getOpenSlots() so the
+ * two stay consistent with each other. */
+export async function getCoachWeekCalendar(accessToken: string, coachId: string, fromDate: string, toDate: string): Promise<CoachCalendarSlot[]> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+  const { startHour, endHour } = await getBookingWindow(accessToken);
+  const grid = hourlyGrid(startHour, endHour);
+
+  const [{ data: availability, error: availError }, { data: leave, error: leaveError }, { data: booked, error: bookedError }] =
+    await Promise.all([
+      ctx.client.from("coach_availability").select("day_of_week, start_time, end_time").eq("coach_id", coachId).eq("is_active", true),
+      ctx.client
+        .from("coach_leave")
+        .select("starts_on, ends_on, leave_type, partial_start_time, partial_end_time")
+        .eq("coach_id", coachId)
+        .eq("status", "approved"),
+      ctx.client
+        .from("bookings")
+        .select("id, scheduled_start, duration_minutes, status, was_rescheduled, client:client_profiles(id, profile:profiles(full_name))")
+        .eq("coach_id", coachId)
+        .neq("status", "cancelled")
+        .gte("scheduled_start", `${fromDate}T00:00:00Z`)
+        .lte("scheduled_start", `${toDate}T23:59:59Z`),
+    ]);
+  if (availError) throw availError;
+  if (leaveError) throw leaveError;
+  if (bookedError) throw bookedError;
+
+  const byDayOfWeek = new Map<number, { start_time: string; end_time: string }[]>();
+  for (const a of availability ?? []) {
+    const list = byDayOfWeek.get(a.day_of_week) ?? [];
+    list.push(a);
+    byDayOfWeek.set(a.day_of_week, list);
+  }
+  const fullDayLeave = (leave ?? [])
+    .filter((l: any) => l.leave_type !== "partial")
+    .map((l) => ({ starts: new Date(l.starts_on), ends: new Date(l.ends_on) }));
+  const partialLeaveByDate = new Map<string, { startMin: number; endMin: number }[]>();
+  for (const l of (leave ?? []) as any[]) {
+    if (l.leave_type !== "partial" || !l.partial_start_time || !l.partial_end_time) continue;
+    const [psH, psM] = l.partial_start_time.split(":").map(Number);
+    const [peH, peM] = l.partial_end_time.split(":").map(Number);
+    const list = partialLeaveByDate.get(l.starts_on) ?? [];
+    list.push({ startMin: psH * 60 + psM, endMin: peH * 60 + peM });
+    partialLeaveByDate.set(l.starts_on, list);
+  }
+
+  const bookingByInstant = new Map<string, (typeof booked)[number]>();
+  for (const b of (booked ?? []) as any[]) bookingByInstant.set(new Date(b.scheduled_start).toISOString(), b);
+
+  const fitsWithinWindow = (h: number, m: number, windows: { start_time: string; end_time: string }[]) =>
+    windows.some((w) => {
+      const [wsH, wsM] = w.start_time.split(":").map(Number);
+      const [weH, weM] = w.end_time.split(":").map(Number);
+      return h * 60 + m >= wsH * 60 + wsM && h * 60 + m < weH * 60 + weM;
+    });
+
+  const slots: CoachCalendarSlot[] = [];
+  const cursor = new Date(`${fromDate}T00:00:00Z`);
+  const end = new Date(`${toDate}T00:00:00Z`);
+  while (cursor <= end) {
+    const dateStr = cursor.toISOString().slice(0, 10);
+    const dow = cursor.getUTCDay();
+    const windows = byDayOfWeek.get(dow) ?? [];
+    const onFullDayLeave = fullDayLeave.some((l) => cursor >= l.starts && cursor <= l.ends);
+    const partialWindows = partialLeaveByDate.get(dateStr) ?? [];
+
+    for (const slotTime of grid) {
+      const [h, m] = slotTime.split(":").map(Number);
+      if (!fitsWithinWindow(h, m, windows)) continue; // outside working hours entirely -- not part of the grid
+
+      const slotStart = istWallClockToInstant(dateStr, slotTime);
+      const bookingRow = bookingByInstant.get(slotStart.toISOString()) as any;
+
+      if (bookingRow) {
+        slots.push({
+          date: dateStr,
+          time: slotTime,
+          status: "booked",
+          booking: {
+            id: bookingRow.id,
+            clientId: bookingRow.client?.id ?? "",
+            clientName: bookingRow.client?.profile?.full_name ?? "Client",
+            status: bookingRow.status,
+            wasRescheduled: bookingRow.was_rescheduled ?? false,
+          },
+        });
+        continue;
+      }
+
+      const slotStartMin = h * 60 + m;
+      const overlapsPartialLeave = partialWindows.some((w) => slotStartMin < w.endMin && slotStartMin >= w.startMin);
+      if (onFullDayLeave || overlapsPartialLeave) {
+        slots.push({ date: dateStr, time: slotTime, status: "unavailable", booking: null });
+        continue;
+      }
+
+      slots.push({ date: dateStr, time: slotTime, status: "open", booking: null });
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
   return slots;
 }
 
@@ -386,6 +552,45 @@ export interface ShadowCoachCandidate {
   name: string;
   specialization: string | null;
   utilizationPct: number;
+  score: number;
+}
+
+export interface ShadowOccurrence {
+  slotStart: string; // ISO instant of this specific session occurrence
+  durationMinutes: number;
+  candidates: ShadowCoachCandidate[]; // ranked best-first, [] if none free
+}
+
+/** Weighted compatibility score for a shadow-coach candidate, relative to
+ * the primary coach being covered for (FEATURE_SPEC_PORTAL_ENHANCEMENTS.md
+ * §4.2.2). Kept as a single function so the weighting can be tuned in one
+ * place rather than a hardcoded priority ladder. Utilization was the only
+ * signal scored before this change; specialization/language/rating are
+ * genuinely new inputs here, not new schema -- all already exist on
+ * coach_profiles. */
+function scoreShadowCandidate(
+  candidate: {
+    specialization: string | null;
+    secondarySpecializations: string[];
+    languages: string[];
+    rating: number;
+    utilizationPct: number;
+  },
+  primary: { specialization: string | null; languages: string[] }
+): number {
+  let score = 0;
+
+  if (primary.specialization && candidate.specialization === primary.specialization) score += 40;
+  else if (primary.specialization && candidate.secondarySpecializations.includes(primary.specialization)) score += 20;
+
+  const sharedLanguages = candidate.languages.filter((l) => primary.languages.includes(l)).length;
+  score += Math.min(sharedLanguages, 3) * 10; // up to 30
+
+  score += candidate.rating * 6; // 0-5 -> 0-30
+
+  score += (100 - candidate.utilizationPct) * 0.2; // 0-100 -> 0-20, lower utilization scores higher
+
+  return Math.round(score * 10) / 10;
 }
 
 /** Finds coaches who can stand in for a client's PRIMARY coach across every
@@ -397,12 +602,20 @@ export interface ShadowCoachCandidate {
  * real booking flow depends on (is_slot_within_working_hours already checks
  * coach_leave + coach_shifts + coach_availability in one call;
  * has_scheduling_conflict checks real bookings/holds) rather than
- * re-implementing that logic here. Ranked by utilization ascending, same
- * tie-break as findAvailableCoach. */
+ * re-implementing that logic here.
+ *
+ * Resolved PER OCCURRENCE, not once for the whole date range -- a coach free
+ * on 3 of 5 sessions is a real candidate for those 3. Different shadow
+ * coaches covering different days for the same client during one leave
+ * period is the correct, expected outcome, not an edge case to prevent (see
+ * planShadowAssignments below, which turns this per-occurrence resolution
+ * into the minimal set of actual assignment calls). Each occurrence's
+ * candidates are ranked by weighted score (scoreShadowCandidate), not
+ * utilization alone. */
 export async function findShadowCoachCandidates(
   accessToken: string,
   input: { clientId: string; primaryCoachId: string; startsOn: string; endsOn: string }
-): Promise<ShadowCoachCandidate[]> {
+): Promise<ShadowOccurrence[]> {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["admin"]);
 
@@ -431,14 +644,26 @@ export async function findShadowCoachCandidates(
     }
   }
   if (occurrences.length === 0) return [];
+  occurrences.sort((a, b) => new Date(a.slotStart).getTime() - new Date(b.slotStart).getTime());
+
+  const { data: primary, error: primaryError } = await ctx.client
+    .from("coach_profiles")
+    .select("specialization, languages")
+    .eq("id", input.primaryCoachId)
+    .maybeSingle();
+  if (primaryError) throw primaryError;
+  const primaryProfile = {
+    specialization: (primary as any)?.specialization ?? null,
+    languages: ((primary as any)?.languages as string[] | null) ?? [],
+  };
 
   const { data: coaches, error: coachesError } = await ctx.client
     .from("coach_profiles")
-    .select("id, specialization, profile:profiles(full_name)")
+    .select("id, specialization, secondary_specializations, languages, rating, profile:profiles(full_name)")
     .eq("status", "active")
     .neq("id", input.primaryCoachId);
   if (coachesError) throw coachesError;
-  if (!coaches || coaches.length === 0) return [];
+  if (!coaches || coaches.length === 0) return occurrences.map((occ) => ({ ...occ, candidates: [] }));
 
   const { data: util, error: utilError } = await ctx.client
     .from("coach_utilization_view")
@@ -450,40 +675,205 @@ export async function findShadowCoachCandidates(
   if (utilError) throw utilError;
   const utilByCoach = new Map((util ?? []).map((u) => [u.coach_id, u.utilization_pct]));
 
-  const candidates: ShadowCoachCandidate[] = [];
-  for (const coach of coaches as any[]) {
-    let free = true;
-    for (const occ of occurrences) {
-      const [{ data: withinHours, error: hoursError }, { data: hasConflict, error: conflictError }] = await Promise.all([
-        ctx.client.rpc("is_slot_within_working_hours", {
-          p_coach_id: coach.id,
-          p_slot_start: occ.slotStart,
-          p_duration_minutes: occ.durationMinutes,
-        }),
-        ctx.client.rpc("has_scheduling_conflict", {
-          p_coach_id: coach.id,
-          p_slot_start: occ.slotStart,
-          p_duration_minutes: occ.durationMinutes,
-        }),
-      ]);
-      if (hoursError) throw hoursError;
-      if (conflictError) throw conflictError;
-      if (!withinHours || hasConflict) {
-        free = false;
-        break;
-      }
-    }
-    if (free) {
-      candidates.push({
+  const occurrenceCandidates: ShadowCoachCandidate[][] = occurrences.map(() => []);
+
+  await Promise.all(
+    (coaches as any[]).map(async (coach) => {
+      const freePerOccurrence = await Promise.all(
+        occurrences.map(async (occ) => {
+          const [{ data: withinHours, error: hoursError }, { data: hasConflict, error: conflictError }] = await Promise.all([
+            ctx.client.rpc("is_slot_within_working_hours", {
+              p_coach_id: coach.id,
+              p_slot_start: occ.slotStart,
+              p_duration_minutes: occ.durationMinutes,
+            }),
+            ctx.client.rpc("has_scheduling_conflict", {
+              p_coach_id: coach.id,
+              p_slot_start: occ.slotStart,
+              p_duration_minutes: occ.durationMinutes,
+            }),
+          ]);
+          if (hoursError) throw hoursError;
+          if (conflictError) throw conflictError;
+          return Boolean(withinHours) && !hasConflict;
+        })
+      );
+
+      const utilizationPct = utilByCoach.get(coach.id) ?? 0;
+      const candidate: ShadowCoachCandidate = {
         coachId: coach.id,
         name: coach.profile?.full_name ?? "Coach",
         specialization: coach.specialization ?? null,
-        utilizationPct: utilByCoach.get(coach.id) ?? 0,
+        utilizationPct,
+        score: scoreShadowCandidate(
+          {
+            specialization: coach.specialization ?? null,
+            secondarySpecializations: (coach.secondary_specializations as string[] | null) ?? [],
+            languages: (coach.languages as string[] | null) ?? [],
+            rating: Number(coach.rating ?? 0),
+            utilizationPct,
+          },
+          primaryProfile
+        ),
+      };
+
+      freePerOccurrence.forEach((free, i) => {
+        if (free) occurrenceCandidates[i].push(candidate);
+      });
+    })
+  );
+
+  return occurrences.map((occ, i) => ({
+    ...occ,
+    candidates: occurrenceCandidates[i].sort((a, b) => b.score - a.score),
+  }));
+}
+
+export interface ShadowAssignmentPlanItem {
+  shadowCoachId: string;
+  shadowCoachName: string;
+  startsOn: string; // date, inclusive
+  endsOn: string; // date, inclusive
+}
+
+export interface ShadowAssignmentPlan {
+  assignments: ShadowAssignmentPlanItem[];
+  uncoveredDates: string[]; // occurrence dates with zero free candidates
+}
+
+/** Turns per-occurrence candidate resolution into the minimal set of actual
+ * assign_shadow_coach() calls: picks the top-scored candidate for each
+ * occurrence, then groups consecutive occurrences (in date order) assigned
+ * to the SAME coach into a single date-range assignment -- so a leave
+ * covered entirely by one coach still produces one shadow_coach_assignments
+ * row, not one per session. A different coach on an intervening occurrence
+ * starts a new group; grouping by list adjacency (not calendar-day
+ * adjacency) is safe because assign_shadow_coach() only ever touches this
+ * client's OWN existing bookings within the given range, so a range that
+ * happens to span an "off day" the client has no session on is a no-op for
+ * that day, not a hazard. Used by both the automatic leave-approval path
+ * and the manual admin "Assign Shadow Coach" tool, so both share the same
+ * grouping/ranking logic. */
+export function planShadowAssignments(occurrences: ShadowOccurrence[]): ShadowAssignmentPlan {
+  const uncoveredDates: string[] = [];
+  const assignments: ShadowAssignmentPlanItem[] = [];
+  // Tracks the coach covering the occurrence immediately prior, so an
+  // uncovered gap always forces a new group -- otherwise a later occurrence
+  // assigned back to the same coach as before the gap would extend the date
+  // range OVER the uncovered day, and assign_shadow_coach()'s date-range
+  // update would then incorrectly reassign that booking too, to a coach
+  // already confirmed not free for it.
+  let lastCoachId: string | null = null;
+
+  for (const occ of occurrences) {
+    const date = occ.slotStart.slice(0, 10);
+    const top = occ.candidates[0];
+    if (!top) {
+      uncoveredDates.push(date);
+      lastCoachId = null;
+      continue;
+    }
+    const last = assignments[assignments.length - 1];
+    if (last && lastCoachId === top.coachId) {
+      last.endsOn = date;
+    } else {
+      assignments.push({ shadowCoachId: top.coachId, shadowCoachName: top.name, startsOn: date, endsOn: date });
+    }
+    lastCoachId = top.coachId;
+  }
+
+  return { assignments, uncoveredDates };
+}
+
+export interface ShadowCoverageGap {
+  bookingId: string;
+  scheduledStart: string;
+  clientId: string;
+  clientName: string;
+  clientCode: string | null;
+  coachId: string;
+  coachName: string;
+  leaveId: string;
+  leaveReason: string | null;
+  leaveStartsOn: string;
+  leaveEndsOn: string;
+}
+
+/** Persistent "Shadow Coach Required" admin queue (FEATURE_SPEC_PORTAL_ENHANCEMENTS.md
+ * §4.2.4). Deliberately derived live from existing data rather than a new
+ * table: a booking is a coverage gap if its coach currently has approved
+ * leave covering that exact occurrence (respecting partial-day time windows,
+ * migration 0031) and the booking is STILL assigned to that same coach --
+ * i.e. no shadow coach was ever found or manually assigned for it. Resolving
+ * it (via the same "Assign Shadow Coach" tool used for undocumented
+ * absences, §4.2.3) changes bookings.coach_id away from the primary coach,
+ * so the row disappears from this list on the next read with nothing extra
+ * to keep in sync. Replaces the transient "just approved" summary card as
+ * the durable place this stays visible. */
+export async function listShadowCoverageGaps(accessToken: string): Promise<ShadowCoverageGap[]> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+
+  const now = new Date();
+  const todayIso = now.toISOString().slice(0, 10);
+
+  const { data: leaves, error: leavesError } = await ctx.client
+    .from("coach_leave")
+    .select("id, coach_id, starts_on, ends_on, reason, leave_type, partial_start_time, partial_end_time")
+    .eq("status", "approved")
+    .gte("ends_on", todayIso);
+  if (leavesError) throw leavesError;
+  if (!leaves || leaves.length === 0) return [];
+
+  const coachIds = [...new Set((leaves as any[]).map((l) => l.coach_id))];
+  const { data: bookings, error: bookingsError } = await ctx.client
+    .from("bookings")
+    .select(
+      "id, scheduled_start, duration_minutes, coach_id, client:client_profiles(id, client_code, profile:profiles(full_name)), coach:coach_profiles(profile:profiles(full_name))"
+    )
+    .in("coach_id", coachIds)
+    .eq("status", "upcoming")
+    .gt("scheduled_start", now.toISOString());
+  if (bookingsError) throw bookingsError;
+
+  const gaps = new Map<string, ShadowCoverageGap>();
+  for (const leave of leaves as any[]) {
+    let windowMin: { start: number; end: number } | null = null;
+    if (leave.leave_type === "partial" && leave.partial_start_time && leave.partial_end_time) {
+      const [psH, psM] = leave.partial_start_time.split(":").map(Number);
+      const [peH, peM] = leave.partial_end_time.split(":").map(Number);
+      windowMin = { start: psH * 60 + psM, end: peH * 60 + peM };
+    }
+
+    for (const booking of (bookings as any[]).filter((b) => b.coach_id === leave.coach_id)) {
+      if (gaps.has(booking.id)) continue; // already matched by an earlier (overlapping) leave row
+
+      const bookingDate = istDateString(booking.scheduled_start);
+      if (bookingDate < leave.starts_on || bookingDate > leave.ends_on) continue;
+
+      if (windowMin) {
+        const startMin = istTimeOfDayMinutes(booking.scheduled_start);
+        const endMin = startMin + booking.duration_minutes;
+        if (!(startMin < windowMin.end && endMin > windowMin.start)) continue;
+      }
+
+      gaps.set(booking.id, {
+        bookingId: booking.id,
+        scheduledStart: booking.scheduled_start,
+        clientId: booking.client?.id ?? "",
+        clientName: booking.client?.profile?.full_name ?? "Client",
+        clientCode: booking.client?.client_code ?? null,
+        coachId: leave.coach_id,
+        coachName: booking.coach?.profile?.full_name ?? "Coach",
+        leaveId: leave.id,
+        leaveReason: leave.reason,
+        leaveStartsOn: leave.starts_on,
+        leaveEndsOn: leave.ends_on,
       });
     }
   }
 
-  return candidates.sort((a, b) => a.utilizationPct - b.utilizationPct);
+  return [...gaps.values()].sort((a, b) => new Date(a.scheduledStart).getTime() - new Date(b.scheduledStart).getTime());
 }
 
 /** Client-initiated "change my schedule, same coach" -- unlike

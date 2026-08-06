@@ -73,6 +73,10 @@ export default function RescheduleModal({
             Showing {options.coach.name.split(" ")[0]}&apos;s open slots for the rest of this week ·{" "}
             <span className="font-bold text-black/60">{options.reschedulesRemaining} of 2 reschedules left this week</span>
           </p>
+          <p className="mb-4 rounded-lg bg-black/[0.03] p-3 text-xs text-black/50">
+            Sessions can be rescheduled up to 2 times per week, and must be moved at least {options.cutoffHours} hour
+            {options.cutoffHours === 1 ? "" : "s"} before the original start time.
+          </p>
 
           {options.slots.length === 0 && (
             <EmptyState icon={CalendarDays} title="No open slots left this week" description="Try again next week, or contact support." />
@@ -96,6 +100,12 @@ export default function RescheduleModal({
             ))}
           </div>
 
+          {selectedSlot && (
+            <p className="mt-4 text-xs text-black/50">
+              This will move your session to {formatDate(selectedSlot.start)} · {formatTime(selectedSlot.start)}, using{" "}
+              {options.reschedulesUsedThisWeek + 1} of your 2 reschedules for this week.
+            </p>
+          )}
           {submitError && <p className="mt-4 text-xs text-red-600">{submitError}</p>}
 
           <div className="mt-6 flex justify-end gap-3">

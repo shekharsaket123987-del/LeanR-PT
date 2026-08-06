@@ -3,7 +3,7 @@
 import { getSessionUser } from "@/lib/supabase/server-client";
 import { ActionResult, runAction } from "./action-result";
 import { getMyProfile, updateMyProfile } from "@/lib/services/profiles.service";
-import { getMyCoachProfile } from "@/lib/services/coaches.service";
+import { appendMySkill, getMyCoachProfile } from "@/lib/services/coaches.service";
 import { getMyAvailability } from "@/lib/services/availability.service";
 import { getMyCoachPerformance } from "@/lib/services/coachPerformance.service";
 
@@ -25,6 +25,9 @@ export interface CoachProfileView {
   bio: string;
   certifications: string[];
   languages: string[];
+  // Coach can only ADD to this (§1.2) -- enforced server-side in
+  // appendMySkill(), not just by omitting a remove button here.
+  skills: string[];
   rating: number;
   reviewCount: number;
   employeeCode: string | null;
@@ -71,6 +74,7 @@ export async function getMyCoachProfileAction(): Promise<ActionResult<CoachProfi
       bio: (coachProfile as any).bio ?? "",
       certifications: (coachProfile as any).certifications ?? [],
       languages: (coachProfile as any).languages ?? [],
+      skills: (coachProfile as any).skills ?? [],
       rating: (coachProfile as any).rating ?? 0,
       reviewCount: (coachProfile as any).review_count ?? 0,
       employeeCode: (coachProfile as any).employee_code ?? null,
@@ -80,6 +84,14 @@ export async function getMyCoachProfileAction(): Promise<ActionResult<CoachProfi
       maxCapacity: performance.maxCapacity,
       availableCapacity: performance.availableCapacity,
     };
+  });
+}
+
+export async function addMySkillAction(skill: string): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const session = await requireSession();
+    await appendMySkill(session.token, skill);
+    return null;
   });
 }
 

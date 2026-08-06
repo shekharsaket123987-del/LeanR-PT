@@ -5,8 +5,15 @@ import { ActionResult, runAction } from "./action-result";
 import { getClient, listClients, reassignClientCoach, getClientCurrentCoachId } from "@/lib/services/clients.service";
 import { getCoach, listCoaches } from "@/lib/services/coaches.service";
 import { listBookingsForClient } from "@/lib/services/bookings.service";
-import { getSubscriptionsForClient, pauseSubscription, adjustSubscriptionSessions } from "@/lib/services/subscriptions.service";
+import {
+  getSubscriptionsForClient,
+  pauseSubscription,
+  adjustSubscriptionSessions,
+  getPauseDaysStatus,
+  adjustPauseDaysAllowed,
+} from "@/lib/services/subscriptions.service";
 import { logRefundRequest } from "@/lib/services/audit.service";
+import { listProgressLogsForClient } from "@/lib/services/progressLogs.service";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 
 async function requireToken(): Promise<string> {
@@ -47,6 +54,22 @@ export async function listAdminClientsAction(): Promise<ActionResult<AdminClient
   });
 }
 
+/** Structurally identical to MeasurementChart's own MeasurementPoint --
+ * duplicated here rather than imported so this "use server" file never
+ * imports from a "use client" component module (same convention as
+ * coach-portal.actions.ts). */
+export interface MeasurementPoint {
+  loggedAt: string;
+  weight: number | null;
+  bodyFatPct: number | null;
+  musclePct: number | null;
+  waist: number | null;
+  chest: number | null;
+  hip: number | null;
+  arms: number | null;
+  thigh: number | null;
+}
+
 export interface AdminClientDetailView {
   id: string;
   name: string;
@@ -58,8 +81,17 @@ export interface AdminClientDetailView {
   goals: string[];
   medicalNotes: string | null;
   coach: { id: string; name: string; specialization: string | null; photo: string } | null;
-  subscription: { id: string; packageName: string; sessionsUsed: number; sessionsRemaining: number; sessionsTotal: number } | null;
+  subscription: {
+    id: string;
+    packageName: string;
+    sessionsUsed: number;
+    sessionsRemaining: number;
+    sessionsTotal: number;
+    pauseDaysAllowed: number;
+    pauseDaysUsed: number;
+  } | null;
   history: { id: string; type: "assessment" | "regular"; status: string; date: string; remarks: string | null; amountPaid: number | null }[];
+  progressHistory: MeasurementPoint[];
 }
 
 export async function getAdminClientDetailAction(clientId: string): Promise<ActionResult<AdminClientDetailView>> {
@@ -67,11 +99,12 @@ export async function getAdminClientDetailAction(clientId: string): Promise<Acti
     const token = await requireToken();
     const client: any = await getClient(token, clientId);
 
-    const [subs, bookings, authUser, currentCoachId] = await Promise.all([
+    const [subs, bookings, authUser, currentCoachId, progressLogs] = await Promise.all([
       getSubscriptionsForClient(token, clientId),
       listBookingsForClient(token, clientId),
       supabaseAdmin.auth.admin.getUserById(client.profile.id),
       getClientCurrentCoachId(token, clientId),
+      listProgressLogsForClient(token, clientId),
     ]);
 
     let coach: AdminClientDetailView["coach"] = null;
@@ -86,6 +119,7 @@ export async function getAdminClientDetailAction(clientId: string): Promise<Acti
     }
 
     const activeSub: any = (subs as any[]).find((s) => s.status === "active") ?? (subs as any[])[0] ?? null;
+    const pauseDays = activeSub ? await getPauseDaysStatus(token, activeSub.id) : null;
     const subscription = activeSub
       ? {
           id: activeSub.id,
@@ -93,6 +127,8 @@ export async function getAdminClientDetailAction(clientId: string): Promise<Acti
           sessionsUsed: activeSub.usage?.sessions_used ?? 0,
           sessionsRemaining: activeSub.usage?.sessions_remaining ?? 0,
           sessionsTotal: activeSub.sessions_total,
+          pauseDaysAllowed: pauseDays?.pauseDaysAllowed ?? 0,
+          pauseDaysUsed: pauseDays?.pauseDaysUsed ?? 0,
         }
       : null;
 
@@ -113,9 +149,22 @@ export async function getAdminClientDetailAction(clientId: string): Promise<Acti
         type: b.session_type,
         status: b.status,
         date: b.scheduled_start,
-        remarks: b.client_feedback ?? null,
+        remarks: b.rating_note ?? null,
         amountPaid: b.amount_paid ?? null,
       })),
+      progressHistory: (progressLogs as any[])
+        .sort((a, b) => new Date(a.logged_at).getTime() - new Date(b.logged_at).getTime())
+        .map((l) => ({
+          loggedAt: l.logged_at,
+          weight: l.weight,
+          bodyFatPct: l.body_fat_pct,
+          musclePct: l.muscle_pct,
+          waist: l.waist,
+          chest: l.chest,
+          hip: l.hip,
+          arms: l.arms,
+          thigh: l.thigh,
+        })),
     };
   });
 }
@@ -139,6 +188,13 @@ export async function adjustClientSessionsAction(subscriptionId: string, newTota
     const token = await requireToken();
     await adjustSubscriptionSessions(token, subscriptionId, newTotal);
     return null;
+  });
+}
+
+export async function adjustPauseDaysAction(subscriptionId: string, additionalDays: number): Promise<ActionResult<{ pauseDaysAllowed: number }>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    return adjustPauseDaysAllowed(token, subscriptionId, additionalDays);
   });
 }
 

@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
-import { findShadowCoachCandidatesAction, assignShadowCoachAction } from "@/lib/actions/admin-shadow-coach.actions";
+import { previewShadowAssignmentPlanAction, confirmShadowAssignmentPlanAction } from "@/lib/actions/admin-shadow-coach.actions";
 import { isFailure } from "@/lib/actions/action-result";
-import { ShadowCoachCandidate } from "@/lib/services/scheduling.service";
+import { ShadowAssignmentPlan } from "@/lib/services/scheduling.service";
+import { formatDate } from "@/lib/utils";
 
 interface Props {
   open: boolean;
@@ -23,15 +24,13 @@ export default function ShadowCoachAssignModal({ open, onClose, clientId, primar
   const [startsOn, setStartsOn] = useState(todayISO());
   const [endsOn, setEndsOn] = useState(todayISO());
   const [reason, setReason] = useState("");
-  const [candidates, setCandidates] = useState<ShadowCoachCandidate[] | null>(null);
-  const [selected, setSelected] = useState<string>("");
+  const [plan, setPlan] = useState<ShadowAssignmentPlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [error, setError] = useState("");
 
   function reset() {
-    setCandidates(null);
-    setSelected("");
+    setPlan(null);
     setError("");
   }
 
@@ -42,26 +41,24 @@ export default function ShadowCoachAssignModal({ open, onClose, clientId, primar
     }
     setLoading(true);
     setError("");
-    setCandidates(null);
-    const result = await findShadowCoachCandidatesAction(clientId, primaryCoachId, startsOn, endsOn);
+    setPlan(null);
+    const result = await previewShadowAssignmentPlanAction(clientId, primaryCoachId, startsOn, endsOn);
     setLoading(false);
     if (isFailure(result)) {
       setError(result.error.message);
       return;
     }
-    setCandidates(result.data);
+    setPlan(result.data);
   }
 
   async function confirm() {
-    if (!selected) return;
+    if (!plan || plan.assignments.length === 0) return;
     setAssigning(true);
     setError("");
-    const result = await assignShadowCoachAction({
+    const result = await confirmShadowAssignmentPlanAction({
       clientId,
       primaryCoachId,
-      shadowCoachId: selected,
-      startsOn,
-      endsOn,
+      plan: plan.assignments,
       reason: reason || undefined,
     });
     setAssigning(false);
@@ -84,8 +81,8 @@ export default function ShadowCoachAssignModal({ open, onClose, clientId, primar
     >
       <div className="space-y-4">
         <p className="text-sm text-black/50">
-          Find a coach to cover this client&apos;s recurring sessions for a date range — e.g. while their primary coach is on
-          leave.
+          Finds the best-matching free coach for each of this client&apos;s sessions in the range — different sessions can
+          land on different coaches if that&apos;s what&apos;s actually available.
         </p>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -118,43 +115,44 @@ export default function ShadowCoachAssignModal({ open, onClose, clientId, primar
           <input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="e.g. Primary coach on approved leave"
+            placeholder="e.g. Primary coach unavailable, no leave on file"
             className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
           />
         </div>
 
         {error && <p className="text-xs text-red-600">{error}</p>}
 
-        {candidates === null ? (
+        {plan === null ? (
           <Button className="w-full" loading={loading} onClick={search}>
-            Find Available Coaches
+            Find Coverage
           </Button>
-        ) : candidates.length === 0 ? (
-          <p className="rounded-lg bg-black/[0.03] p-3 text-sm text-black/50">
-            No coach is free for all of this client&apos;s sessions in that range.
-          </p>
         ) : (
           <div className="space-y-2">
-            {candidates.map((c) => (
-              <label
-                key={c.coachId}
-                className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 text-sm ${
-                  selected === c.coachId ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10"
-                }`}
-              >
-                <span>
-                  <span className="font-semibold">{c.name}</span>
-                  {c.specialization && <span className="text-black/45"> — {c.specialization}</span>}
+            {plan.assignments.length === 0 && plan.uncoveredDates.length === 0 && (
+              <p className="rounded-lg bg-black/[0.03] p-3 text-sm text-black/50">
+                This client has no sessions with their current coach in that range.
+              </p>
+            )}
+            {plan.assignments.map((a, i) => (
+              <div key={i} className="rounded-xl border border-black/10 p-3 text-sm">
+                <span className="font-semibold">{a.shadowCoachName}</span>
+                <span className="text-black/45">
+                  {" "}
+                  — {formatDate(a.startsOn)}
+                  {a.endsOn !== a.startsOn ? ` – ${formatDate(a.endsOn)}` : ""}
                 </span>
-                <span className="flex items-center gap-2">
-                  <span className="text-xs text-black/40">{c.utilizationPct}% utilized</span>
-                  <input type="radio" name="shadow-coach" checked={selected === c.coachId} onChange={() => setSelected(c.coachId)} />
-                </span>
-              </label>
+              </div>
             ))}
-            <Button className="w-full" disabled={!selected} loading={assigning} onClick={confirm}>
-              Confirm Shadow Coach
-            </Button>
+            {plan.uncoveredDates.length > 0 && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                No coach free on: {plan.uncoveredDates.map((d) => formatDate(d)).join(", ")}
+              </div>
+            )}
+            {plan.assignments.length > 0 && (
+              <Button className="w-full" loading={assigning} onClick={confirm}>
+                Confirm Assignment{plan.assignments.length > 1 ? "s" : ""}
+              </Button>
+            )}
           </div>
         )}
       </div>

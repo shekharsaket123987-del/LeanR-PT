@@ -2,7 +2,14 @@
 
 import { getAccessToken } from "@/lib/supabase/server-client";
 import { ActionResult, runAction } from "./action-result";
-import { createEscalation, resolveEscalation, markEscalationInProgress, listEscalationsForClient } from "@/lib/services/escalations.service";
+import {
+  createEscalation,
+  resolveEscalation,
+  markEscalationInProgress,
+  listEscalationsForClient,
+  listAllEscalations,
+} from "@/lib/services/escalations.service";
+import { listClients } from "@/lib/services/clients.service";
 
 async function requireToken(): Promise<string> {
   const token = await getAccessToken();
@@ -37,6 +44,43 @@ export async function listEscalationsForClientAction(clientId: string): Promise<
       createdAt: r.created_at,
       resolvedAt: r.resolved_at,
     }));
+  });
+}
+
+export interface AdminGlobalEscalationView extends AdminEscalationView {
+  clientId: string;
+  clientCode: string;
+  clientName: string;
+  packageName: string | null;
+}
+
+/** Global escalations queue (§2.7) -- admins previously had to open clients
+ * one at a time to see any escalation; this is the cross-client aggregate
+ * view, mirroring the coach-side Active/Resolved tab pattern. */
+export async function listAllEscalationsAction(): Promise<ActionResult<AdminGlobalEscalationView[]>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const [rows, clients]: [any[], any[]] = await Promise.all([listAllEscalations(token), listClients(token)]);
+    const clientById = new Map(clients.map((c) => [c.id, c]));
+
+    return rows.map((r) => {
+      const client = clientById.get(r.client_id);
+      return {
+        id: r.id,
+        reason: r.reason,
+        description: r.description,
+        status: r.status,
+        category: r.category,
+        raisedByAdmin: r.raised_by === null,
+        resolutionNotes: r.resolution_notes,
+        createdAt: r.created_at,
+        resolvedAt: r.resolved_at,
+        clientId: r.client_id,
+        clientCode: r.client?.client_code ?? "",
+        clientName: r.client?.profile?.full_name ?? "Client",
+        packageName: client?.activeSubscription?.package?.name ?? null,
+      };
+    });
   });
 }
 

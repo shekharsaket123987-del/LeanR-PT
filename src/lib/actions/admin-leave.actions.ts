@@ -18,6 +18,9 @@ export interface AdminLeaveRequestView {
   endsOn: string;
   reason: string | null;
   submittedAt: string;
+  leaveType: "full_day" | "partial";
+  partialStartTime: string | null;
+  partialEndTime: string | null;
 }
 
 export async function listPendingLeaveAction(): Promise<ActionResult<AdminLeaveRequestView[]>> {
@@ -32,6 +35,9 @@ export async function listPendingLeaveAction(): Promise<ActionResult<AdminLeaveR
       endsOn: r.ends_on,
       reason: r.reason,
       submittedAt: r.created_at,
+      leaveType: r.leave_type ?? "full_day",
+      partialStartTime: r.partial_start_time,
+      partialEndTime: r.partial_end_time,
     }));
   });
 }

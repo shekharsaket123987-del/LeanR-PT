@@ -1,7 +1,7 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { listActiveClientIdsForCoach } from "./clients.service";
-import { findShadowCoachCandidates } from "./scheduling.service";
+import { findShadowCoachCandidates, istTimeOfDayMinutes, planShadowAssignments } from "./scheduling.service";
 import { assignShadowCoach } from "./coachChange.service";
 import { createFromTemplate, notifyAdmins } from "./notifications.service";
 
@@ -31,7 +31,7 @@ export async function getMyLeaveRequests(accessToken: string) {
   if (coachError || !coach) throw coachError ?? new Error("Coach profile not found");
   const { data, error } = await ctx.client
     .from("coach_leave")
-    .select("id, starts_on, ends_on, reason, status, created_at")
+    .select("id, starts_on, ends_on, reason, status, leave_type, partial_start_time, partial_end_time, created_at")
     .eq("coach_id", coach.id)
     .order("starts_on", { ascending: false });
   if (error) throw error;
@@ -70,12 +70,50 @@ export async function setMyAvailability(accessToken: string, windows: Availabili
   return data;
 }
 
-export async function requestLeave(accessToken: string, input: { starts_on: string; ends_on: string; reason?: string }) {
+const LEAVE_MIN_NOTICE_HOURS = 24;
+
+export interface RequestLeaveInput {
+  starts_on: string;
+  ends_on: string;
+  reason?: string;
+  leaveType?: "full_day" | "partial";
+  partialStartTime?: string; // "HH:MM", required when leaveType === "partial"
+  partialEndTime?: string; // "HH:MM", required when leaveType === "partial"
+}
+
+export async function requestLeave(accessToken: string, input: RequestLeaveInput) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["coach"]);
 
   if (input.ends_on < input.starts_on) {
     throw new Error("End date must be on or after the start date.");
+  }
+
+  const leaveType = input.leaveType ?? "full_day";
+  if (leaveType === "partial") {
+    // Hour-wise leave only blocks specific sessions on ONE day -- a
+    // multi-day partial-hours pattern isn't supported (see migration 0031).
+    if (input.ends_on !== input.starts_on) {
+      throw new Error("Partial-day leave must be a single date.");
+    }
+    if (!input.partialStartTime || !input.partialEndTime) {
+      throw new Error("Partial-day leave requires a start and end time.");
+    }
+    if (input.partialEndTime <= input.partialStartTime) {
+      throw new Error("End time must be after the start time.");
+    }
+  }
+
+  // Leave days are IST wall-clock dates (see migration 0026); midnight IST on
+  // starts_on is 5.5 hours behind that same calendar date at 00:00 UTC. This
+  // rule is unconditional -- there is no admin bypass or "emergency leave"
+  // fast-track (undocumented absences are handled entirely outside this flow,
+  // via the client-profile manual shadow-assignment tool instead).
+  const [y, m, d] = input.starts_on.split("-").map(Number);
+  const startsOnMidnightIstMs = Date.UTC(y, m - 1, d) - 5.5 * 60 * 60 * 1000;
+  const hoursUntilStart = (startsOnMidnightIstMs - Date.now()) / (1000 * 60 * 60);
+  if (hoursUntilStart < LEAVE_MIN_NOTICE_HOURS) {
+    throw new Error(`Leave requests require at least ${LEAVE_MIN_NOTICE_HOURS} hours' advance notice.`);
   }
 
   const { data: coach, error: coachError } = await ctx.client
@@ -87,7 +125,16 @@ export async function requestLeave(accessToken: string, input: { starts_on: stri
 
   const { data, error } = await ctx.client
     .from("coach_leave")
-    .insert({ coach_id: coach.id, ...input, status: "pending" })
+    .insert({
+      coach_id: coach.id,
+      starts_on: input.starts_on,
+      ends_on: input.ends_on,
+      reason: input.reason ?? null,
+      status: "pending",
+      leave_type: leaveType,
+      partial_start_time: leaveType === "partial" ? `${input.partialStartTime}:00` : null,
+      partial_end_time: leaveType === "partial" ? `${input.partialEndTime}:00` : null,
+    })
     .select()
     .single();
   if (error) throw error;
@@ -124,16 +171,24 @@ export async function createOneDayLeave(accessToken: string, coachId: string, da
 
 export interface LeaveResolutionSummary {
   leave: { id: string; coachId: string; startsOn: string; endsOn: string; status: string };
-  assigned: { clientId: string; clientName: string; shadowCoachId: string; shadowCoachName: string }[];
-  unassignedFlagged: { clientId: string; clientName: string }[];
+  assigned: {
+    clientId: string;
+    clientName: string;
+    shadowCoaches: { shadowCoachId: string; shadowCoachName: string; startsOn: string; endsOn: string }[];
+  }[];
+  unassignedFlagged: { clientId: string; clientName: string; uncoveredDates: string[] }[];
 }
 
 /** Approves/rejects the leave request. On approval, automatically finds and
- * assigns a shadow coach for every one of the coach's active clients whose
+ * assigns shadow coverage for every one of the coach's active clients whose
  * recurring pattern falls within the leave window -- reuses
- * findShadowCoachCandidates() (scheduling.service.ts) and assignShadowCoach()
- * (coachChange.service.ts), both already built and verified; this function
- * is pure orchestration, not new matching logic. Clients with no available
+ * findShadowCoachCandidates() + planShadowAssignments() (scheduling.service.ts)
+ * and assignShadowCoach() (coachChange.service.ts), both already built and
+ * verified; this function is pure orchestration, not new matching logic.
+ * Resolution is per-occurrence, so a single client's leave-window sessions
+ * can end up covered by more than one shadow coach (e.g. one coach free
+ * Mon/Wed, a different one free Fri) -- each distinct coverage stretch
+ * becomes its own entry in shadowCoaches. Occurrences with no available
  * shadow coach are flagged via notifyAdmins() for manual intervention rather
  * than left silently uncovered. */
 export async function resolveLeave(accessToken: string, leaveId: string, status: "approved" | "rejected"): Promise<LeaveResolutionSummary> {
@@ -166,29 +221,61 @@ export async function resolveLeave(accessToken: string, leaveId: string, status:
     .in("id", clientIds);
   const nameById = new Map((profiles ?? []).map((p: any) => [p.id, p.profile?.full_name ?? "Client"]));
 
+  // Partial-day leave only makes the coach unavailable for a specific time
+  // window on starts_on -- sessions outside that window aren't affected and
+  // must not be pulled into shadow-coverage consideration at all (otherwise
+  // they'd get incorrectly reassigned, or flagged as "uncovered" when the
+  // primary coach was never actually unavailable for them).
+  let partialWindowMin: { start: number; end: number } | null = null;
+  if (leave.leave_type === "partial" && leave.partial_start_time && leave.partial_end_time) {
+    const [psH, psM] = leave.partial_start_time.split(":").map(Number);
+    const [peH, peM] = leave.partial_end_time.split(":").map(Number);
+    partialWindowMin = { start: psH * 60 + psM, end: peH * 60 + peM };
+  }
+
   for (const clientId of clientIds) {
-    const candidates = await findShadowCoachCandidates(accessToken, {
+    let occurrences = await findShadowCoachCandidates(accessToken, {
       clientId,
       primaryCoachId: leave.coach_id,
       startsOn: leave.starts_on,
       endsOn: leave.ends_on,
     });
+    if (partialWindowMin) {
+      occurrences = occurrences.filter((occ) => {
+        const occStartMin = istTimeOfDayMinutes(occ.slotStart);
+        const occEndMin = occStartMin + occ.durationMinutes;
+        return occStartMin < partialWindowMin!.end && occEndMin > partialWindowMin!.start;
+      });
+    }
     const clientName = nameById.get(clientId) ?? "Client";
-    if (candidates.length > 0) {
-      const top = candidates[0];
+    const { assignments, uncoveredDates } = planShadowAssignments(occurrences);
+
+    for (const plan of assignments) {
       await assignShadowCoach(accessToken, {
         clientId,
         primaryCoachId: leave.coach_id,
-        shadowCoachId: top.coachId,
-        startsOn: leave.starts_on,
-        endsOn: leave.ends_on,
+        shadowCoachId: plan.shadowCoachId,
+        startsOn: plan.startsOn,
+        endsOn: plan.endsOn,
         reason: "Auto-assigned: primary coach on approved leave",
       });
-      summary.assigned.push({ clientId, clientName, shadowCoachId: top.coachId, shadowCoachName: top.name });
-    } else {
-      summary.unassignedFlagged.push({ clientId, clientName });
+    }
+    if (assignments.length > 0) {
+      summary.assigned.push({
+        clientId,
+        clientName,
+        shadowCoaches: assignments.map((a) => ({
+          shadowCoachId: a.shadowCoachId,
+          shadowCoachName: a.shadowCoachName,
+          startsOn: a.startsOn,
+          endsOn: a.endsOn,
+        })),
+      });
+    }
+    if (uncoveredDates.length > 0) {
+      summary.unassignedFlagged.push({ clientId, clientName, uncoveredDates });
       await notifyAdmins("admin_alert", {
-        alert_message: `No shadow coach available for ${clientName} during coach leave ${leave.starts_on}-${leave.ends_on} -- manual reassignment needed.`,
+        alert_message: `No shadow coach available for ${clientName} on ${uncoveredDates.join(", ")} during coach leave ${leave.starts_on}-${leave.ends_on} -- manual reassignment needed.`,
       });
     }
   }

@@ -25,12 +25,14 @@ import {
   AdminClientDetailView,
   AdminCoachOption,
   adjustClientSessionsAction,
+  adjustPauseDaysAction,
   transferClientCoachAction,
   pauseClientSubscriptionAction,
   logRefundRequestAction,
 } from "@/lib/actions/admin-clients.actions";
 import ShadowCoachAssignModal from "@/components/admin/ShadowCoachAssignModal";
 import ClientTimeline from "@/components/admin/ClientTimeline";
+import MeasurementChart from "@/components/shared/MeasurementChart";
 import { AdminEscalationView, logEscalationAction, resolveEscalationAction } from "@/lib/actions/admin-escalations.actions";
 import { logMeasurementAction } from "@/lib/actions/admin-progress.actions";
 import { TimelineEventRow } from "@/lib/services/timeline.service";
@@ -49,12 +51,13 @@ export default function AdminClientDetailClient({
   escalations: AdminEscalationView[];
 }) {
   const router = useRouter();
-  const [modal, setModal] = useState<null | "adjust" | "transfer" | "refund" | "shadow" | "escalation" | "measurement">(null);
+  const [modal, setModal] = useState<null | "adjust" | "transfer" | "refund" | "shadow" | "escalation" | "measurement" | "pauseDays">(null);
   const [pauseConfirm, setPauseConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const [sessionDelta, setSessionDelta] = useState(0);
+  const [pauseDaysDelta, setPauseDaysDelta] = useState(0);
   const [transferTo, setTransferTo] = useState("");
   const [transferAvailabilityWarning, setTransferAvailabilityWarning] = useState("");
   const [refundAmount, setRefundAmount] = useState("");
@@ -79,6 +82,7 @@ export default function AdminClientDetailClient({
     setModal(null);
     setError("");
     setSessionDelta(0);
+    setPauseDaysDelta(0);
     setTransferTo("");
     setTransferAvailabilityWarning("");
     setRefundAmount("");
@@ -93,6 +97,17 @@ export default function AdminClientDetailClient({
     setError("");
     const newTotal = client.subscription.sessionsTotal + sessionDelta;
     const result = await adjustClientSessionsAction(client.subscription.id, newTotal);
+    setBusy(false);
+    if (isFailure(result)) return setError(result.error.message);
+    closeModal();
+    router.refresh();
+  }
+
+  async function savePauseDaysAdjust() {
+    if (!client.subscription || pauseDaysDelta === 0) return;
+    setBusy(true);
+    setError("");
+    const result = await adjustPauseDaysAction(client.subscription.id, pauseDaysDelta);
     setBusy(false);
     if (isFailure(result)) return setError(result.error.message);
     closeModal();
@@ -236,6 +251,15 @@ export default function AdminClientDetailClient({
                 style={{ width: `${Math.min(100, (client.subscription.sessionsUsed / client.subscription.sessionsTotal) * 100)}%` }}
               />
             </div>
+            {client.subscription.pauseDaysAllowed > 0 && (
+              <p className="mt-3 border-t border-black/[0.06] pt-3 text-xs text-black/50">
+                {Math.max(0, client.subscription.pauseDaysAllowed - client.subscription.pauseDaysUsed).toFixed(1)} of{" "}
+                {client.subscription.pauseDaysAllowed} pause-days remaining
+              </p>
+            )}
+            <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => setModal("pauseDays")}>
+              <PlusCircle className="h-3.5 w-3.5" /> Grant Pause-Days
+            </Button>
           </Card>
         )}
 
@@ -303,6 +327,15 @@ export default function AdminClientDetailClient({
           <ClientTimeline events={timelineEvents} />
         </div>
 
+        {client.progressHistory.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-display mb-4 text-lg font-bold italic">Progress Over Time</h2>
+            <Card className="p-5">
+              <MeasurementChart logs={client.progressHistory} />
+            </Card>
+          </div>
+        )}
+
         <h2 className="text-display mb-4 text-lg font-bold italic">Session History</h2>
         {client.history.length === 0 && <p className="text-sm text-black/45">No sessions yet.</p>}
         <div className="space-y-3">
@@ -347,6 +380,35 @@ export default function AdminClientDetailClient({
             </div>
             {error && <p className="text-xs text-red-600">{error}</p>}
             <Button className="w-full" loading={busy} disabled={sessionDelta === 0} onClick={saveSessionAdjust}>
+              Save Changes
+            </Button>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={modal === "pauseDays"} onClose={closeModal} title="Grant Pause-Days">
+        {client.subscription && (
+          <div className="space-y-4">
+            <p className="text-xs text-black/45">
+              Currently {client.subscription.pauseDaysAllowed} pause-days allowed ({client.subscription.pauseDaysUsed.toFixed(1)} used).
+            </p>
+            <div>
+              <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Days to Add / Remove</label>
+              <div className="flex items-center gap-3">
+                <button type="button" className="rounded-lg border border-black/15 p-2" onClick={() => setPauseDaysDelta((d) => d - 1)}>
+                  <MinusCircle className="h-4 w-4" />
+                </button>
+                <input readOnly value={pauseDaysDelta} className="w-20 rounded-xl border border-black/15 p-2 text-center text-sm" />
+                <button type="button" className="rounded-lg border border-black/15 p-2" onClick={() => setPauseDaysDelta((d) => d + 1)}>
+                  <PlusCircle className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="mt-1.5 text-xs text-black/40">
+                New total: {Math.max(0, client.subscription.pauseDaysAllowed + pauseDaysDelta)} pause-days
+              </p>
+            </div>
+            {error && <p className="text-xs text-red-600">{error}</p>}
+            <Button className="w-full" loading={busy} disabled={pauseDaysDelta === 0} onClick={savePauseDaysAdjust}>
               Save Changes
             </Button>
           </div>

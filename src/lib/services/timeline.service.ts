@@ -8,6 +8,7 @@ export type TimelineEventType =
   | "slot_assigned"
   | "session_completed"
   | "session_missed"
+  | "attendance_marked_present"
   | "session_cancelled"
   | "coach_notes_uploaded"
   | "weekly_measurements_updated"
@@ -24,7 +25,8 @@ export type TimelineEventType =
   | "plan_renewed"
   | "refund_requested"
   | "refund_approved"
-  | "plan_completed";
+  | "plan_completed"
+  | "plan_promise_adjusted";
 
 /** System-level: called internally as a side effect of another service's
  * mutation (booking completed, coach changed, escalation raised, etc), same

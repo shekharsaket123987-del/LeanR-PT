@@ -3,13 +3,14 @@
 import { getAccessToken } from "@/lib/supabase/server-client";
 import { ActionResult, runAction } from "./action-result";
 import { getMyProfile } from "@/lib/services/profiles.service";
-import { listMyClients } from "@/lib/services/clients.service";
+import { getClientProfileById, listMyClients, searchAllClients } from "@/lib/services/clients.service";
 import { getMyCoachProfile } from "@/lib/services/coaches.service";
 import {
   AvailabilityWindow,
   getMyAvailability,
   getMyLeaveRequests,
   requestLeave,
+  RequestLeaveInput,
   setMyAvailability,
 } from "@/lib/services/availability.service";
 import { listEscalationsForCoach } from "@/lib/services/escalations.service";
@@ -23,12 +24,15 @@ import {
   getAttendanceForBooking,
   getBooking,
   getWorkoutNoteForBooking,
+  listAttendanceForBookings,
   listCancelledBookingsForCoach,
   listMyBookingsAsCoach,
   listRescheduledBookingsForCoach,
+  listWorkoutNotesForBookings,
   listWorkoutNotesForClient,
   markAttendance,
   submitSessionNotes,
+  sweepOverdueAttendance,
 } from "@/lib/services/bookings.service";
 
 async function requireToken(): Promise<string> {
@@ -66,10 +70,15 @@ function toCoachSessionView(row: any): CoachSessionView {
 export interface CoachDashboardData {
   firstName: string;
   utilization: number;
+  todayCount: number;
   thisWeekCount: number;
   completedCount: number;
   missedCount: number;
-  todaySessions: CoachSessionView[];
+  /** AVG(trainer_rating) across the coach's own rated bookings -- the
+   * trainer-specific dimension, not session quality (§1.1's recommended
+   * choice once §3.7 split the two). */
+  avgRating: number;
+  activeEscalationsCount: number;
   recentClients: { id: string; name: string; photo: string; sessionsRemaining: number | null }[];
 }
 
@@ -85,10 +94,7 @@ export async function getCoachDashboardAction(): Promise<ActionResult<CoachDashb
     const utilization = (coachProfile as any).utilization?.utilization_pct ?? 0;
 
     const today = new Date().toDateString();
-    const todaySessions = (bookings as any[])
-      .filter((b) => new Date(b.scheduled_start).toDateString() === today && b.status === "upcoming")
-      .sort((a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime())
-      .map(toCoachSessionView);
+    const todayCount = (bookings as any[]).filter((b) => new Date(b.scheduled_start).toDateString() === today && b.status === "upcoming").length;
 
     const startOfWeek = new Date();
     startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
@@ -97,13 +103,22 @@ export async function getCoachDashboardAction(): Promise<ActionResult<CoachDashb
     const completedCount = (bookings as any[]).filter((b) => b.status === "completed").length;
     const missedCount = (bookings as any[]).filter((b) => b.status === "missed").length;
 
+    const ratedBookings = (bookings as any[]).filter((b) => b.trainer_rating != null);
+    const avgRating =
+      ratedBookings.length > 0 ? Math.round((ratedBookings.reduce((s, b) => s + b.trainer_rating, 0) / ratedBookings.length) * 10) / 10 : 0;
+
+    const escalations = await listEscalationsForCoach(token, (coachProfile as any).id);
+    const activeEscalationsCount = (escalations as any[]).filter((e) => e.status !== "resolved").length;
+
     return {
       firstName: profile.full_name?.split(" ")[0] ?? "there",
       utilization,
+      todayCount,
       thisWeekCount,
       completedCount,
       missedCount,
-      todaySessions,
+      avgRating,
+      activeEscalationsCount,
       recentClients: (clients as any[]).slice(0, 3).map((c) => ({
         id: c.id,
         name: c.profile?.full_name ?? "Client",
@@ -119,6 +134,181 @@ export async function getCoachScheduleAction(): Promise<ActionResult<CoachSessio
     const token = await requireToken();
     const bookings = await listMyBookingsAsCoach(token);
     return (bookings as any[]).filter((b) => b.status === "upcoming" || b.status === "completed").map(toCoachSessionView);
+  });
+}
+
+interface CoachRosterBase {
+  bookingId: string;
+  clientId: string;
+  clientCode: string;
+  clientName: string;
+  clientPhoto: string;
+  packageName: string | null;
+  scheduledStart: string;
+  durationMinutes: number;
+  /** True if this booking's client isn't normally this coach's own -- they're
+   * covering as a shadow coach (§4.2.7's optional, low-priority badge; cheap
+   * once shadow_coach_assignments already exists). */
+  isShadowSession: boolean;
+}
+
+/** Active shadow_coach_assignments for the caller, as a (clientId, dateStr) ->
+ * boolean checker -- built once per action call and reused across every
+ * booking being mapped, rather than a query per row. */
+async function buildShadowSessionChecker(token: string) {
+  const assignments = await listMyShadowAssignments(token);
+  const active = (assignments as any[]).filter((a) => a.status === "active");
+  return (clientId: string, scheduledStart: string) => {
+    const dateStr = scheduledStart.slice(0, 10);
+    return active.some((a) => a.client?.id === clientId && dateStr >= a.starts_on && dateStr <= a.ends_on);
+  };
+}
+
+/** Shared "booking row + matching client row -> display shape" merge, used
+ * by both Today's Tasks and the Upcoming (3-day) widget -- clients.service.ts's
+ * listMyClients() is the source of client_code/activeSubscription, which
+ * listMyBookingsAsCoach()'s own client embed doesn't carry. */
+function toCoachRosterBase(
+  booking: any,
+  clientById: Map<string, any>,
+  isShadowSession: (clientId: string, scheduledStart: string) => boolean = () => false
+): CoachRosterBase {
+  const client = clientById.get(booking.client?.id);
+  const clientId = booking.client?.id ?? "";
+  return {
+    bookingId: booking.id,
+    clientId,
+    clientCode: client?.client_code ?? "",
+    clientName: booking.client?.profile?.full_name ?? "Client",
+    clientPhoto: booking.client?.profile?.photo_url ?? FALLBACK_PHOTO(booking.client?.id ?? booking.id),
+    packageName: client?.activeSubscription?.package?.name ?? null,
+    scheduledStart: booking.scheduled_start,
+    durationMinutes: booking.duration_minutes,
+    isShadowSession: isShadowSession(clientId, booking.scheduled_start),
+  };
+}
+
+export interface CoachTodayTaskView extends CoachRosterBase {
+  attendanceStatus: "present" | "absent" | null;
+  notesSubmitted: boolean;
+  overdue: boolean;
+}
+
+/** Today's Tasks widget (FEATURE_SPEC_PORTAL_ENHANCEMENTS.md §1.3): every one
+ * of the coach's own sessions scheduled today that's still "upcoming" --
+ * status only flips to completed/missed once notes are submitted or
+ * attendance is marked absent, so this naturally covers both "hasn't
+ * happened yet" (join countdown) and "happened, still needs
+ * attendance/notes" rows without a separate query for each. Also runs the
+ * 2-hour overdue sweep on load so the highlight/notification stay current. */
+export async function getCoachTodayTasksAction(): Promise<ActionResult<CoachTodayTaskView[]>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    await sweepOverdueAttendance(token);
+
+    const [bookings, clients, isShadowSession] = await Promise.all([
+      listMyBookingsAsCoach(token),
+      listMyClients(token),
+      buildShadowSessionChecker(token),
+    ]);
+    const today = new Date().toDateString();
+    const todays = (bookings as any[])
+      .filter((b) => b.status === "upcoming" && new Date(b.scheduled_start).toDateString() === today)
+      .sort((a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime());
+
+    const bookingIds = todays.map((b) => b.id);
+    const [attendanceRows, noteRows] = await Promise.all([
+      listAttendanceForBookings(token, bookingIds),
+      listWorkoutNotesForBookings(token, bookingIds),
+    ]);
+    const attendanceByBooking = new Map((attendanceRows as any[]).map((a) => [a.booking_id, a.status]));
+    const notesSubmittedSet = new Set((noteRows as any[]).map((n) => n.booking_id));
+    const clientById = new Map((clients as any[]).map((c) => [c.id, c]));
+
+    return todays.map((b) => ({
+      ...toCoachRosterBase(b, clientById, isShadowSession),
+      attendanceStatus: attendanceByBooking.get(b.id) ?? null,
+      notesSubmitted: notesSubmittedSet.has(b.id),
+      overdue: b.attendance_overdue ?? false,
+    }));
+  });
+}
+
+export type CoachUpcomingView = CoachRosterBase;
+
+/** Upcoming Sessions widget (FEATURE_SPEC_PORTAL_ENHANCEMENTS.md §1.4): the
+ * next 3 days, deliberately excluding today (Today's Tasks already covers
+ * that, including the same-day join countdown). Reuses the exact same
+ * booking+client data getCoachScheduleAction/getCoachTodayTasksAction
+ * already fetch -- just a different date filter and no attendance fields. */
+export async function getCoachUpcoming3DaysAction(): Promise<ActionResult<CoachUpcomingView[]>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const [bookings, clients, isShadowSession] = await Promise.all([
+      listMyBookingsAsCoach(token),
+      listMyClients(token),
+      buildShadowSessionChecker(token),
+    ]);
+
+    const startOfTomorrow = new Date();
+    startOfTomorrow.setHours(0, 0, 0, 0);
+    startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+    const endOfWindow = new Date(startOfTomorrow);
+    endOfWindow.setDate(endOfWindow.getDate() + 3);
+
+    const upcoming = (bookings as any[])
+      .filter((b) => {
+        if (b.status !== "upcoming") return false;
+        const start = new Date(b.scheduled_start);
+        return start >= startOfTomorrow && start < endOfWindow;
+      })
+      .sort((a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime());
+
+    const clientById = new Map((clients as any[]).map((c) => [c.id, c]));
+    return upcoming.map((b) => toCoachRosterBase(b, clientById, isShadowSession));
+  });
+}
+
+/** Pending Tasks widget (FEATURE_SPEC_PORTAL_ENHANCEMENTS.md §1.6): past
+ * sessions from ANY day (not just today -- Today's Tasks already covers
+ * today's own backlog) still missing attendance or notes. A pure derived
+ * query, re-run on every load rather than backed by a stored "pending" flag
+ * -- status === 'upcoming' with scheduled_start already in the past is
+ * *exactly* "attendance IS NULL OR (present AND notes missing)" by
+ * construction: markAttendance('absent') flips status to 'missed'
+ * immediately, and submitSessionNotes() (which requires attendance=present)
+ * flips it to 'completed', so a booking can only still be 'upcoming' past
+ * its own end time if one of those two hasn't happened yet. A row
+ * disappears the moment both are saved because it stops matching this same
+ * filter, with nothing separate to fall out of sync. */
+export async function getCoachPendingTasksAction(): Promise<ActionResult<CoachTodayTaskView[]>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const [bookings, clients, isShadowSession] = await Promise.all([
+      listMyBookingsAsCoach(token),
+      listMyClients(token),
+      buildShadowSessionChecker(token),
+    ]);
+    const now = Date.now();
+    const overdueBookings = (bookings as any[])
+      .filter((b) => b.status === "upcoming" && new Date(b.scheduled_start).getTime() < now)
+      .sort((a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime());
+
+    const bookingIds = overdueBookings.map((b) => b.id);
+    const [attendanceRows, noteRows] = await Promise.all([
+      listAttendanceForBookings(token, bookingIds),
+      listWorkoutNotesForBookings(token, bookingIds),
+    ]);
+    const attendanceByBooking = new Map((attendanceRows as any[]).map((a) => [a.booking_id, a.status]));
+    const notesSubmittedSet = new Set((noteRows as any[]).map((n) => n.booking_id));
+    const clientById = new Map((clients as any[]).map((c) => [c.id, c]));
+
+    return overdueBookings.map((b) => ({
+      ...toCoachRosterBase(b, clientById, isShadowSession),
+      attendanceStatus: attendanceByBooking.get(b.id) ?? null,
+      notesSubmitted: notesSubmittedSet.has(b.id),
+      overdue: b.attendance_overdue ?? false,
+    }));
   });
 }
 
@@ -207,12 +397,37 @@ export interface MeasurementComparison {
   diff: number | null;
 }
 
+/** Structurally identical to MeasurementChart's own MeasurementPoint --
+ * duplicated here rather than imported so this "use server" file never
+ * imports from a "use client" component module. */
+export interface MeasurementPoint {
+  loggedAt: string;
+  weight: number | null;
+  bodyFatPct: number | null;
+  musclePct: number | null;
+  waist: number | null;
+  chest: number | null;
+  hip: number | null;
+  arms: number | null;
+  thigh: number | null;
+}
+
 export interface CoachClientDetail extends CoachClientView {
-  history: { id: string; date: string; rating: number | null; notes: string | null }[];
+  history: { id: string; date: string; qualityRating: number | null; trainerRating: number | null; notes: string | null }[];
   demographics: ClientDemographics | null;
   sessionSummary: SessionSummaryView;
   weeklyProgress: MeasurementComparison[];
+  /** Full history for the shared MeasurementChart component (§5.3) -- reuses
+   * the exact same chart used on the client's own Progress page (§3.9)
+   * rather than a second implementation. */
+  progressHistory: MeasurementPoint[];
   timeline: TimelineEventRow[];
+  /** false when reached via Global Search (§1.5) rather than this coach's
+   * own client list -- read-only in that case; billing/progress/session
+   * fields are blank not because the data doesn't exist but because those
+   * tables' RLS deliberately stays assignment-scoped (only client_profiles/
+   * profiles/timeline were widened, migration 0033). */
+  isAssignedToMe: boolean;
 }
 
 const MEASUREMENT_FIELDS: { key: string; label: string }[] = [
@@ -234,8 +449,14 @@ export async function getCoachClientDetailAction(clientId: string): Promise<Acti
   return runAction(async () => {
     const token = await requireToken();
     const [clients, bookings, notes] = await Promise.all([listMyClients(token), listMyBookingsAsCoach(token), listWorkoutNotesForClient(token, clientId)]);
-    const client: any = (clients as any[]).find((c) => c.id === clientId);
-    if (!client) throw new Error("Client not found, or not assigned to you");
+    let client: any = (clients as any[]).find((c) => c.id === clientId);
+    const isAssignedToMe = !!client;
+    if (!client) {
+      // Not one of my assigned clients -- fall back to the direct lookup
+      // Global Search (§1.5) needs, now permitted by the widened RLS.
+      client = await getClientProfileById(token, clientId);
+    }
+    if (!client) throw new Error("Client not found");
 
     const [onboarding, subscriptions, progressLogs, timeline]: [any, any[], any[], any[]] = await Promise.all([
       getOnboardingForClient(token, clientId),
@@ -249,7 +470,13 @@ export async function getCoachClientDetailAction(clientId: string): Promise<Acti
     const history = clientBookings
       .filter((b) => b.status === "completed")
       .sort((a, b) => new Date(b.scheduled_start).getTime() - new Date(a.scheduled_start).getTime())
-      .map((b) => ({ id: b.id, date: b.scheduled_start, rating: b.rating ?? null, notes: notesByBooking.get(b.id) ?? null }));
+      .map((b) => ({
+        id: b.id,
+        date: b.scheduled_start,
+        qualityRating: b.quality_rating ?? null,
+        trainerRating: b.trainer_rating ?? null,
+        notes: notesByBooking.get(b.id) ?? null,
+      }));
 
     const activeSub = subscriptions.find((s) => s.status === "active") ?? null;
     const sessionSummary: SessionSummaryView = {
@@ -301,8 +528,45 @@ export async function getCoachClientDetailAction(clientId: string): Promise<Acti
         : null,
       sessionSummary,
       weeklyProgress,
+      progressHistory: sortedLogs.map((l: any) => ({
+        loggedAt: l.logged_at,
+        weight: l.weight,
+        bodyFatPct: l.body_fat_pct,
+        musclePct: l.muscle_pct,
+        waist: l.waist,
+        chest: l.chest,
+        hip: l.hip,
+        arms: l.arms,
+        thigh: l.thigh,
+      })),
       timeline: timeline as TimelineEventRow[],
+      isAssignedToMe,
     };
+  });
+}
+
+export interface ClientSearchResultView {
+  id: string;
+  clientCode: string;
+  name: string;
+  photo: string;
+  status: string;
+  isAssignedToMe: boolean;
+}
+
+/** Global Search widget (FEATURE_SPEC_PORTAL_ENHANCEMENTS.md §1.5). */
+export async function searchAllClientsAction(): Promise<ActionResult<ClientSearchResultView[]>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const clients = await searchAllClients(token);
+    return (clients as any[]).map((c) => ({
+      id: c.id,
+      clientCode: c.client_code ?? "",
+      name: c.profile?.full_name ?? "Client",
+      photo: c.profile?.photo_url ?? FALLBACK_PHOTO(c.id),
+      status: c.status,
+      isAssignedToMe: c.isAssignedToMe,
+    }));
   });
 }
 
@@ -423,7 +687,7 @@ export async function saveAvailabilityAction(windows: AvailabilityWindow[]): Pro
   });
 }
 
-export async function requestLeaveAction(input: { starts_on: string; ends_on: string; reason?: string }): Promise<ActionResult<null>> {
+export async function requestLeaveAction(input: RequestLeaveInput): Promise<ActionResult<null>> {
   return runAction(async () => {
     const token = await requireToken();
     await requestLeave(token, input);
@@ -434,7 +698,9 @@ export async function requestLeaveAction(input: { starts_on: string; ends_on: st
 export interface CoachEscalationView {
   id: string;
   clientId: string;
+  clientCode: string;
   clientName: string;
+  packageName: string | null;
   category: string | null;
   reason: string;
   description: string | null;
@@ -450,20 +716,27 @@ export interface CoachEscalationView {
 export async function getCoachEscalationsAction(): Promise<ActionResult<CoachEscalationView[]>> {
   return runAction(async () => {
     const token = await requireToken();
-    const coachProfile: any = await getMyCoachProfile(token);
+    const [coachProfile, clients]: [any, any[]] = await Promise.all([getMyCoachProfile(token), listMyClients(token)]);
     const rows = await listEscalationsForCoach(token, coachProfile.id);
-    return (rows as any[]).map((r) => ({
-      id: r.id,
-      clientId: r.client?.id ?? r.client_id,
-      clientName: r.client?.profile?.full_name ?? "Client",
-      category: r.category,
-      reason: r.reason,
-      description: r.description,
-      status: r.status,
-      resolutionNotes: r.resolution_notes,
-      createdAt: r.created_at,
-      resolvedAt: r.resolved_at,
-    }));
+    const clientById = new Map(clients.map((c) => [c.id, c]));
+
+    return (rows as any[]).map((r) => {
+      const clientId = r.client?.id ?? r.client_id;
+      return {
+        id: r.id,
+        clientId,
+        clientCode: r.client?.client_code ?? "",
+        clientName: r.client?.profile?.full_name ?? "Client",
+        packageName: clientById.get(clientId)?.activeSubscription?.package?.name ?? null,
+        category: r.category,
+        reason: r.reason,
+        description: r.description,
+        status: r.status,
+        resolutionNotes: r.resolution_notes,
+        createdAt: r.created_at,
+        resolvedAt: r.resolved_at,
+      };
+    });
   });
 }
 

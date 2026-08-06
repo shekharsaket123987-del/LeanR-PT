@@ -3,13 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Mail, Phone, ShieldAlert, Award, Languages, Star, Hash, CalendarDays, Clock, Gauge, KeyRound } from "lucide-react";
+import { Mail, Phone, ShieldAlert, Award, Languages, Sparkles, Star, Hash, CalendarDays, Clock, Gauge, KeyRound, Plus } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import Modal from "@/components/ui/Modal";
 import { supabase } from "@/lib/supabase";
-import { CoachProfileView, updateMyCoachProfileAction } from "@/lib/actions/coach-profile.actions";
+import { addMySkillAction, CoachProfileView, updateMyCoachProfileAction } from "@/lib/actions/coach-profile.actions";
 import { isFailure } from "@/lib/actions/action-result";
 import { formatDate } from "@/lib/utils";
 
@@ -18,6 +18,26 @@ export default function CoachProfileClient({ profile }: { profile: CoachProfileV
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  const [skills, setSkills] = useState(profile.skills);
+  const [newSkill, setNewSkill] = useState("");
+  const [skillBusy, setSkillBusy] = useState(false);
+  const [skillError, setSkillError] = useState("");
+
+  async function addSkill() {
+    const value = newSkill.trim();
+    if (!value) return;
+    setSkillBusy(true);
+    setSkillError("");
+    const result = await addMySkillAction(value);
+    setSkillBusy(false);
+    if (isFailure(result)) {
+      setSkillError(result.error.message);
+      return;
+    }
+    setSkills((prev) => (prev.includes(value) ? prev : [...prev, value]));
+    setNewSkill("");
+  }
 
   const [phone, setPhone] = useState(profile.phone ?? "");
   const [emergencyContact, setEmergencyContact] = useState(profile.emergencyContact ?? "");
@@ -147,6 +167,39 @@ export default function CoachProfileClient({ profile }: { profile: CoachProfileV
               </span>
             ))}
           </div>
+        </div>
+
+        <div className="mt-6 border-t border-black/[0.06] pt-6">
+          <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase text-black/40">
+            <Sparkles className="h-3.5 w-3.5" /> Skills
+          </p>
+          <div className="mb-3 flex flex-wrap gap-2">
+            {skills.length === 0 && <span className="text-sm text-black/40">None added yet.</span>}
+            {skills.map((s) => (
+              <span key={s} className="rounded-full bg-black/5 px-3 py-1 text-xs font-semibold">
+                {s}
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={newSkill}
+              onChange={(e) => setNewSkill(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addSkill();
+                }
+              }}
+              placeholder="Add a skill…"
+              className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+            />
+            <Button type="button" variant="outline" size="sm" loading={skillBusy} onClick={addSkill}>
+              <Plus className="h-3.5 w-3.5" /> Add
+            </Button>
+          </div>
+          {skillError && <p className="mt-1.5 text-xs text-red-600">{skillError}</p>}
+          <p className="mt-1.5 text-[11px] text-black/35">You can add skills here — removing one requires Admin.</p>
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-4 border-t border-black/[0.06] pt-6 sm:grid-cols-4">

@@ -10,6 +10,10 @@ export interface AdminDashboardMetrics {
   emptySlotCount: number;
   revenueThisMonth: number;
   avgSessionsPerClient: number;
+  activeCoachesCount: number;
+  avgCoachRating: number;
+  /** Completed sessions per day, trailing 30-day window. */
+  avgSessionsPerDay: number;
 }
 
 export interface AdminDashboardData {
@@ -62,6 +66,9 @@ export async function getAdminDashboard(accessToken: string): Promise<AdminDashb
     { data: usageRows, error: usageError },
     { data: todayAvailability, error: availError },
     { data: durationSetting, error: durationError },
+    { count: activeCoachesCount },
+    { data: activeCoachRatings, error: ratingsError },
+    { count: completedLast30Days },
   ] = await Promise.all([
     ctx.client.from("client_profiles").select("id", { count: "exact", head: true }),
     ctx.client.from("client_profiles").select("id", { count: "exact", head: true }).eq("status", "active"),
@@ -83,6 +90,13 @@ export async function getAdminDashboard(accessToken: string): Promise<AdminDashb
     ctx.client.from("subscription_usage_view").select("sessions_used"),
     ctx.client.from("coach_availability").select("start_time, end_time").eq("day_of_week", todayDow).eq("is_active", true),
     ctx.client.from("system_settings").select("value").eq("key", "default_session_duration_minutes").single(),
+    ctx.client.from("coach_profiles").select("id", { count: "exact", head: true }).eq("status", "active"),
+    ctx.client.from("coach_profiles").select("rating").eq("status", "active"),
+    ctx.client
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "completed")
+      .gte("scheduled_start", new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()),
   ]);
   if (utilError) throw utilError;
   if (revenueError) throw revenueError;
@@ -90,6 +104,13 @@ export async function getAdminDashboard(accessToken: string): Promise<AdminDashb
   if (usageError) throw usageError;
   if (availError) throw availError;
   if (durationError) throw durationError;
+  if (ratingsError) throw ratingsError;
+
+  const avgCoachRating =
+    (activeCoachRatings ?? []).length > 0
+      ? Math.round((activeCoachRatings!.reduce((s, c: any) => s + Number(c.rating ?? 0), 0) / activeCoachRatings!.length) * 10) / 10
+      : 0;
+  const avgSessionsPerDay = Math.round(((completedLast30Days ?? 0) / 30) * 10) / 10;
 
   // coach_utilization_view.utilization_pct and revenue_trend_view.revenue are
   // Postgres `numeric` columns — depending on the client, numeric can come
@@ -138,6 +159,9 @@ export async function getAdminDashboard(accessToken: string): Promise<AdminDashb
       emptySlotCount,
       revenueThisMonth,
       avgSessionsPerClient,
+      activeCoachesCount: activeCoachesCount ?? 0,
+      avgCoachRating,
+      avgSessionsPerDay,
     },
     revenueTrend: revenue.map((r) => ({
       month: new Date(r.month).toLocaleDateString("en-US", { month: "short" }),

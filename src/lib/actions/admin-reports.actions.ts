@@ -13,6 +13,13 @@ async function requireToken(): Promise<string> {
   return token;
 }
 
+export interface ReportData {
+  title: string;
+  headers: string[];
+  rows: (string | number)[][];
+  csv: string;
+}
+
 function toCsv(headers: string[], rows: (string | number)[][]): string {
   const escape = (v: string | number) => {
     const s = String(v ?? "");
@@ -21,11 +28,16 @@ function toCsv(headers: string[], rows: (string | number)[][]): string {
   return [headers, ...rows].map((row) => row.map(escape).join(",")).join("\n");
 }
 
-export async function generateClientReportCsvAction(): Promise<ActionResult<string>> {
+function toReportData(title: string, headers: string[], rows: (string | number)[][]): ReportData {
+  return { title, headers, rows, csv: toCsv(headers, rows) };
+}
+
+export async function generateClientReportAction(): Promise<ActionResult<ReportData>> {
   return runAction(async () => {
     const token = await requireToken();
     const rows = await listClients(token);
-    return toCsv(
+    return toReportData(
+      "Client Report",
       ["Name", "Phone", "Status", "Package", "Coach", "Sessions Remaining", "Sessions Total"],
       (rows as any[]).map((c) => [
         c.profile?.full_name ?? "",
@@ -40,11 +52,12 @@ export async function generateClientReportCsvAction(): Promise<ActionResult<stri
   });
 }
 
-export async function generateCoachReportCsvAction(): Promise<ActionResult<string>> {
+export async function generateCoachReportAction(): Promise<ActionResult<ReportData>> {
   return runAction(async () => {
     const token = await requireToken();
     const rows = await listCoaches(token);
-    return toCsv(
+    return toReportData(
+      "Coach Report",
       ["Name", "Specialization", "Status", "Rating", "Review Count", "Active Clients", "Utilization %"],
       (rows as any[]).map((c) => [
         c.profile?.full_name ?? "",
@@ -59,7 +72,7 @@ export async function generateCoachReportCsvAction(): Promise<ActionResult<strin
   });
 }
 
-export async function generateMonthlyReportCsvAction(): Promise<ActionResult<string>> {
+export async function generateMonthlyReportAction(): Promise<ActionResult<ReportData>> {
   return runAction(async () => {
     const token = await requireToken();
     const bookings = await listAllBookings(token);
@@ -73,7 +86,8 @@ export async function generateMonthlyReportCsvAction(): Promise<ActionResult<str
       byMonth.set(month, entry);
     }
     const months = [...byMonth.keys()].sort();
-    return toCsv(
+    return toReportData(
+      "Monthly PT Report",
       ["Month", "Total Sessions", "Completed", "Completion Rate %", "Assessment Sessions"],
       months.map((m) => {
         const e = byMonth.get(m)!;
@@ -83,18 +97,19 @@ export async function generateMonthlyReportCsvAction(): Promise<ActionResult<str
   });
 }
 
-export async function generateRevenueReportCsvAction(): Promise<ActionResult<string>> {
+export async function generateRevenueReportAction(): Promise<ActionResult<ReportData>> {
   return runAction(async () => {
     const token = await requireToken();
     const rows = await getRevenueTrendRaw(token);
-    return toCsv(
-      ["Month", "Revenue (₹)", "Completed Sessions"],
+    return toReportData(
+      "Revenue Report",
+      ["Month", "Revenue (Rs.)", "Completed Sessions"],
       rows.map((r) => [new Date(r.month).toISOString().slice(0, 7), r.revenue, r.sessions])
     );
   });
 }
 
-export async function generateCancellationReportCsvAction(): Promise<ActionResult<string>> {
+export async function generateCancellationReportAction(): Promise<ActionResult<ReportData>> {
   return runAction(async () => {
     const token = await requireToken();
     const [cancelled, missed] = await Promise.all([
@@ -102,7 +117,8 @@ export async function generateCancellationReportCsvAction(): Promise<ActionResul
       listAllBookings(token, { status: "missed" }),
     ]);
     const rows = [...(cancelled as any[]), ...(missed as any[])];
-    return toCsv(
+    return toReportData(
+      "Cancellation / No-Show Report",
       ["Date", "Client", "Coach", "Status"],
       rows.map((b) => [new Date(b.scheduled_start).toISOString(), b.client?.profile?.full_name ?? "", b.coach?.profile?.full_name ?? "", b.status])
     );

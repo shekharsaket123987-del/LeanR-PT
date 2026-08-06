@@ -35,14 +35,20 @@ export async function purchaseSubscription(accessToken: string, clientId: string
 
   const { data: pkg, error: pkgError } = await supabaseAdmin
     .from("package_tiers")
-    .select("name, sessions_count")
+    .select("name, sessions_count, default_pause_days")
     .eq("id", packageId)
     .single();
   if (pkgError || !pkg) throw pkgError ?? new Error("Package not found");
 
   const { data, error } = await supabaseAdmin
     .from("subscriptions")
-    .insert({ client_id: clientId, package_id: packageId, sessions_total: pkg.sessions_count, status: "active" })
+    .insert({
+      client_id: clientId,
+      package_id: packageId,
+      sessions_total: pkg.sessions_count,
+      pause_days_allowed: pkg.default_pause_days ?? 0,
+      status: "active",
+    })
     .select()
     .single();
   if (error) throw error;
@@ -117,4 +123,82 @@ export async function resumeSubscription(accessToken: string, subscriptionId: st
   await logTimelineEvent(data.client_id, "pause_ended", "Subscription resumed", { actorId: ctx.userId, metadata: { subscriptionId } });
 
   return data;
+}
+
+export interface PauseDaysStatus {
+  pauseDaysAllowed: number;
+  pauseDaysUsed: number;
+}
+
+/** Pause-days "promise" balance (§2.5/§3.11). pauseDaysAllowed is the stored
+ * per-client override; pauseDaysUsed is derived from this subscription's own
+ * pause_started/pause_ended timeline events (paired chronologically, an
+ * still-open pause counts up to now) rather than a second stored counter --
+ * nothing here can drift out of sync with the actual pause history. RLS-
+ * scoped, so this works unmodified for admin, the assigned coach, or the
+ * client themselves. */
+export async function getPauseDaysStatus(accessToken: string, subscriptionId: string): Promise<PauseDaysStatus> {
+  const ctx = await getCallerContext(accessToken);
+  const { data: sub, error: subError } = await ctx.client
+    .from("subscriptions")
+    .select("id, client_id, pause_days_allowed")
+    .eq("id", subscriptionId)
+    .single();
+  if (subError || !sub) throw subError ?? new Error("Subscription not found");
+
+  const { data: events, error: eventsError } = await ctx.client
+    .from("client_timeline_events")
+    .select("event_type, metadata, created_at")
+    .eq("client_id", sub.client_id)
+    .in("event_type", ["pause_started", "pause_ended"])
+    .order("created_at", { ascending: true });
+  if (eventsError) throw eventsError;
+
+  const relevant = (events ?? []).filter((e: any) => e.metadata?.subscriptionId === subscriptionId);
+  let usedMs = 0;
+  let openStartMs: number | null = null;
+  for (const e of relevant as any[]) {
+    const t = new Date(e.created_at).getTime();
+    if (e.event_type === "pause_started") {
+      openStartMs = t;
+    } else if (e.event_type === "pause_ended" && openStartMs != null) {
+      usedMs += t - openStartMs;
+      openStartMs = null;
+    }
+  }
+  if (openStartMs != null) usedMs += Date.now() - openStartMs; // still paused right now
+
+  return {
+    pauseDaysAllowed: sub.pause_days_allowed ?? 0,
+    pauseDaysUsed: Math.round((usedMs / (1000 * 60 * 60 * 24)) * 10) / 10,
+  };
+}
+
+/** Admin grants additional pause-days on top of whatever the client already
+ * has (§2.5) -- a per-client override, logged as its own distinct timeline
+ * event so it reads as "admin adjusted a promise," not a plan/package
+ * change. */
+export async function adjustPauseDaysAllowed(accessToken: string, subscriptionId: string, additionalDays: number) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+  if (additionalDays === 0) throw new Error("Enter a non-zero number of days");
+
+  const { data: sub, error: subError } = await ctx.client
+    .from("subscriptions")
+    .select("id, client_id, pause_days_allowed")
+    .eq("id", subscriptionId)
+    .single();
+  if (subError || !sub) throw subError ?? new Error("Subscription not found");
+
+  const newTotal = Math.max(0, (sub.pause_days_allowed ?? 0) + additionalDays);
+  const { error } = await ctx.client.from("subscriptions").update({ pause_days_allowed: newTotal }).eq("id", subscriptionId);
+  if (error) throw error;
+
+  await logTimelineEvent(sub.client_id, "plan_promise_adjusted", `Pause-days allowance ${additionalDays > 0 ? "increased" : "decreased"} by ${Math.abs(additionalDays)}`, {
+    description: `New total: ${newTotal} pause-days`,
+    actorId: ctx.userId,
+    metadata: { subscriptionId, additionalDays, newTotal },
+  });
+
+  return { pauseDaysAllowed: newTotal };
 }

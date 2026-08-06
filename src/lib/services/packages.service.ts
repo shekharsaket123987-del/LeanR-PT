@@ -31,9 +31,10 @@ export interface PackageInput {
   category: "advance" | "addon";
   sessions_count: number;
   price: number;
-  original_price?: number;
+  original_price?: number | null;
   features: string[];
   highlighted?: boolean;
+  default_pause_days?: number;
 }
 
 export async function createPackage(accessToken: string, input: PackageInput) {

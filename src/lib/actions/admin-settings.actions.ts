@@ -13,7 +13,18 @@ async function requireToken(): Promise<string> {
 
 export interface AdminSettingsData {
   settings: { key: string; value: number; description: string | null }[];
-  packages: { id: string; name: string; category: "advance" | "addon"; sessions: number; price: number; isActive: boolean }[];
+  packages: {
+    id: string;
+    name: string;
+    category: "advance" | "addon";
+    sessions: number;
+    price: number;
+    originalPrice: number | null;
+    features: string[];
+    highlighted: boolean;
+    defaultPauseDays: number;
+    isActive: boolean;
+  }[];
 }
 
 const NUMERIC_SETTING_KEYS = [
@@ -39,6 +50,10 @@ export async function getAdminSettingsAction(): Promise<ActionResult<AdminSettin
           category: p.category,
           sessions: p.sessions_count,
           price: p.price,
+          originalPrice: p.original_price ?? null,
+          features: p.features ?? [],
+          highlighted: p.highlighted ?? false,
+          defaultPauseDays: p.default_pause_days ?? 0,
           isActive: p.is_active,
         })),
     };
@@ -57,6 +72,14 @@ export async function createPackageAction(input: PackageInput): Promise<ActionRe
   return runAction(async () => {
     const token = await requireToken();
     await createPackage(token, input);
+    return null;
+  });
+}
+
+export async function updatePackageAction(packageId: string, patch: Partial<PackageInput>): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    await updatePackage(token, packageId, patch);
     return null;
   });
 }

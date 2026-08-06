@@ -130,7 +130,7 @@ export default async function ClientDashboardPage() {
                 <p className="text-sm font-bold">{formatDate(s.date)}</p>
                 <p className="mt-0.5 line-clamp-1 text-xs text-black/45">{s.coachNotes ?? "No notes from your coach yet."}</p>
               </div>
-              {s.rating && <span className="shrink-0 text-xs font-bold text-black/50">{"★".repeat(s.rating)}</span>}
+              {s.qualityRating && <span className="shrink-0 text-xs font-bold text-black/50">{"★".repeat(s.qualityRating)}</span>}
             </div>
           ))}
         </Card>

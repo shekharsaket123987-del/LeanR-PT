@@ -5,6 +5,7 @@ import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
 import ClientTimeline from "@/components/admin/ClientTimeline";
+import MeasurementChart from "@/components/shared/MeasurementChart";
 import { getCoachClientDetailAction } from "@/lib/actions/coach-portal.actions";
 import { isFailure } from "@/lib/actions/action-result";
 import { formatDate } from "@/lib/utils";
@@ -36,6 +37,13 @@ export default async function CoachClientDetailPage({ params }: { params: { id: 
   return (
     <div className="mx-auto max-w-5xl">
       <PageHeader title={client.name} description={`${client.packageName ?? "No active package"} · Client since ${formatDate(client.joinedDate)}`} />
+
+      {!client.isAssignedToMe && (
+        <div className="mb-6 rounded-xl border border-black/10 bg-black/[0.03] px-4 py-3 text-xs text-black/60">
+          Read-only — this client isn&apos;t assigned to you, found via Global Search. Billing, progress, and session details are only
+          visible to their assigned coach.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-1">
@@ -142,6 +150,15 @@ export default async function CoachClientDetailPage({ params }: { params: { id: 
             )}
           </div>
 
+          {client.progressHistory.length > 0 && (
+            <div>
+              <h2 className="text-display mb-4 text-lg font-bold italic">Progress Over Time</h2>
+              <Card className="p-5">
+                <MeasurementChart logs={client.progressHistory} />
+              </Card>
+            </div>
+          )}
+
           <div>
             <h2 className="text-display mb-4 text-lg font-bold italic">Session History &amp; Notes</h2>
             <div className="space-y-3">
@@ -149,7 +166,8 @@ export default async function CoachClientDetailPage({ params }: { params: { id: 
                 <Card key={s.id} className="p-4">
                   <div className="mb-2 flex items-center gap-2">
                     <Badge variant="gray">{formatDate(s.date)}</Badge>
-                    {s.rating && <Badge variant="green">{"★".repeat(s.rating)}</Badge>}
+                    {s.qualityRating && <Badge variant="green">Session {"★".repeat(s.qualityRating)}</Badge>}
+                    {s.trainerRating && <Badge variant="green">You {"★".repeat(s.trainerRating)}</Badge>}
                   </div>
                   <p className="text-sm text-black/65">{s.notes ?? "No notes recorded."}</p>
                 </Card>

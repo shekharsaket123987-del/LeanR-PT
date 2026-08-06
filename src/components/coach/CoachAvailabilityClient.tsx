@@ -14,9 +14,15 @@ import { formatDate } from "@/lib/utils";
 
 const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+/** Leave requests require 24 hours' advance notice (server-enforced); a
+ * same-day date is never valid, so the picker shouldn't offer it. */
+function minLeaveFromISO(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
+
+type LeaveType = "full_day" | "partial";
 
 interface DayRow {
   enabled: boolean;
@@ -36,7 +42,16 @@ export default function CoachAvailabilityClient({
   initialLeave,
 }: {
   initialWindows: AvailabilityWindow[];
-  initialLeave: { id: string; starts_on: string; ends_on: string; reason: string | null; status: string }[];
+  initialLeave: {
+    id: string;
+    starts_on: string;
+    ends_on: string;
+    reason: string | null;
+    status: string;
+    leave_type?: LeaveType;
+    partial_start_time?: string | null;
+    partial_end_time?: string | null;
+  }[];
 }) {
   const [rows, setRows] = useState<DayRow[]>(buildInitialRows(initialWindows));
   const [saving, setSaving] = useState(false);
@@ -45,9 +60,12 @@ export default function CoachAvailabilityClient({
 
   const [leave, setLeave] = useState(initialLeave);
   const [leaveOpen, setLeaveOpen] = useState(false);
+  const [leaveType, setLeaveType] = useState<LeaveType>("full_day");
   const [leaveReason, setLeaveReason] = useState("");
   const [leaveFrom, setLeaveFrom] = useState("");
   const [leaveTo, setLeaveTo] = useState("");
+  const [partialStart, setPartialStart] = useState("");
+  const [partialEnd, setPartialEnd] = useState("");
   const [leaveSubmitting, setLeaveSubmitting] = useState(false);
   const [leaveError, setLeaveError] = useState("");
 
@@ -76,24 +94,55 @@ export default function CoachAvailabilityClient({
     setSaved(true);
   }
 
+  function resetLeaveForm() {
+    setLeaveOpen(false);
+    setLeaveType("full_day");
+    setLeaveReason("");
+    setLeaveFrom("");
+    setLeaveTo("");
+    setPartialStart("");
+    setPartialEnd("");
+  }
+
   async function submitLeave() {
-    if (!leaveFrom || !leaveTo) {
-      setLeaveError("Pick both dates");
+    if (!leaveFrom || (leaveType === "full_day" && !leaveTo)) {
+      setLeaveError("Pick a date");
+      return;
+    }
+    if (leaveType === "partial" && (!partialStart || !partialEnd)) {
+      setLeaveError("Pick the unavailable time window");
       return;
     }
     setLeaveSubmitting(true);
     setLeaveError("");
-    const result = await requestLeaveAction({ starts_on: leaveFrom, ends_on: leaveTo, reason: leaveReason || undefined });
+    const endsOn = leaveType === "partial" ? leaveFrom : leaveTo;
+    const result = await requestLeaveAction({
+      starts_on: leaveFrom,
+      ends_on: endsOn,
+      reason: leaveReason || undefined,
+      leaveType,
+      partialStartTime: leaveType === "partial" ? partialStart : undefined,
+      partialEndTime: leaveType === "partial" ? partialEnd : undefined,
+    });
     setLeaveSubmitting(false);
     if (isFailure(result)) {
       setLeaveError(result.error.message);
       return;
     }
-    setLeave((prev) => [{ id: crypto.randomUUID(), starts_on: leaveFrom, ends_on: leaveTo, reason: leaveReason || null, status: "pending" }, ...prev]);
-    setLeaveOpen(false);
-    setLeaveReason("");
-    setLeaveFrom("");
-    setLeaveTo("");
+    setLeave((prev) => [
+      {
+        id: crypto.randomUUID(),
+        starts_on: leaveFrom,
+        ends_on: endsOn,
+        reason: leaveReason || null,
+        status: "pending",
+        leave_type: leaveType,
+        partial_start_time: leaveType === "partial" ? `${partialStart}:00` : null,
+        partial_end_time: leaveType === "partial" ? `${partialEnd}:00` : null,
+      },
+      ...prev,
+    ]);
+    resetLeaveForm();
   }
 
   return (
@@ -155,7 +204,9 @@ export default function CoachAvailabilityClient({
                 <div>
                   <p className="text-sm font-semibold">{b.reason || "Leave"}</p>
                   <p className="text-xs text-black/40">
-                    {formatDate(b.starts_on)} – {formatDate(b.ends_on)}
+                    {b.leave_type === "partial"
+                      ? `${formatDate(b.starts_on)} · ${b.partial_start_time?.slice(0, 5)}–${b.partial_end_time?.slice(0, 5)}`
+                      : `${formatDate(b.starts_on)} – ${formatDate(b.ends_on)}`}
                   </p>
                 </div>
               </div>
@@ -166,8 +217,22 @@ export default function CoachAvailabilityClient({
         </div>
       </Card>
 
-      <Modal open={leaveOpen} onClose={() => setLeaveOpen(false)} title="Request Leave">
+      <Modal open={leaveOpen} onClose={resetLeaveForm} title="Request Leave">
         <div className="space-y-4">
+          <div className="flex gap-1 rounded-xl bg-black/5 p-1">
+            {(["full_day", "partial"] as LeaveType[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => setLeaveType(t)}
+                className={`flex-1 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
+                  leaveType === t ? "bg-white shadow-card" : "text-black/50 hover:text-black"
+                }`}
+              >
+                {t === "full_day" ? "Full day" : "Partial day"}
+              </button>
+            ))}
+          </div>
+
           <div>
             <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Reason</label>
             <input
@@ -177,28 +242,67 @@ export default function CoachAvailabilityClient({
               placeholder="e.g. Personal travel"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">From</label>
-              <input
-                type="date"
-                value={leaveFrom}
-                min={todayISO()}
-                onChange={(e) => setLeaveFrom(e.target.value)}
-                className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
-              />
+
+          {leaveType === "full_day" ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">From</label>
+                <input
+                  type="date"
+                  value={leaveFrom}
+                  min={minLeaveFromISO()}
+                  onChange={(e) => setLeaveFrom(e.target.value)}
+                  className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">To</label>
+                <input
+                  type="date"
+                  value={leaveTo}
+                  min={leaveFrom || minLeaveFromISO()}
+                  onChange={(e) => setLeaveTo(e.target.value)}
+                  className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+                />
+              </div>
             </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">To</label>
-              <input
-                type="date"
-                value={leaveTo}
-                min={leaveFrom || todayISO()}
-                onChange={(e) => setLeaveTo(e.target.value)}
-                className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
-              />
-            </div>
-          </div>
+          ) : (
+            <>
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Date</label>
+                <input
+                  type="date"
+                  value={leaveFrom}
+                  min={minLeaveFromISO()}
+                  onChange={(e) => setLeaveFrom(e.target.value)}
+                  className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Unavailable from</label>
+                  <input
+                    type="time"
+                    value={partialStart}
+                    onChange={(e) => setPartialStart(e.target.value)}
+                    className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Until</label>
+                  <input
+                    type="time"
+                    value={partialEnd}
+                    onChange={(e) => setPartialEnd(e.target.value)}
+                    className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-black/40">Only sessions inside this window are affected — the rest of the day stays bookable.</p>
+            </>
+          )}
+
+          <p className="text-xs text-black/40">Leave must be requested at least 24 hours before it starts.</p>
           {leaveError && <p className="text-xs text-red-600">{leaveError}</p>}
           <Button className="w-full" onClick={submitLeave} loading={leaveSubmitting}>
             Submit Request

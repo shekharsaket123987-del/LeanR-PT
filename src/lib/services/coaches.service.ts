@@ -158,6 +158,77 @@ export async function createCoach(
   return coachRow.id as string;
 }
 
+/** Coach-facing Skills field (FEATURE_SPEC_PORTAL_ENHANCEMENTS.md §1.2):
+ * append-only, enforced by append_coach_skill() (migration 0034) at the DB
+ * layer -- this function has no "replace" or "remove" path at all, by
+ * design, so there's nothing here for a client to bypass even if they called
+ * this action directly with a different payload. */
+export async function appendMySkill(accessToken: string, skill: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["coach"]);
+  const trimmed = skill.trim();
+  if (!trimmed) throw new Error("Skill can't be empty");
+
+  const { data: coach, error: coachError } = await ctx.client.from("coach_profiles").select("id").eq("profile_id", ctx.userId).single();
+  if (coachError || !coach) throw coachError ?? new Error("Coach profile not found");
+
+  const { error } = await ctx.client.rpc("append_coach_skill", { p_coach_id: coach.id, p_skill: trimmed });
+  if (error) throw error;
+}
+
+/** Admin retains full edit/remove rights on the same Skills field -- a plain
+ * replace, unlike the coach's append-only path above. */
+export async function updateCoachSkills(accessToken: string, coachId: string, skills: string[]) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+  const { error } = await ctx.client.from("coach_profiles").update({ skills }).eq("id", coachId);
+  if (error) throw error;
+}
+
+/** Admin full edit of a coach's identity/professional fields -- until this,
+ * a coach's name/specialization/bio/languages could only ever be set once,
+ * at creation, with no way to correct a typo or update them afterward.
+ * full_name lives on `profiles`, everything else on `coach_profiles`, so
+ * this is two updates -- both covered by profiles_admin_all/
+ * coach_profiles_admin_all RLS for an admin caller, no service-role bypass
+ * needed. Distinct from updateCoachSkills() above, which only ever touches
+ * the separate `skills` column. */
+export async function updateCoach(
+  accessToken: string,
+  coachId: string,
+  patch: {
+    fullName?: string;
+    specialization?: string;
+    yearsExperience?: number;
+    bio?: string;
+    secondarySpecializations?: string[];
+    languages?: string[];
+  }
+) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+
+  const { data: coach, error: coachFetchError } = await ctx.client.from("coach_profiles").select("profile_id").eq("id", coachId).single();
+  if (coachFetchError || !coach) throw coachFetchError ?? new Error("Coach not found");
+
+  if (patch.fullName !== undefined) {
+    const { error } = await ctx.client.from("profiles").update({ full_name: patch.fullName }).eq("id", coach.profile_id);
+    if (error) throw error;
+  }
+
+  const coachPatch: Record<string, unknown> = {};
+  if (patch.specialization !== undefined) coachPatch.specialization = patch.specialization;
+  if (patch.yearsExperience !== undefined) coachPatch.years_experience = patch.yearsExperience;
+  if (patch.bio !== undefined) coachPatch.bio = patch.bio;
+  if (patch.secondarySpecializations !== undefined) coachPatch.secondary_specializations = patch.secondarySpecializations;
+  if (patch.languages !== undefined) coachPatch.languages = patch.languages;
+
+  if (Object.keys(coachPatch).length > 0) {
+    const { error } = await ctx.client.from("coach_profiles").update(coachPatch).eq("id", coachId);
+    if (error) throw error;
+  }
+}
+
 /** Admin "Disable Coach" control. coach_profiles.status also drives
  * coach_status-dependent UI elsewhere (badge color, etc.) — no separate
  * "deleted" state exists, since a hard delete would orphan booking/audit

@@ -52,11 +52,13 @@ export default function MySessionsClient({ initialSessions, rules: initialRules 
     setCancelId(null);
   }
 
-  async function handleRate(rating: number, feedback: string) {
+  async function handleRate(qualityRating: number, trainerRating: number, note: string) {
     if (!feedbackFor) return;
-    const result = await rateSessionAction(feedbackFor, rating, feedback);
+    const result = await rateSessionAction(feedbackFor, qualityRating, trainerRating, note);
     if (isFailure(result)) throw new Error(result.error.message);
-    setSessions((prev) => prev.map((s) => (s.id === feedbackFor ? { ...s, rating, feedback } : s)));
+    setSessions((prev) =>
+      prev.map((s) => (s.id === feedbackFor ? { ...s, qualityRating, trainerRating, ratingNote: note } : s))
+    );
   }
 
   const feedbackSession = sessions.find((s) => s.id === feedbackFor);
@@ -156,7 +158,7 @@ export default function MySessionsClient({ initialSessions, rules: initialRules 
                   {s.coachNotes}
                 </p>
               )}
-              {s.status === "completed" && !s.feedback && (
+              {s.status === "completed" && !s.qualityRating && (
                 <div className="mt-3">
                   <Button variant="outline" size="sm" onClick={() => setFeedbackFor(s.id)}>
                     Rate Session
@@ -175,7 +177,9 @@ export default function MySessionsClient({ initialSessions, rules: initialRules 
         loading={cancelling}
         error={cancelError}
         title="Cancel this session?"
-        description="This session will be released back into your coach's calendar. You can always book a new one from the Book a Session page."
+        description={`Sessions must be cancelled at least ${rules.cancellationCutoffHours} hour${
+          rules.cancellationCutoffHours === 1 ? "" : "s"
+        } in advance. This session will be released back into your coach's calendar — you can always book a new one from the Book a Session page.`}
         confirmLabel="Cancel Session"
       />
 

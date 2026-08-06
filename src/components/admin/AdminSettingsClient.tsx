@@ -2,15 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Pencil, Star } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import TagEditor from "@/components/ui/TagEditor";
 import {
   AdminSettingsData,
   updateSettingAction,
   createPackageAction,
+  updatePackageAction,
   deletePackageAction,
 } from "@/lib/actions/admin-settings.actions";
 import { isFailure } from "@/lib/actions/action-result";
@@ -18,6 +20,17 @@ import { isFailure } from "@/lib/actions/action-result";
 function settingValue(settings: AdminSettingsData["settings"], key: string, fallback: number): number {
   return settings.find((s) => s.key === key)?.value ?? fallback;
 }
+
+const EMPTY_FORM = {
+  name: "",
+  category: "addon" as "advance" | "addon",
+  sessions: 12,
+  price: 0,
+  originalPrice: 0,
+  features: [] as string[],
+  highlighted: false,
+  defaultPauseDays: 0,
+};
 
 export default function AdminSettingsClient({ data }: { data: AdminSettingsData }) {
   const router = useRouter();
@@ -29,13 +42,12 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
   const [saveError, setSaveError] = useState("");
   const [saved, setSaved] = useState(false);
 
-  const [addOpen, setAddOpen] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newCategory, setNewCategory] = useState<"advance" | "addon">("addon");
-  const [newSessions, setNewSessions] = useState(12);
-  const [newPrice, setNewPrice] = useState(0);
-  const [addBusy, setAddBusy] = useState(false);
-  const [addError, setAddError] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [formBusy, setFormBusy] = useState(false);
+  const [formError, setFormError] = useState("");
+
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteTarget, setConfirmDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleteError, setDeleteError] = useState("");
@@ -60,17 +72,47 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
     router.refresh();
   }
 
-  async function addPackage() {
-    if (!newName || newSessions < 1 || newPrice < 0) return;
-    setAddBusy(true);
-    setAddError("");
-    const result = await createPackageAction({ name: newName, category: newCategory, sessions_count: newSessions, price: newPrice, features: [] });
-    setAddBusy(false);
-    if (isFailure(result)) return setAddError(result.error.message);
-    setAddOpen(false);
-    setNewName("");
-    setNewSessions(12);
-    setNewPrice(0);
+  function openAddPackage() {
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setFormError("");
+    setFormOpen(true);
+  }
+
+  function openEditPackage(p: AdminSettingsData["packages"][number]) {
+    setEditingId(p.id);
+    setForm({
+      name: p.name,
+      category: p.category,
+      sessions: p.sessions,
+      price: p.price,
+      originalPrice: p.originalPrice ?? 0,
+      features: p.features,
+      highlighted: p.highlighted,
+      defaultPauseDays: p.defaultPauseDays,
+    });
+    setFormError("");
+    setFormOpen(true);
+  }
+
+  async function savePackage() {
+    if (!form.name || form.sessions < 1 || form.price < 0) return;
+    setFormBusy(true);
+    setFormError("");
+    const payload = {
+      name: form.name,
+      category: form.category,
+      sessions_count: form.sessions,
+      price: form.price,
+      original_price: form.originalPrice > 0 ? form.originalPrice : null,
+      features: form.features,
+      highlighted: form.highlighted,
+      default_pause_days: form.defaultPauseDays,
+    };
+    const result = editingId ? await updatePackageAction(editingId, payload) : await createPackageAction(payload);
+    setFormBusy(false);
+    if (isFailure(result)) return setFormError(result.error.message);
+    setFormOpen(false);
     router.refresh();
   }
 
@@ -93,7 +135,7 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
       <Card className="p-6">
         <div className="mb-4 flex items-center justify-between">
           <p className="text-sm font-bold">Package Types</p>
-          <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
+          <Button variant="outline" size="sm" onClick={openAddPackage}>
             <Plus className="h-3.5 w-3.5" /> Add Package
           </Button>
         </div>
@@ -101,14 +143,23 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
           {data.packages.map((p) => (
             <div key={p.id} className="flex items-center justify-between rounded-xl border border-black/[0.06] px-4 py-3">
               <div>
-                <p className="text-sm font-semibold">{p.name}</p>
+                <p className="flex items-center gap-1.5 text-sm font-semibold">
+                  {p.name}
+                  {p.highlighted && <Star className="h-3 w-3 fill-brand-yellow text-brand-yellow" />}
+                </p>
                 <p className="text-xs text-black/40">
                   {p.sessions} sessions · ₹{p.price.toLocaleString("en-IN")}
+                  {p.originalPrice && p.originalPrice > p.price ? ` (was ₹${p.originalPrice.toLocaleString("en-IN")})` : ""}
                 </p>
               </div>
-              <button onClick={() => setConfirmDeleteTarget({ id: p.id, name: p.name })} disabled={deletingId === p.id}>
-                <Trash2 className="h-4 w-4 text-black/30 hover:text-red-500" />
-              </button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => openEditPackage(p)}>
+                  <Pencil className="h-4 w-4 text-black/30 hover:text-black" />
+                </button>
+                <button onClick={() => setConfirmDeleteTarget({ id: p.id, name: p.name })} disabled={deletingId === p.id}>
+                  <Trash2 className="h-4 w-4 text-black/30 hover:text-red-500" />
+                </button>
+              </div>
             </div>
           ))}
           {data.packages.length === 0 && <p className="text-sm text-black/40">No packages yet.</p>}
@@ -166,15 +217,23 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
         </Button>
       </Card>
 
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add Package">
+      <Modal open={formOpen} onClose={() => setFormOpen(false)} title={editingId ? "Edit Package" : "Add Package"}>
         <div className="space-y-4">
           <div>
             <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Name</label>
-            <input value={newName} onChange={(e) => setNewName(e.target.value)} className="w-full rounded-xl border border-black/15 p-3 text-sm" />
+            <input
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              className="w-full rounded-xl border border-black/15 p-3 text-sm"
+            />
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Category</label>
-            <select value={newCategory} onChange={(e) => setNewCategory(e.target.value as "advance" | "addon")} className="w-full rounded-xl border border-black/15 p-3 text-sm">
+            <select
+              value={form.category}
+              onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as "advance" | "addon" }))}
+              className="w-full rounded-xl border border-black/15 p-3 text-sm"
+            >
               <option value="addon">Add-on</option>
               <option value="advance">Advance</option>
             </select>
@@ -182,16 +241,58 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Sessions</label>
-              <input type="number" min={1} value={newSessions} onChange={(e) => setNewSessions(Number(e.target.value))} className="w-full rounded-xl border border-black/15 p-3 text-sm" />
+              <input
+                type="number"
+                min={1}
+                value={form.sessions}
+                onChange={(e) => setForm((f) => ({ ...f, sessions: Number(e.target.value) }))}
+                className="w-full rounded-xl border border-black/15 p-3 text-sm"
+              />
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Price (₹)</label>
-              <input type="number" min={0} value={newPrice} onChange={(e) => setNewPrice(Number(e.target.value))} className="w-full rounded-xl border border-black/15 p-3 text-sm" />
+              <input
+                type="number"
+                min={0}
+                value={form.price}
+                onChange={(e) => setForm((f) => ({ ...f, price: Number(e.target.value) }))}
+                className="w-full rounded-xl border border-black/15 p-3 text-sm"
+              />
             </div>
           </div>
-          {addError && <p className="text-xs text-red-600">{addError}</p>}
-          <Button className="w-full" disabled={!newName} loading={addBusy} onClick={addPackage}>
-            Add Package
+          <div>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Original Price (₹, optional — shown struck through)</label>
+            <input
+              type="number"
+              min={0}
+              value={form.originalPrice}
+              onChange={(e) => setForm((f) => ({ ...f, originalPrice: Number(e.target.value) }))}
+              className="w-full rounded-xl border border-black/15 p-3 text-sm"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Default Pause-Days Allowed</label>
+            <input
+              type="number"
+              min={0}
+              value={form.defaultPauseDays}
+              onChange={(e) => setForm((f) => ({ ...f, defaultPauseDays: Number(e.target.value) }))}
+              className="w-full rounded-xl border border-black/15 p-3 text-sm"
+            />
+          </div>
+          <TagEditor label="Features" values={form.features} onChange={(v) => setForm((f) => ({ ...f, features: v }))} />
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.highlighted}
+              onChange={(e) => setForm((f) => ({ ...f, highlighted: e.target.checked }))}
+              className="h-4 w-4 accent-brand-yellow"
+            />
+            Highlight as featured plan
+          </label>
+          {formError && <p className="text-xs text-red-600">{formError}</p>}
+          <Button className="w-full" disabled={!form.name} loading={formBusy} onClick={savePackage}>
+            {editingId ? "Save Changes" : "Add Package"}
           </Button>
         </div>
       </Modal>

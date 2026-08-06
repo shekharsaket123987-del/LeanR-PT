@@ -4,6 +4,23 @@ import { Star } from "lucide-react";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
 
+function StarPicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  const [hover, setHover] = useState(0);
+  return (
+    <div className="flex justify-center gap-2">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <button key={i} type="button" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(0)} onClick={() => onChange(i)}>
+          <Star
+            className="h-7 w-7 transition-colors"
+            fill={(hover || value) >= i ? "#F5E400" : "none"}
+            stroke={(hover || value) >= i ? "#F5E400" : "#00000030"}
+          />
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function FeedbackModal({
   open,
   onClose,
@@ -13,14 +30,22 @@ export default function FeedbackModal({
   open: boolean;
   onClose: () => void;
   coachName?: string;
-  onSubmit?: (rating: number, feedback: string) => Promise<void>;
+  onSubmit?: (qualityRating: number, trainerRating: number, note: string) => Promise<void>;
 }) {
-  const [rating, setRating] = useState(0);
-  const [hover, setHover] = useState(0);
-  const [feedback, setFeedback] = useState("");
+  const [qualityRating, setQualityRating] = useState(0);
+  const [trainerRating, setTrainerRating] = useState(0);
+  const [note, setNote] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  function reset() {
+    setSubmitted(false);
+    setQualityRating(0);
+    setTrainerRating(0);
+    setNote("");
+    setError("");
+  }
 
   async function handleSubmit() {
     if (!onSubmit) {
@@ -30,7 +55,7 @@ export default function FeedbackModal({
     setSubmitting(true);
     setError("");
     try {
-      await onSubmit(rating, feedback);
+      await onSubmit(qualityRating, trainerRating, note);
       setSubmitted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't submit feedback");
@@ -40,35 +65,26 @@ export default function FeedbackModal({
   }
 
   return (
-    <Modal open={open} onClose={() => { onClose(); setSubmitted(false); setRating(0); setFeedback(""); }} title="Rate Your Session" maxWidth="max-w-sm">
+    <Modal open={open} onClose={() => { onClose(); reset(); }} title="Rate Your Session" maxWidth="max-w-sm">
       {!submitted ? (
         <>
-          <p className="mb-4 text-sm text-black/50">How was your session with {coachName ?? "your coach"}?</p>
-          <div className="mb-5 flex justify-center gap-2">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <button
-                key={i}
-                onMouseEnter={() => setHover(i)}
-                onMouseLeave={() => setHover(0)}
-                onClick={() => setRating(i)}
-              >
-                <Star
-                  className="h-8 w-8 transition-colors"
-                  fill={(hover || rating) >= i ? "#F5E400" : "none"}
-                  stroke={(hover || rating) >= i ? "#F5E400" : "#00000030"}
-                />
-              </button>
-            ))}
+          <div className="mb-5">
+            <p className="mb-2 text-center text-sm font-semibold text-black/70">How was the session overall?</p>
+            <StarPicker value={qualityRating} onChange={setQualityRating} />
+          </div>
+          <div className="mb-5">
+            <p className="mb-2 text-center text-sm font-semibold text-black/70">How was {coachName ?? "your coach"}?</p>
+            <StarPicker value={trainerRating} onChange={setTrainerRating} />
           </div>
           <textarea
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
             rows={3}
             placeholder="Anything you'd like to share? (optional)"
             className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
           />
           {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
-          <Button className="mt-5 w-full" disabled={!rating} loading={submitting} onClick={handleSubmit}>
+          <Button className="mt-5 w-full" disabled={!qualityRating || !trainerRating} loading={submitting} onClick={handleSubmit}>
             Submit Feedback
           </Button>
         </>

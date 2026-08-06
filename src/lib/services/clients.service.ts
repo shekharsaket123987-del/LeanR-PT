@@ -123,6 +123,47 @@ export async function listMyClients(accessToken: string) {
   }));
 }
 
+/** Coach Global Search (FEATURE_SPEC_PORTAL_ENHANCEMENTS.md §1.5): every
+ * client platform-wide, not just this coach's own -- permitted by the
+ * widened client_profiles/profiles RLS (migration 0033). Client-side
+ * substring filtering on the result matches every other list/search screen
+ * in this codebase (AdminClientsListClient, CoachClientsClient, etc.), none
+ * of which do a server-side ilike query, so this follows the same
+ * convention rather than introducing a new one. Each row is flagged against
+ * this coach's own assigned-client set so the UI can distinguish "read-only"
+ * from "read + can add notes" per §1.5's Case A/B split. */
+export async function searchAllClients(accessToken: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["coach"]);
+
+  const [{ data: allClients, error: allError }, myClients] = await Promise.all([
+    ctx.client.from("client_profiles").select("id, client_code, status, profile:profiles(full_name, photo_url)"),
+    listMyClients(accessToken),
+  ]);
+  if (allError) throw allError;
+
+  const myClientIds = new Set((myClients as any[]).map((c) => c.id));
+  return (allClients ?? []).map((c: any) => ({ ...c, isAssignedToMe: myClientIds.has(c.id) }));
+}
+
+/** Direct client_profiles lookup for Global Search result detail (§1.5) --
+ * the widened RLS (migration 0033) permits any coach to read any client's
+ * identity; write access (notes, etc.) stays assignment-scoped everywhere
+ * else and is untouched by this. Returns null rather than throwing if the
+ * id doesn't exist or genuinely isn't visible, so the caller can surface one
+ * clean "not found" error instead of a raw RLS-shaped failure. */
+export async function getClientProfileById(accessToken: string, clientId: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["coach", "admin"]);
+  const { data, error } = await ctx.client
+    .from("client_profiles")
+    .select("*, profile:profiles(full_name, photo_url)")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export async function getMyClientProfile(accessToken: string) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["client"]);
