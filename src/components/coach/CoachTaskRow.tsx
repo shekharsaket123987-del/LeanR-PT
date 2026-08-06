@@ -67,7 +67,12 @@ export function TaskRow({ task, onMarked }: { task: CoachTodayTaskView; onMarked
             {!isPast && (
               <>
                 <JoinCountdown scheduledStart={task.scheduledStart} durationMinutes={task.durationMinutes} />
-                <Button href={`/coach/session/${task.bookingId}`} size="sm" disabled={!canJoin}>
+                <Button
+                  href={task.zoomStartUrl ?? `/coach/session/${task.bookingId}`}
+                  target={task.zoomStartUrl ? "_blank" : undefined}
+                  size="sm"
+                  disabled={!canJoin}
+                >
                   <Video className="h-3.5 w-3.5" /> Join
                 </Button>
               </>

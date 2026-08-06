@@ -39,6 +39,38 @@ This is a **design/UX prototype**, not a production build:
 - Buttons like "Save", "Approve", "Refund" update local component state only (no persistence)
 - Images are placeholder photography from picsum.photos / pravatar.cc
 
+## Environment variables
+
+Required for the app to run against its real Supabase backend:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+```
+
+Optional — enables real "Join" links (Zoom) on session cards. Without these set,
+Join buttons stay disabled with a "link not ready yet" message rather than
+breaking:
+
+```
+ZOOM_ACCOUNT_ID=
+ZOOM_CLIENT_ID=
+ZOOM_CLIENT_SECRET=
+ZOOM_HOST_EMAIL=
+```
+
+To get the Zoom values: in the [Zoom App Marketplace](https://marketplace.zoom.us),
+go to **Develop → Build App → Server-to-Server OAuth**, create an app, and grant it
+the `meeting:write:admin` and `meeting:read:admin` scopes. `ZOOM_ACCOUNT_ID`,
+`ZOOM_CLIENT_ID`, and `ZOOM_CLIENT_SECRET` come from that app's credentials page.
+`ZOOM_HOST_EMAIL` is the email of any licensed Zoom user on that account — every
+meeting is created under this one account (not per-coach), since coaches only ever
+need a start link, not their own Zoom login.
+
+Set these in Netlify/Vercel's project environment variable settings for
+production, or in a local `.env.local` for development.
+
 ## Structure
 
 - `src/app/` — routes (App Router): landing, `/login/*`, `/client/*`, `/coach/*`, `/admin/*`

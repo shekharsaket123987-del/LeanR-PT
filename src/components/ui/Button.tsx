@@ -7,6 +7,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "outline" | "ghost" | "destructive" | "destructive-outline";
   size?: "sm" | "md" | "lg";
   href?: string;
+  target?: string;
   loading?: boolean;
 }
 
@@ -29,6 +30,7 @@ export default function Button({
   variant = "primary",
   size = "md",
   href,
+  target,
   loading,
   className,
   children,
@@ -43,8 +45,17 @@ export default function Button({
   );
 
   if (href) {
+    // Link has no native disabled state -- a disabled link that still
+    // navigates is worse than no link, so fall back to an inert span.
+    if (disabled) {
+      return (
+        <span className={cn(classes, "opacity-50 cursor-not-allowed")} aria-disabled="true">
+          {children}
+        </span>
+      );
+    }
     return (
-      <Link href={href} className={classes}>
+      <Link href={href} target={target} rel={target === "_blank" ? "noopener noreferrer" : undefined} className={classes}>
         {children}
       </Link>
     );

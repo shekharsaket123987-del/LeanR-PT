@@ -5,7 +5,8 @@ import Card from "../ui/Card";
 import Button from "../ui/Button";
 import Badge, { AssessmentBadge } from "../ui/Badge";
 import { SessionView } from "@/lib/actions/client-portal.actions";
-import { formatDate, formatTime, hoursUntil } from "@/lib/utils";
+import { formatDate, formatTime } from "@/lib/utils";
+import { useJoinCountdown } from "@/components/shared/JoinCountdown";
 
 export default function NextSessionCard({ session }: { session: SessionView | null }) {
   if (!session) {
@@ -22,8 +23,7 @@ export default function NextSessionCard({ session }: { session: SessionView | nu
   }
 
   const coach = session.coach;
-  const hrs = hoursUntil(session.date);
-  const canJoin = hrs <= 1 / 6 && hrs > -(session.durationMinutes / 60);
+  const { label, canJoin } = useJoinCountdown(session.date, session.durationMinutes);
 
   return (
     <Card className="overflow-hidden">
@@ -50,12 +50,18 @@ export default function NextSessionCard({ session }: { session: SessionView | nu
           </div>
         </div>
         <div className="flex flex-col items-stretch gap-2 sm:items-end">
-          <Button size="lg" disabled={!canJoin} className="min-w-[160px]">
+          <Button
+            size="lg"
+            href={session.zoomJoinUrl ?? "#"}
+            target="_blank"
+            disabled={!canJoin || !session.zoomJoinUrl}
+            className="min-w-[160px]"
+          >
             <Video className="h-4 w-4" />
             {canJoin ? "Join Now" : "Join"}
           </Button>
           <p className="text-center text-xs text-black/40 sm:text-right">
-            {canJoin ? "Session is live — jump in!" : "Join opens 10 min before start"}
+            {!session.zoomJoinUrl ? "Join link not ready yet" : label}
           </p>
         </div>
       </div>

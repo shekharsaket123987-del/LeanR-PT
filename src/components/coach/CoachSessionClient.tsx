@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Mic, PhoneOff, Play, Pause, CheckCircle2, Target, Dumbbell, HeartPulse, FileClock, UserCheck, UserX } from "lucide-react";
+import { Video, CheckCircle2, Target, Dumbbell, HeartPulse, FileClock, UserCheck, UserX } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -22,8 +22,6 @@ const PERFORMANCE_OPTIONS: { value: "excellent" | "good" | "average" | "needs_im
 
 export default function CoachSessionClient({ session }: { session: CoachSessionDetail }) {
   const router = useRouter();
-  const [running, setRunning] = useState(false);
-  const [seconds, setSeconds] = useState(0);
 
   const [attendance, setAttendance] = useState(session.attendanceStatus);
   const [markingAttendance, setMarkingAttendance] = useState<"present" | "absent" | null>(null);
@@ -40,15 +38,6 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
   const [submitError, setSubmitError] = useState("");
   const [completed, setCompleted] = useState(session.status === "completed");
   const [missed, setMissed] = useState(session.status === "missed");
-
-  useEffect(() => {
-    if (!running) return;
-    const t = setInterval(() => setSeconds((s) => s + 1), 1000);
-    return () => clearInterval(t);
-  }, [running]);
-
-  const mins = String(Math.floor(seconds / 60)).padStart(2, "0");
-  const secs = String(seconds % 60).padStart(2, "0");
 
   async function markPresent() {
     setMarkingAttendance("present");
@@ -110,27 +99,20 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           {!completed && !missed && (
-            <Card className="overflow-hidden">
-              <div className="relative flex aspect-video items-center justify-center bg-black">
-                <Image src={`https://picsum.photos/seed/${session.id}-call/900/500`} alt="Live session" fill className="object-cover opacity-80" />
-                <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 backdrop-blur">
-                  <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-                  <span className="text-xs font-bold text-white">LIVE</span>
-                </div>
-                <div className="absolute right-4 top-4 rounded-full bg-black/60 px-3 py-1.5 font-mono text-xs font-bold text-white backdrop-blur">
-                  {mins}:{secs}
-                </div>
-                <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-3">
-                  <button onClick={() => setRunning((r) => !r)} className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-black shadow-lg">
-                    {running ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-                  </button>
-                  <button className="flex h-11 w-11 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur">
-                    <Mic className="h-5 w-5" />
-                  </button>
-                  <button className="flex h-11 w-11 items-center justify-center rounded-full bg-red-600 text-white">
-                    <PhoneOff className="h-5 w-5" />
-                  </button>
-                </div>
+            <Card className="p-6 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-yellow/15">
+                <Video className="h-6 w-6" />
+              </div>
+              <p className="mt-3 text-sm font-bold">{session.zoomStartUrl ? "Ready to start this session" : "Zoom link not ready yet"}</p>
+              <p className="mt-1 text-xs text-black/45">
+                {session.zoomStartUrl
+                  ? "Opens Zoom in a new tab, on your account, as the meeting host."
+                  : "This can happen if Zoom isn't configured yet, or the session has already passed."}
+              </p>
+              <div className="mt-4">
+                <Button href={session.zoomStartUrl ?? "#"} target="_blank" disabled={!session.zoomStartUrl}>
+                  <Video className="h-4 w-4" /> Join Zoom Meeting
+                </Button>
               </div>
             </Card>
           )}

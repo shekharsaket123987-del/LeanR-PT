@@ -13,6 +13,7 @@ import {
   countReschedulesThisWeek,
   createBooking,
   endOfWeekUTC,
+  ensureZoomMeetingForBooking,
   getBooking,
   listMyBookingsAsClient,
   listMyWorkoutNotes,
@@ -20,6 +21,18 @@ import {
   rateBooking,
   rescheduleBooking,
 } from "@/lib/services/bookings.service";
+
+/** Swallows Zoom errors (most commonly: not configured yet) so a missing
+ * Zoom setup never breaks the dashboard -- Join is additive on top of a
+ * working "next session" card, not a dependency of it. */
+async function tryEnsureZoomJoinUrl(token: string, bookingId: string): Promise<string | null> {
+  try {
+    const meeting = await ensureZoomMeetingForBooking(token, bookingId);
+    return meeting?.joinUrl ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export interface CoachView {
   id: string;
@@ -43,6 +56,10 @@ export interface SessionView {
   wasRescheduled: boolean;
   originalDate: string | null;
   amountPaid: number | null;
+  /** Only ever populated on the dashboard's nextSession -- other SessionView
+   * call sites (session list, recentCompleted) have no use for a join link,
+   * so this stays null there rather than paying for a Zoom call per row. */
+  zoomJoinUrl: string | null;
 }
 
 const FALLBACK_PHOTO = (seed: string) => `https://i.pravatar.cc/300?u=${seed}`;
@@ -81,6 +98,7 @@ function toSessionView(row: any, notesByBooking: Map<string, string>): SessionVi
     wasRescheduled: row.was_rescheduled ?? false,
     originalDate: row.original_scheduled_start ?? null,
     amountPaid: row.amount_paid ?? null,
+    zoomJoinUrl: null,
   };
 }
 
@@ -146,6 +164,7 @@ export async function getClientDashboardAction(): Promise<ActionResult<ClientDas
         const fullCoach = toCoachView(await getCoach(token, nextSession.coach.id));
         if (fullCoach) nextSession.coach = fullCoach;
       }
+      nextSession.zoomJoinUrl = await tryEnsureZoomJoinUrl(token, nextSession.id);
     }
 
     const subscriptions = await getSubscriptionsForClient(token, client.id);

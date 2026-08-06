@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { holdSlot, confirmHold } from "./scheduling.service";
 import { logTimelineEvent, listClientTimeline } from "./timeline.service";
 import { createFromTemplate, notifyAdmins } from "./notifications.service";
+import { createZoomMeeting, deleteZoomMeeting } from "./zoom.service";
 
 /** Monday 00:00 UTC of the week containing `d` — same convention as
  * computeStreakWeeks() in client-portal.actions.ts, duplicated here rather
@@ -135,6 +136,46 @@ export async function getBooking(accessToken: string, bookingId: string) {
   return data;
 }
 
+/** Creates the Zoom meeting for a session the first time someone actually
+ * needs to join it, rather than at booking-creation time -- bookings get
+ * created from several different code paths (initial confirm, recurring
+ * generation, cancel-triggered regeneration), and this way none of them
+ * need a Zoom-specific hook. Idempotent: returns the existing links
+ * unchanged if a meeting was already created for this booking. Returns null
+ * (rather than throwing) if the booking isn't visible to the caller or
+ * isn't in a joinable state, so callers can render "no session" instead of
+ * a hard error. */
+export async function ensureZoomMeetingForBooking(
+  accessToken: string,
+  bookingId: string
+): Promise<{ joinUrl: string; startUrl: string } | null> {
+  const ctx = await getCallerContext(accessToken);
+  const { data: booking, error } = await ctx.client
+    .from("bookings")
+    .select(
+      "id, status, scheduled_start, duration_minutes, zoom_join_url, zoom_start_url, client:client_profiles(profile:profiles(full_name)), coach:coach_profiles(profile:profiles(full_name))"
+    )
+    .eq("id", bookingId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!booking || booking.status !== "upcoming") return null;
+  if (booking.zoom_join_url && booking.zoom_start_url) {
+    return { joinUrl: booking.zoom_join_url, startUrl: booking.zoom_start_url };
+  }
+
+  const clientName = (booking as any).client?.profile?.full_name ?? "Client";
+  const coachName = (booking as any).coach?.profile?.full_name ?? "Coach";
+  const meeting = await createZoomMeeting(`PT Session — ${clientName} & ${coachName}`, booking.scheduled_start, booking.duration_minutes);
+
+  const { error: updateError } = await supabaseAdmin
+    .from("bookings")
+    .update({ zoom_meeting_id: meeting.id, zoom_join_url: meeting.joinUrl, zoom_start_url: meeting.startUrl })
+    .eq("id", bookingId);
+  if (updateError) throw updateError;
+
+  return { joinUrl: meeting.joinUrl, startUrl: meeting.startUrl };
+}
+
 /** Session-detail lookups -- one row each, admin/coach/linked-client visible
  * per the existing attendance/workout_notes RLS policies. */
 export async function getAttendanceForBooking(accessToken: string, bookingId: string) {
@@ -234,6 +275,24 @@ export async function createBooking(
   return bookingId;
 }
 
+/** Best-effort: a stale/cancelled Zoom meeting left dangling is a minor
+ * annoyance (an unused meeting sitting in the host's Zoom account), not
+ * something worth failing a cancel/reschedule over -- so errors here are
+ * swallowed after logging, never rethrown. */
+async function cleanupZoomMeeting(bookingId: string, zoomMeetingId: string | null) {
+  if (!zoomMeetingId) return;
+  try {
+    await deleteZoomMeeting(zoomMeetingId);
+  } catch (err) {
+    console.error(`Failed to delete Zoom meeting ${zoomMeetingId} for booking ${bookingId}:`, err);
+  }
+  const { error } = await supabaseAdmin
+    .from("bookings")
+    .update({ zoom_meeting_id: null, zoom_join_url: null, zoom_start_url: null })
+    .eq("id", bookingId);
+  if (error) throw error;
+}
+
 export async function cancelBooking(accessToken: string, bookingId: string, reason?: string) {
   const ctx = await getCallerContext(accessToken);
   const enforceCutoff = ctx.role !== "admin";
@@ -245,6 +304,8 @@ export async function cancelBooking(accessToken: string, bookingId: string, reas
     p_enforce_cutoff: enforceCutoff,
   });
   if (error) throw error;
+
+  await cleanupZoomMeeting(bookingId, (booking as any).zoom_meeting_id ?? null);
 
   await logTimelineEvent((booking as any).client_id, "session_cancelled", "Session cancelled", {
     description: reason,
@@ -301,6 +362,10 @@ export async function rescheduleBooking(accessToken: string, bookingId: string, 
     p_enforce_cutoff: enforceCutoff,
   });
   if (error) throw error;
+
+  // The old meeting's start time is now wrong -- delete it and let
+  // ensureZoomMeetingForBooking create a fresh one, lazily, for the new time.
+  await cleanupZoomMeeting(bookingId, (booking as any).zoom_meeting_id ?? null);
 
   await logTimelineEvent((booking as any).client_id, "session_rescheduled", "Session rescheduled", {
     description: `${new Date((booking as any).scheduled_start).toLocaleString()} → ${new Date(newStart).toLocaleString()}`,

@@ -21,6 +21,7 @@ import { getSubscriptionsForClient } from "@/lib/services/subscriptions.service"
 import { listProgressLogsForClient } from "@/lib/services/progressLogs.service";
 import { listClientTimeline, TimelineEventRow } from "@/lib/services/timeline.service";
 import {
+  ensureZoomMeetingForBooking,
   getAttendanceForBooking,
   getBooking,
   getWorkoutNoteForBooking,
@@ -192,6 +193,25 @@ export interface CoachTodayTaskView extends CoachRosterBase {
   attendanceStatus: "present" | "absent" | null;
   notesSubmitted: boolean;
   overdue: boolean;
+  /** Host-privilege Zoom link, created lazily the first time a session
+   * still needing attendance is loaded here. Null if Zoom isn't configured
+   * yet (ensureZoomMeetingForBooking's error is swallowed, not thrown, so a
+   * missing Zoom setup never breaks this widget) or the session is already
+   * closed out. */
+  zoomStartUrl: string | null;
+}
+
+/** Swallows Zoom errors (most commonly: not configured yet) rather than
+ * letting one booking's Zoom failure break the whole widget it's called
+ * from -- Join is a nice-to-have on top of a working dashboard, not a
+ * dependency of it. */
+async function tryEnsureZoomStartUrl(token: string, bookingId: string): Promise<string | null> {
+  try {
+    const meeting = await ensureZoomMeetingForBooking(token, bookingId);
+    return meeting?.startUrl ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Today's Tasks widget (FEATURE_SPEC_PORTAL_ENHANCEMENTS.md §1.3): every one
@@ -225,11 +245,22 @@ export async function getCoachTodayTasksAction(): Promise<ActionResult<CoachToda
     const notesSubmittedSet = new Set((noteRows as any[]).map((n) => n.booking_id));
     const clientById = new Map((clients as any[]).map((c) => [c.id, c]));
 
+    // Only sessions without attendance marked yet can still be "joined" --
+    // once attendance is in, the row is about notes, not the call.
+    const zoomStartUrlByBooking = new Map(
+      await Promise.all(
+        todays
+          .filter((b) => !attendanceByBooking.has(b.id))
+          .map(async (b) => [b.id, await tryEnsureZoomStartUrl(token, b.id)] as const)
+      )
+    );
+
     return todays.map((b) => ({
       ...toCoachRosterBase(b, clientById, isShadowSession),
       attendanceStatus: attendanceByBooking.get(b.id) ?? null,
       notesSubmitted: notesSubmittedSet.has(b.id),
       overdue: b.attendance_overdue ?? false,
+      zoomStartUrl: zoomStartUrlByBooking.get(b.id) ?? null,
     }));
   });
 }
@@ -308,6 +339,8 @@ export async function getCoachPendingTasksAction(): Promise<ActionResult<CoachTo
       attendanceStatus: attendanceByBooking.get(b.id) ?? null,
       notesSubmitted: notesSubmittedSet.has(b.id),
       overdue: b.attendance_overdue ?? false,
+      // These sessions are already in the past -- there's nothing to join.
+      zoomStartUrl: null,
     }));
   });
 }
@@ -589,6 +622,7 @@ export interface CoachSessionDetail {
   previousNotes: { date: string; notes: string | null }[];
   attendanceStatus: "present" | "absent" | "late" | null;
   notes: SessionNotesView | null;
+  zoomStartUrl: string | null;
 }
 
 export async function getCoachSessionDetailAction(bookingId: string): Promise<ActionResult<CoachSessionDetail>> {
@@ -622,6 +656,8 @@ export async function getCoachSessionDetailAction(bookingId: string): Promise<Ac
         .map((n) => ({ date: n.created_at, notes: n.notes }));
     }
 
+    const zoomStartUrl = booking.status === "upcoming" ? await tryEnsureZoomStartUrl(token, bookingId) : null;
+
     return {
       id: booking.id,
       status: booking.status,
@@ -631,6 +667,7 @@ export async function getCoachSessionDetailAction(bookingId: string): Promise<Ac
       client: clientDetail,
       previousNotes,
       attendanceStatus: attendance?.status ?? null,
+      zoomStartUrl,
       notes: notesRow
         ? {
             summary: notesRow.notes,
