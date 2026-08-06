@@ -2,11 +2,11 @@
 
 import { getAccessToken } from "@/lib/supabase/server-client";
 import { ActionResult, runAction } from "./action-result";
-import { getMyLatestSubscription, purchaseMyPlan, activateMyPlan } from "@/lib/services/planPurchase.service";
+import { getMyLatestSubscription, activateMyPlan } from "@/lib/services/planPurchase.service";
 import { getMyOnboarding, submitOnboarding, OnboardingInput } from "@/lib/services/onboarding.service";
 import { getMyActiveRecurringSlots } from "@/lib/services/scheduling.service";
 import { listPackages } from "@/lib/services/packages.service";
-import { findDemoSlots, confirmDemoBooking, DemoSlotOption } from "@/lib/services/demoBooking.service";
+import { findDemoSlots, DemoSlotOption } from "@/lib/services/demoBooking.service";
 
 async function requireToken(): Promise<string> {
   const token = await getAccessToken();
@@ -81,14 +81,6 @@ export async function listMarketingPlansAction(): Promise<ActionResult<Marketing
   });
 }
 
-export async function purchasePlanAction(packageId: string): Promise<ActionResult<{ subscriptionId: string }>> {
-  return runAction(async () => {
-    const token = await requireToken();
-    const sub = await purchaseMyPlan(token, packageId);
-    return { subscriptionId: sub.id };
-  });
-}
-
 export async function activatePlanAction(subscriptionId: string, startDate: string): Promise<ActionResult<null>> {
   return runAction(async () => {
     const token = await requireToken();
@@ -113,13 +105,5 @@ export async function findDemoSlotsAction(input: {
   return runAction(async () => {
     const token = await requireToken();
     return findDemoSlots(token, input);
-  });
-}
-
-export async function confirmDemoBookingAction(coachId: string, slotStart: string): Promise<ActionResult<{ bookingId: string }>> {
-  return runAction(async () => {
-    const token = await requireToken();
-    const bookingId = await confirmDemoBooking(token, coachId, slotStart);
-    return { bookingId };
   });
 }

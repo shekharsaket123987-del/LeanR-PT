@@ -68,6 +68,20 @@ the `meeting:write:admin` and `meeting:read:admin` scopes. `ZOOM_ACCOUNT_ID`,
 meeting is created under this one account (not per-coach), since coaches only ever
 need a start link, not their own Zoom login.
 
+Optional — enables real payment (Razorpay) for package purchases and demo/assessment
+session fees. Without these set, "Purchase Plan" / "Select" buttons will fail with a
+clear "Razorpay isn't configured yet" error rather than silently charging nothing:
+
+```
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
+```
+
+Get these from the [Razorpay Dashboard](https://dashboard.razorpay.com) → **Settings
+→ API Keys**. Start in **Test Mode** (test keys, test card numbers, no real money
+moves) and only switch to the Live Mode key pair once you're ready to accept real
+payments — nothing else in the code changes, it's purely which key pair is set here.
+
 Set these in Netlify/Vercel's project environment variable settings for
 production, or in a local `.env.local` for development.
 

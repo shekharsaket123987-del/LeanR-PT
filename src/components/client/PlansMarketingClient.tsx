@@ -15,9 +15,10 @@ import {
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
-import StubPaymentModal from "@/components/client/StubPaymentModal";
-import { MarketingPlan, purchasePlanAction } from "@/lib/actions/client-journey.actions";
+import { MarketingPlan } from "@/lib/actions/client-journey.actions";
+import { createPackagePurchaseOrderAction } from "@/lib/actions/payments.actions";
 import { isFailure } from "@/lib/actions/action-result";
+import { useRazorpayCheckout } from "@/components/shared/useRazorpayCheckout";
 
 const WHY_LEANR = [
   { icon: BadgeCheck, title: "Certified Personal Trainers", description: "Every coach is certified and vetted before joining LeanR." },
@@ -32,18 +33,31 @@ const WHY_LEANR = [
 
 export default function PlansMarketingClient({ plans }: { plans: MarketingPlan[] }) {
   const router = useRouter();
-  const [payingPlan, setPayingPlan] = useState<MarketingPlan | null>(null);
+  const { openCheckout } = useRazorpayCheckout();
+  const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  async function onPaymentSuccess() {
-    if (!payingPlan) return;
-    const result = await purchasePlanAction(payingPlan.id);
-    setPayingPlan(null);
-    if (isFailure(result)) {
-      setError(result.error.message);
+  async function purchase(plan: MarketingPlan) {
+    setPurchasingId(plan.id);
+    setError("");
+    const order = await createPackagePurchaseOrderAction(plan.id);
+    if (isFailure(order)) {
+      setPurchasingId(null);
+      setError(order.error.message);
       return;
     }
-    router.push("/client/dashboard");
+    openCheckout(
+      order.data,
+      { name: "LEANR", description: `Purchase ${plan.name}` },
+      {
+        onSuccess: () => router.push("/client/dashboard"),
+        onError: (message) => {
+          setPurchasingId(null);
+          setError(message);
+        },
+        onDismiss: () => setPurchasingId(null),
+      }
+    );
   }
 
   return (
@@ -82,7 +96,7 @@ export default function PlansMarketingClient({ plans }: { plans: MarketingPlan[]
                   ))}
                 </ul>
               )}
-              <Button className="mt-6 w-full" onClick={() => setPayingPlan(p)}>
+              <Button className="mt-6 w-full" loading={purchasingId === p.id} disabled={purchasingId !== null && purchasingId !== p.id} onClick={() => purchase(p)}>
                 Purchase Plan
               </Button>
             </Card>
@@ -105,16 +119,6 @@ export default function PlansMarketingClient({ plans }: { plans: MarketingPlan[]
           ))}
         </div>
       </div>
-
-      {payingPlan && (
-        <StubPaymentModal
-          open={!!payingPlan}
-          onClose={() => setPayingPlan(null)}
-          amountRupees={payingPlan.price}
-          title={`Purchase ${payingPlan.name}`}
-          onSuccess={onPaymentSuccess}
-        />
-      )}
     </>
   );
 }

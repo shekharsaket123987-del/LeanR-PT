@@ -6,12 +6,12 @@ import Image from "next/image";
 import { CheckCircle2 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import StubPaymentModal from "@/components/client/StubPaymentModal";
-import { findDemoSlotsAction, confirmDemoBookingAction } from "@/lib/actions/client-journey.actions";
+import { findDemoSlotsAction } from "@/lib/actions/client-journey.actions";
+import { createDemoSessionOrderAction } from "@/lib/actions/payments.actions";
 import { DemoSlotOption } from "@/lib/services/demoBooking.service";
 import { isFailure } from "@/lib/actions/action-result";
 import { formatDate, formatTime } from "@/lib/utils";
-import { DEMO_SESSION_FEE } from "@/lib/constants/pricing";
+import { useRazorpayCheckout } from "@/components/shared/useRazorpayCheckout";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -19,6 +19,7 @@ function todayISO(): string {
 
 export default function DemoBookingClient() {
   const router = useRouter();
+  const { openCheckout } = useRazorpayCheckout();
   const [date, setDate] = useState(todayISO());
   const [preferredTime, setPreferredTime] = useState("");
   const [genderPreference, setGenderPreference] = useState<"" | "male" | "female" | "other">("");
@@ -42,15 +43,31 @@ export default function DemoBookingClient() {
     setSlots(result.data);
   }
 
-  async function onPaymentSuccess() {
-    if (!selected) return;
-    const result = await confirmDemoBookingAction(selected.coachId, selected.slotStart);
-    setPaying(false);
-    if (isFailure(result)) {
-      setError(result.error.message);
+  async function selectSlot(slot: DemoSlotOption) {
+    setSelected(slot);
+    setPaying(true);
+    setError("");
+    const order = await createDemoSessionOrderAction(slot.coachId, slot.slotStart);
+    if (isFailure(order)) {
+      setPaying(false);
+      setError(order.error.message);
       return;
     }
-    setConfirmed(true);
+    openCheckout(
+      order.data,
+      { name: "LEANR", description: "Demo Session" },
+      {
+        onSuccess: () => {
+          setPaying(false);
+          setConfirmed(true);
+        },
+        onError: (message) => {
+          setPaying(false);
+          setError(message);
+        },
+        onDismiss: () => setPaying(false),
+      }
+    );
   }
 
   if (confirmed) {
@@ -116,26 +133,15 @@ export default function DemoBookingClient() {
               </div>
               <Button
                 size="sm"
-                onClick={() => {
-                  setSelected(s);
-                  setPaying(true);
-                }}
+                loading={paying && selected?.coachId === s.coachId && selected?.slotStart === s.slotStart}
+                disabled={paying && !(selected?.coachId === s.coachId && selected?.slotStart === s.slotStart)}
+                onClick={() => selectSlot(s)}
               >
                 Select
               </Button>
             </Card>
           ))}
         </div>
-      )}
-
-      {selected && (
-        <StubPaymentModal
-          open={paying}
-          onClose={() => setPaying(false)}
-          amountRupees={DEMO_SESSION_FEE}
-          title="Confirm Demo Session"
-          onSuccess={onPaymentSuccess}
-        />
       )}
     </>
   );

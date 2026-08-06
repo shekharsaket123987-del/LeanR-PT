@@ -9,6 +9,11 @@ import { formatDate, formatTime } from "@/lib/utils";
 import { useJoinCountdown } from "@/components/shared/JoinCountdown";
 
 export default function NextSessionCard({ session }: { session: SessionView | null }) {
+  // Hooks must run unconditionally -- feed useJoinCountdown a placeholder
+  // instant far in the future when there's no session, so canJoin/label
+  // compute to a harmless "not joinable" state instead of ever being read.
+  const { label, canJoin } = useJoinCountdown(session?.date ?? "9999-01-01T00:00:00Z", session?.durationMinutes ?? 0);
+
   if (!session) {
     return (
       <Card className="flex flex-col items-center justify-center p-10 text-center">
@@ -23,7 +28,6 @@ export default function NextSessionCard({ session }: { session: SessionView | nu
   }
 
   const coach = session.coach;
-  const { label, canJoin } = useJoinCountdown(session.date, session.durationMinutes);
 
   return (
     <Card className="overflow-hidden">
