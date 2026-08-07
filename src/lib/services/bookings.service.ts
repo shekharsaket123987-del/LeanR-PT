@@ -40,9 +40,23 @@ export async function countReschedulesThisWeek(accessToken: string, clientId: st
 const BOOKING_SELECT =
   "*, client:client_profiles(id, profile:profiles(full_name, photo_url)), coach:coach_profiles(id, employee_code, profile:profiles(full_name, photo_url))";
 
+/** mark_missed_bookings() (migration 0011) is otherwise only ever reached
+ * as a side effect of has_scheduling_conflict() -- fine for booking-write
+ * paths, but a client/coach who just reads their own list without touching
+ * the booking engine (e.g. loading the dashboard) could see a session whose
+ * time has already passed still labeled "upcoming" until something else in
+ * the app happens to trigger that RPC. Runs via supabaseAdmin since the
+ * function isn't security definer and callers here have no UPDATE grant on
+ * bookings -- safe to call on every read, it's a no-op once nothing is stale. */
+async function sweepMissedBookings() {
+  const { error } = await supabaseAdmin.rpc("mark_missed_bookings");
+  if (error) throw error;
+}
+
 export async function listMyBookingsAsClient(accessToken: string, status?: string) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["client"]);
+  await sweepMissedBookings();
   const { data: client, error: clientError } = await ctx.client.from("client_profiles").select("id").eq("profile_id", ctx.userId).single();
   if (clientError || !client) throw clientError ?? new Error("Client profile not found");
 
@@ -56,6 +70,7 @@ export async function listMyBookingsAsClient(accessToken: string, status?: strin
 export async function listMyBookingsAsCoach(accessToken: string, status?: string) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["coach"]);
+  await sweepMissedBookings();
   const { data: coach, error: coachError } = await ctx.client.from("coach_profiles").select("id").eq("profile_id", ctx.userId).single();
   if (coachError || !coach) throw coachError ?? new Error("Coach profile not found");
 
