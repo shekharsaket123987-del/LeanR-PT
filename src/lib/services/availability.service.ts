@@ -2,7 +2,7 @@ import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { listActiveClientIdsForCoach } from "./clients.service";
 import { findShadowCoachCandidates, istTimeOfDayMinutes, planShadowAssignments } from "./scheduling.service";
-import { assignShadowCoach } from "./coachChange.service";
+import { assignShadowCoach, reassignShadowCoverage } from "./coachChange.service";
 import { createFromTemplate, notifyAdmins } from "./notifications.service";
 
 export async function getCoachAvailability(accessToken: string, coachId: string) {
@@ -276,6 +276,78 @@ export async function resolveLeave(accessToken: string, leaveId: string, status:
       summary.unassignedFlagged.push({ clientId, clientName, uncoveredDates });
       await notifyAdmins("admin_alert", {
         alert_message: `No shadow coach available for ${clientName} on ${uncoveredDates.join(", ")} during coach leave ${leave.starts_on}-${leave.ends_on} -- manual reassignment needed.`,
+      });
+    }
+  }
+
+  // §4.2.5: this coach might ALSO currently be covering OTHER clients as a
+  // shadow (for a different primary coach) -- their own approved leave
+  // means those sessions need a fresh shadow search too, not just the
+  // clients whose primary they actually are (handled above). Scoped to the
+  // overlap of [existing shadow assignment] and [this new leave], since
+  // outside that overlap the shadow coach is still genuinely available.
+  const { data: shadowingRows, error: shadowingError } = await supabaseAdmin
+    .from("shadow_coach_assignments")
+    .select("client_id, primary_coach_id, starts_on, ends_on")
+    .eq("shadow_coach_id", leave.coach_id)
+    .eq("status", "active")
+    .lte("starts_on", leave.ends_on)
+    .gte("ends_on", leave.starts_on);
+  if (shadowingError) throw shadowingError;
+
+  for (const row of shadowingRows ?? []) {
+    const overlapStart = row.starts_on > leave.starts_on ? row.starts_on : leave.starts_on;
+    const overlapEnd = row.ends_on < leave.ends_on ? row.ends_on : leave.ends_on;
+
+    let occurrences = await findShadowCoachCandidates(accessToken, {
+      clientId: row.client_id,
+      primaryCoachId: row.primary_coach_id,
+      startsOn: overlapStart,
+      endsOn: overlapEnd,
+    });
+    if (partialWindowMin) {
+      occurrences = occurrences.filter((occ) => {
+        const occStartMin = istTimeOfDayMinutes(occ.slotStart);
+        const occEndMin = occStartMin + occ.durationMinutes;
+        return occStartMin < partialWindowMin!.end && occEndMin > partialWindowMin!.start;
+      });
+    }
+
+    const { data: clientProfile } = await supabaseAdmin
+      .from("client_profiles")
+      .select("id, profile:profiles(full_name)")
+      .eq("id", row.client_id)
+      .maybeSingle();
+    const clientName = (clientProfile as any)?.profile?.full_name ?? "Client";
+    const { assignments, uncoveredDates } = planShadowAssignments(occurrences);
+
+    for (const plan of assignments) {
+      await reassignShadowCoverage(accessToken, {
+        clientId: row.client_id,
+        oldShadowCoachId: leave.coach_id,
+        newShadowCoachId: plan.shadowCoachId,
+        primaryCoachId: row.primary_coach_id,
+        startsOn: plan.startsOn,
+        endsOn: plan.endsOn,
+        reason: "Auto-reassigned: shadow coach also went on approved leave",
+      });
+    }
+    if (assignments.length > 0) {
+      summary.assigned.push({
+        clientId: row.client_id,
+        clientName,
+        shadowCoaches: assignments.map((a) => ({
+          shadowCoachId: a.shadowCoachId,
+          shadowCoachName: a.shadowCoachName,
+          startsOn: a.startsOn,
+          endsOn: a.endsOn,
+        })),
+      });
+    }
+    if (uncoveredDates.length > 0) {
+      summary.unassignedFlagged.push({ clientId: row.client_id, clientName, uncoveredDates });
+      await notifyAdmins("admin_alert", {
+        alert_message: `No replacement shadow coach available for ${clientName} on ${uncoveredDates.join(", ")} -- their shadow coach also went on leave during this period, manual reassignment needed.`,
       });
     }
   }

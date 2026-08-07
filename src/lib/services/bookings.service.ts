@@ -494,7 +494,7 @@ export async function rateBooking(
 export async function markAttendance(
   accessToken: string,
   bookingId: string,
-  status: "present" | "absent",
+  status: "present" | "absent" | "late",
   remark?: string
 ) {
   const ctx = await getCallerContext(accessToken);
@@ -514,7 +514,9 @@ export async function markAttendance(
       booking_id: booking.id,
       status,
       checked_in_at: booking.scheduled_start,
-      checked_out_at: status === "present" ? null : now,
+      // Present and late both mean the client showed up and the session is
+      // still ongoing (not checked out yet) -- only absent closes it immediately.
+      checked_out_at: status === "absent" ? now : null,
       marked_by: ctx.userId,
     },
     { onConflict: "booking_id" }
@@ -534,14 +536,21 @@ export async function markAttendance(
       metadata: { bookingId },
     });
   } else {
+    // Late counts as attended, same as present -- covers both here rather
+    // than a third branch, since the only thing that changes is the label.
     // Distinct from "session_completed" (logged later, once notes are
     // submitted) -- otherwise presence would be silent in the timeline until
     // a separate action happens to save notes.
-    await logTimelineEvent(booking.client_id, "attendance_marked_present", "Attendance marked present", {
-      description: remark,
-      actorId: ctx.userId,
-      metadata: { bookingId },
-    });
+    await logTimelineEvent(
+      booking.client_id,
+      "attendance_marked_present",
+      status === "late" ? "Attendance marked present (late)" : "Attendance marked present",
+      {
+        description: remark,
+        actorId: ctx.userId,
+        metadata: { bookingId },
+      }
+    );
   }
 
   // Clears any overdue highlight (migration 0032) now that attendance has
@@ -584,8 +593,8 @@ export async function submitSessionNotes(
     .eq("booking_id", bookingId)
     .maybeSingle();
   if (attendanceError) throw attendanceError;
-  if (attendance?.status !== "present") {
-    throw new Error("Attendance must be marked Present before session notes can be submitted");
+  if (attendance?.status !== "present" && attendance?.status !== "late") {
+    throw new Error("Attendance must be marked Present or Late before session notes can be submitted");
   }
 
   const { error: notesError } = await ctx.client.from("workout_notes").insert({

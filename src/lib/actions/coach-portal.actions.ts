@@ -191,7 +191,7 @@ function toCoachRosterBase(
 }
 
 export interface CoachTodayTaskView extends CoachRosterBase {
-  attendanceStatus: "present" | "absent" | null;
+  attendanceStatus: "present" | "absent" | "late" | null;
   notesSubmitted: boolean;
   overdue: boolean;
   /** Host-privilege Zoom link, created lazily the first time a session
@@ -685,7 +685,7 @@ export async function getCoachSessionDetailAction(bookingId: string): Promise<Ac
   });
 }
 
-export async function markAttendanceAction(bookingId: string, status: "present" | "absent", remark?: string): Promise<ActionResult<null>> {
+export async function markAttendanceAction(bookingId: string, status: "present" | "absent" | "late", remark?: string): Promise<ActionResult<null>> {
   return runAction(async () => {
     const token = await requireToken();
     await markAttendance(token, bookingId, status, remark);

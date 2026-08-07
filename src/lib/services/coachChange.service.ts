@@ -223,6 +223,72 @@ export async function assignShadowCoach(
   return data as string; // assignment id
 }
 
+/** §4.2.5: re-covers sessions when the SHADOW coach (not the primary) goes
+ * on leave themselves. Distinct RPC from assignShadowCoach() because that
+ * one matches bookings by `coach_id = primaryCoachId` -- these bookings
+ * already moved to the outgoing shadow, so this matches on their id
+ * instead and marks the superseded assignment 'cancelled'. Notification
+ * copy reuses the same templates assignShadowCoach() sends (from the
+ * client's perspective this reads identically: a shadow coach was
+ * assigned), the outgoing shadow isn't notified here since their own leave
+ * approval already told them. */
+export async function reassignShadowCoverage(
+  accessToken: string,
+  input: {
+    clientId: string;
+    oldShadowCoachId: string;
+    newShadowCoachId: string;
+    primaryCoachId: string;
+    startsOn: string;
+    endsOn: string;
+    reason?: string;
+  }
+) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+  const { data, error } = await ctx.client.rpc("reassign_shadow_coverage", {
+    p_client_id: input.clientId,
+    p_old_shadow_coach_id: input.oldShadowCoachId,
+    p_new_shadow_coach_id: input.newShadowCoachId,
+    p_primary_coach_id: input.primaryCoachId,
+    p_starts_on: input.startsOn,
+    p_ends_on: input.endsOn,
+    p_reason: input.reason ?? null,
+  });
+  if (error) throw error;
+
+  await logTimelineEvent(input.clientId, "shadow_coach_assigned", "Shadow coach reassigned", {
+    description: input.reason,
+    actorId: ctx.userId,
+    metadata: { primaryCoachId: input.primaryCoachId, oldShadowCoachId: input.oldShadowCoachId, newShadowCoachId: input.newShadowCoachId },
+  });
+
+  const [{ data: client }, { data: newShadowCoach }, { data: primaryCoach }] = await Promise.all([
+    supabaseAdmin.from("client_profiles").select("profile_id, profile:profiles(full_name)").eq("id", input.clientId).maybeSingle(),
+    supabaseAdmin.from("coach_profiles").select("profile_id, profile:profiles(full_name)").eq("id", input.newShadowCoachId).maybeSingle(),
+    supabaseAdmin.from("coach_profiles").select("profile:profiles(full_name)").eq("id", input.primaryCoachId).maybeSingle(),
+  ]);
+  const primaryCoachName = (primaryCoach as any)?.profile?.full_name ?? "your coach";
+  if (client) {
+    await createFromTemplate("shadow_coach_assigned", (client as any).profile_id, {
+      shadow_coach_name: (newShadowCoach as any)?.profile?.full_name ?? "A coach",
+      primary_coach_name: primaryCoachName,
+      starts_on: input.startsOn,
+      ends_on: input.endsOn,
+    });
+  }
+  if (newShadowCoach) {
+    await createFromTemplate("shadow_assignment_for_coach", (newShadowCoach as any).profile_id, {
+      client_name: (client as any)?.profile?.full_name ?? "a client",
+      primary_coach_name: primaryCoachName,
+      starts_on: input.startsOn,
+      ends_on: input.endsOn,
+    });
+  }
+
+  return data as string; // assignment id
+}
+
 /** Shadow assignments where the caller is the *shadow* coach — backs the
  * coach's Activity Timeline ("Shadow Session Conducted"/assigned entries).
  * RLS (shadow_select_participant) already scopes this to the caller. */

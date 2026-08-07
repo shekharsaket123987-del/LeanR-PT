@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Video, CheckCircle2, Target, Dumbbell, HeartPulse, FileClock, UserCheck, UserX } from "lucide-react";
+import { Video, CheckCircle2, Target, Dumbbell, HeartPulse, FileClock, UserCheck, UserX, Clock } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -24,7 +24,7 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
   const router = useRouter();
 
   const [attendance, setAttendance] = useState(session.attendanceStatus);
-  const [markingAttendance, setMarkingAttendance] = useState<"present" | "absent" | null>(null);
+  const [markingAttendance, setMarkingAttendance] = useState<"present" | "absent" | "late" | null>(null);
   const [absentRemark, setAbsentRemark] = useState("");
   const [attendanceError, setAttendanceError] = useState("");
 
@@ -49,6 +49,18 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
       return;
     }
     setAttendance("present");
+  }
+
+  async function markLate() {
+    setMarkingAttendance("late");
+    setAttendanceError("");
+    const result = await markAttendanceAction(session.id, "late");
+    setMarkingAttendance(null);
+    if (isFailure(result)) {
+      setAttendanceError(result.error.message);
+      return;
+    }
+    setAttendance("late");
   }
 
   async function markAbsent() {
@@ -117,15 +129,18 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
             </Card>
           )}
 
-          {!completed && !missed && attendance !== "present" && (
+          {!completed && !missed && attendance !== "present" && attendance !== "late" && (
             <Card className="mt-6 p-6">
               <p className="mb-1 text-sm font-bold">Attendance</p>
               <p className="mb-4 text-xs text-black/45">Mark attendance before you can start session notes. Marking Absent closes this session immediately.</p>
               <div className="flex flex-wrap gap-3">
-                <Button onClick={markPresent} loading={markingAttendance === "present"} disabled={markingAttendance === "absent"}>
+                <Button onClick={markPresent} loading={markingAttendance === "present"} disabled={markingAttendance !== null && markingAttendance !== "present"}>
                   <UserCheck className="h-4 w-4" /> Present
                 </Button>
-                <Button variant="destructive-outline" onClick={markAbsent} loading={markingAttendance === "absent"} disabled={markingAttendance === "present"}>
+                <Button variant="outline" onClick={markLate} loading={markingAttendance === "late"} disabled={markingAttendance !== null && markingAttendance !== "late"}>
+                  <Clock className="h-4 w-4" /> Late
+                </Button>
+                <Button variant="destructive-outline" onClick={markAbsent} loading={markingAttendance === "absent"} disabled={markingAttendance !== null && markingAttendance !== "absent"}>
                   <UserX className="h-4 w-4" /> Absent
                 </Button>
               </div>
@@ -150,7 +165,7 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
             </Card>
           )}
 
-          {!missed && (attendance === "present" || completed) && (
+          {!missed && (attendance === "present" || attendance === "late" || completed) && (
             <Card className="mt-6 p-6">
               <p className="mb-1 text-sm font-bold">Session Notes</p>
               <p className="mb-4 text-xs text-black/45">Mandatory before the session can be marked completed.</p>

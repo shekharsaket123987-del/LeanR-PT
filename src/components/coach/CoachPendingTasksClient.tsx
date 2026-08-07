@@ -9,7 +9,7 @@ import { CoachTodayTaskView } from "@/lib/actions/coach-portal.actions";
 export default function CoachPendingTasksClient({ initialTasks }: { initialTasks: CoachTodayTaskView[] }) {
   const [tasks, setTasks] = useState(initialTasks);
 
-  function handleMarked(bookingId: string, status: "present" | "absent") {
+  function handleMarked(bookingId: string, status: "present" | "absent" | "late") {
     setTasks((prev) =>
       status === "absent"
         ? prev.filter((t) => t.bookingId !== bookingId) // booking closes to 'missed', task is done

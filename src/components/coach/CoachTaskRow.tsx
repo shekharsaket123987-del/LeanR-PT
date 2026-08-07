@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { CheckCircle2, ClipboardEdit, ShieldCheck, Video, XCircle } from "lucide-react";
+import { CheckCircle2, ClipboardEdit, Clock, ShieldCheck, Video, XCircle } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import JoinCountdown, { useJoinCountdown } from "@/components/shared/JoinCountdown";
@@ -17,12 +17,24 @@ import { formatTime } from "@/lib/utils";
  * Pending Tasks widget (§1.6), since both are lists of the same underlying
  * "upcoming booking that still needs something" shape, just filtered to a
  * different date range by their respective actions. */
-export function TaskRow({ task, onMarked }: { task: CoachTodayTaskView; onMarked: (bookingId: string, status: "present" | "absent") => void }) {
+const ATTENDANCE_BADGE: Record<"present" | "late" | "absent", { variant: "green" | "outline-yellow" | "gray"; label: string }> = {
+  present: { variant: "green", label: "Present" },
+  late: { variant: "outline-yellow", label: "Late" },
+  absent: { variant: "gray", label: "Absent — logged" },
+};
+
+export function TaskRow({
+  task,
+  onMarked,
+}: {
+  task: CoachTodayTaskView;
+  onMarked: (bookingId: string, status: "present" | "absent" | "late") => void;
+}) {
   const { canJoin, isPast } = useJoinCountdown(task.scheduledStart, task.durationMinutes);
-  const [marking, setMarking] = useState<"present" | "absent" | null>(null);
+  const [marking, setMarking] = useState<"present" | "absent" | "late" | null>(null);
   const [error, setError] = useState("");
 
-  async function mark(status: "present" | "absent") {
+  async function mark(status: "present" | "absent" | "late") {
     setMarking(status);
     setError("");
     const result = await markAttendanceAction(task.bookingId, status);
@@ -80,23 +92,26 @@ export function TaskRow({ task, onMarked }: { task: CoachTodayTaskView; onMarked
             <Button size="sm" variant="outline" loading={marking === "present"} onClick={() => mark("present")}>
               <CheckCircle2 className="h-3.5 w-3.5" /> Present
             </Button>
+            <Button size="sm" variant="outline" loading={marking === "late"} onClick={() => mark("late")}>
+              <Clock className="h-3.5 w-3.5" /> Late
+            </Button>
             <Button size="sm" variant="destructive-outline" loading={marking === "absent"} onClick={() => mark("absent")}>
               <XCircle className="h-3.5 w-3.5" /> Absent
             </Button>
           </>
-        ) : task.attendanceStatus === "present" && !task.notesSubmitted ? (
+        ) : (task.attendanceStatus === "present" || task.attendanceStatus === "late") && !task.notesSubmitted ? (
           <>
-            <Badge variant="green">Present</Badge>
+            <Badge variant={ATTENDANCE_BADGE[task.attendanceStatus].variant}>{ATTENDANCE_BADGE[task.attendanceStatus].label}</Badge>
             <Link href={`/coach/session/${task.bookingId}`}>
               <Button size="sm" variant="outline">
                 <ClipboardEdit className="h-3.5 w-3.5" /> Add Notes
               </Button>
             </Link>
           </>
+        ) : task.attendanceStatus === "absent" ? (
+          <Badge variant="gray">Absent — logged</Badge>
         ) : (
-          <Badge variant={task.attendanceStatus === "present" ? "green" : "gray"}>
-            {task.attendanceStatus === "present" ? "Notes submitted" : "Absent — logged"}
-          </Badge>
+          <Badge variant="green">Notes submitted</Badge>
         )}
       </div>
       {error && <p className="w-full text-xs text-red-600">{error}</p>}

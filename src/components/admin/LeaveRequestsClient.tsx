@@ -3,14 +3,28 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, XCircle, Clock3, ArrowRight } from "lucide-react";
+import { CheckCircle2, XCircle, Clock3, ArrowRight, TriangleAlert } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
 import { AdminLeaveRequestView, resolveLeaveAction } from "@/lib/actions/admin-leave.actions";
 import { LeaveResolutionSummary } from "@/lib/services/availability.service";
 import { isFailure } from "@/lib/actions/action-result";
 import { formatDate } from "@/lib/utils";
+
+// §4.2.6: past this many days, a leave has likely stopped being a temporary
+// gap and started being a real change in the client's routine -- shadow
+// coverage is still applied automatically either way, this is purely an
+// admin-facing nudge to consider a permanent coach change instead, never an
+// automatic conversion.
+const LONG_LEAVE_THRESHOLD_DAYS = 14;
+
+function leaveDurationDays(startsOn: string, endsOn: string): number {
+  const start = new Date(`${startsOn}T00:00:00Z`);
+  const end = new Date(`${endsOn}T00:00:00Z`);
+  return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+}
 
 export default function LeaveRequestsClient({ requests }: { requests: AdminLeaveRequestView[] }) {
   const router = useRouter();
@@ -82,6 +96,16 @@ export default function LeaveRequestsClient({ requests }: { requests: AdminLeave
           {justApproved.summary.assigned.length === 0 && justApproved.summary.unassignedFlagged.length === 0 && (
             <p className="text-xs text-emerald-700">This coach has no active clients affected during the leave window.</p>
           )}
+          {leaveDurationDays(justApproved.request.startsOn, justApproved.request.endsOn) >= LONG_LEAVE_THRESHOLD_DAYS && (
+            <div className="flex items-start gap-2 rounded-lg bg-amber-100 p-3 text-xs text-amber-900">
+              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                This leave is {leaveDurationDays(justApproved.request.startsOn, justApproved.request.endsOn)} days -- long enough that a
+                permanent coach change may serve affected clients better than ongoing shadow coverage. Shadow coverage has still been
+                applied automatically above; a permanent change is a separate, manual decision per client.
+              </span>
+            </div>
+          )}
         </Card>
       )}
 
@@ -95,7 +119,12 @@ export default function LeaveRequestsClient({ requests }: { requests: AdminLeave
                   <Clock3 className="h-5 w-5 text-black/70" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold">{r.coachName}</p>
+                  <p className="flex items-center gap-1.5 text-sm font-bold">
+                    {r.coachName}
+                    {r.leaveType === "full_day" && leaveDurationDays(r.startsOn, r.endsOn) >= LONG_LEAVE_THRESHOLD_DAYS && (
+                      <Badge variant="outline-yellow">{leaveDurationDays(r.startsOn, r.endsOn)}+ days</Badge>
+                    )}
+                  </p>
                   <p className="text-xs text-black/45">
                     {r.leaveType === "partial"
                       ? `${formatDate(r.startsOn)} · ${r.partialStartTime?.slice(0, 5)}–${r.partialEndTime?.slice(0, 5)}`
