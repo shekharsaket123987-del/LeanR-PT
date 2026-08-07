@@ -28,14 +28,30 @@ const FALLBACK_PHOTO = (seed: string) => `https://i.pravatar.cc/300?u=${seed}`;
 
 export interface AdminClientListItem {
   id: string;
+  clientCode: string;
   name: string;
   photo: string;
   phone: string | null;
-  status: "active" | "inactive" | "paused";
+  status: "active" | "inactive" | "paused" | "expired";
   packageName: string | null;
   coachName: string | null;
   sessionsRemaining: number | null;
   sessionsTotal: number | null;
+  slotDays: number[];
+  slotStartTime: string | null;
+}
+
+/** "Expired" isn't a stored enum value (client_profiles.status is never
+ * actually written to "inactive" by any code path today) -- it's derived:
+ * a client who has had a subscription before but has none active now reads
+ * as expired, distinct from a lead who never purchased at all (who keeps
+ * showing under their raw status, unaffected by this). Paused stays exactly
+ * as before -- this only adds a new bucket on top, no existing case changes. */
+function deriveAdminClientStatus(rawStatus: string, hasActiveSubscription: boolean, hasEverSubscribed: boolean): AdminClientListItem["status"] {
+  if (rawStatus === "paused") return "paused";
+  if (hasActiveSubscription) return "active";
+  if (hasEverSubscribed) return "expired";
+  return rawStatus as AdminClientListItem["status"];
 }
 
 export async function listAdminClientsAction(): Promise<ActionResult<AdminClientListItem[]>> {
@@ -44,14 +60,17 @@ export async function listAdminClientsAction(): Promise<ActionResult<AdminClient
     const rows = await listClients(token);
     return (rows as any[]).map((c) => ({
       id: c.id,
+      clientCode: c.client_code ?? "",
       name: c.profile?.full_name ?? "Client",
       photo: c.profile?.photo_url ?? FALLBACK_PHOTO(c.id),
       phone: c.profile?.phone ?? null,
-      status: c.status,
+      status: deriveAdminClientStatus(c.status, !!c.activeSubscription, !!c.hasEverSubscribed),
       packageName: c.activeSubscription?.package?.name ?? null,
       coachName: c.activeCoach?.profile?.full_name ?? null,
       sessionsRemaining: c.activeSubscription?.sessionsRemaining ?? null,
       sessionsTotal: c.activeSubscription?.sessions_total ?? null,
+      slotDays: c.schedule?.days ?? [],
+      slotStartTime: c.schedule?.startTime ?? null,
     }));
   });
 }

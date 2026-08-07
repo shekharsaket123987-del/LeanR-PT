@@ -4,9 +4,12 @@ import { createFromTemplate } from "./notifications.service";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 
 /** Admin roster view — merges each client's active subscription (package
- * name + session counts) and active recurring coach, same "fetch once,
- * merge in JS" pattern as listMyClients(), since neither has a PostgREST-
- * embeddable FK relationship to client_profiles. */
+ * name + session counts), active recurring coach + schedule, and whether
+ * they've EVER had a subscription (any status, not just active -- lets the
+ * admin list derive an "Expired" bucket: had a plan before, none active
+ * now, distinct from a lead who never purchased at all), same "fetch once,
+ * merge in JS" pattern as listMyClients(), since none of these have a
+ * PostgREST-embeddable FK relationship to client_profiles. */
 export async function listClients(accessToken: string) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["admin", "coach"]);
@@ -18,7 +21,7 @@ export async function listClients(accessToken: string) {
   const clientIds = (data ?? []).map((c) => c.id);
   if (clientIds.length === 0) return [];
 
-  const [{ data: subs, error: subsError }, { data: slots, error: slotsError }] = await Promise.all([
+  const [{ data: subs, error: subsError }, { data: slots, error: slotsError }, { data: everSubs, error: everSubsError }] = await Promise.all([
     ctx.client
       .from("subscriptions")
       .select("id, client_id, sessions_total, package:package_tiers(name)")
@@ -26,12 +29,14 @@ export async function listClients(accessToken: string) {
       .eq("status", "active"),
     ctx.client
       .from("recurring_slots")
-      .select("client_id, coach_id, coach:coach_profiles(id, profile:profiles(full_name))")
+      .select("client_id, coach_id, day_of_week, start_time, coach:coach_profiles(id, profile:profiles(full_name))")
       .in("client_id", clientIds)
       .eq("status", "active"),
+    ctx.client.from("subscriptions").select("client_id").in("client_id", clientIds),
   ]);
   if (subsError) throw subsError;
   if (slotsError) throw slotsError;
+  if (everSubsError) throw everSubsError;
 
   const subIds = (subs ?? []).map((s) => s.id);
   const { data: usage, error: usageError } =
@@ -43,11 +48,22 @@ export async function listClients(accessToken: string) {
 
   const subById = new Map((subs ?? []).map((s) => [s.client_id, { ...s, sessionsRemaining: remainingBySub.get(s.id) ?? null }]));
   const coachById = new Map((slots ?? []).map((s) => [s.client_id, s.coach]));
+  const hasEverSubscribedIds = new Set((everSubs ?? []).map((s) => s.client_id));
+
+  const scheduleByClient = new Map<string, { days: number[]; startTime: string | null }>();
+  for (const s of slots ?? []) {
+    const existing = scheduleByClient.get(s.client_id) ?? { days: [], startTime: null };
+    existing.days.push(s.day_of_week);
+    existing.startTime = existing.startTime ?? s.start_time;
+    scheduleByClient.set(s.client_id, existing);
+  }
 
   return (data ?? []).map((c) => ({
     ...c,
     activeSubscription: subById.get(c.id) ?? null,
     activeCoach: coachById.get(c.id) ?? null,
+    schedule: scheduleByClient.get(c.id) ?? { days: [], startTime: null },
+    hasEverSubscribed: hasEverSubscribedIds.has(c.id),
   }));
 }
 
