@@ -281,6 +281,193 @@ export async function getCoachWeekCalendar(accessToken: string, coachId: string,
   return slots;
 }
 
+export interface AvailabilityCheckSlot {
+  date: string;
+  time: string;
+  coachId: string;
+  coachName: string;
+  status: "booked" | "free";
+  booking: { id: string; clientId: string; clientCode: string; clientName: string } | null;
+  /** Only set for a free slot that WAS booked and got cancelled -- pulled
+   * from bookings.cancelled_by/cancel_reason (migration 0005/0011), not a
+   * new column. Null for a slot that was simply never booked at all. */
+  freeReason: string | null;
+}
+
+/** Admin-wide "Availability Check": every working-hour slot across every
+ * active coach for one day, chronological, labeled booked/free. Cross-coach
+ * sibling of getCoachWeekCalendar() above (same open-hours/leave logic,
+ * batched across coaches in 4 queries total instead of one coach at a time),
+ * plus the one thing that function doesn't need: for a free slot, whether it
+ * was cancelled and by whom, so admin isn't just told "free" with no
+ * context. Coach-leave-blocked slots are deliberately excluded entirely
+ * (not folded into "free") -- they aren't a real booking opportunity, and
+ * showing them as free would be misleading for an admin using this to find
+ * open capacity. */
+export async function getAvailabilityCheck(accessToken: string, date: string): Promise<AvailabilityCheckSlot[]> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+  const { startHour, endHour } = await getBookingWindow(accessToken);
+  const grid = hourlyGrid(startHour, endHour);
+  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+
+  const { data: coaches, error: coachesError } = await ctx.client
+    .from("coach_profiles")
+    .select("id, profile:profiles(full_name)")
+    .eq("status", "active");
+  if (coachesError) throw coachesError;
+  if (!coaches || coaches.length === 0) return [];
+  const coachIds = (coaches as any[]).map((c) => c.id);
+  const coachNameById = new Map((coaches as any[]).map((c) => [c.id, c.profile?.full_name ?? "Coach"]));
+
+  const [
+    { data: availability, error: availError },
+    { data: leave, error: leaveError },
+    { data: activeBookings, error: activeError },
+    { data: cancelledBookings, error: cancelledError },
+  ] = await Promise.all([
+    ctx.client.from("coach_availability").select("coach_id, start_time, end_time").in("coach_id", coachIds).eq("day_of_week", dow).eq("is_active", true),
+    ctx.client
+      .from("coach_leave")
+      .select("coach_id, starts_on, ends_on, leave_type, partial_start_time, partial_end_time")
+      .in("coach_id", coachIds)
+      .eq("status", "approved")
+      .lte("starts_on", date)
+      .gte("ends_on", date),
+    ctx.client
+      .from("bookings")
+      .select("id, coach_id, scheduled_start, client:client_profiles(id, client_code, profile:profiles(full_name))")
+      .in("coach_id", coachIds)
+      .neq("status", "cancelled")
+      .gte("scheduled_start", `${date}T00:00:00Z`)
+      .lte("scheduled_start", `${date}T23:59:59Z`),
+    ctx.client
+      .from("bookings")
+      .select("coach_id, scheduled_start, cancel_reason, canceller:profiles!cancelled_by(full_name)")
+      .in("coach_id", coachIds)
+      .eq("status", "cancelled")
+      .gte("scheduled_start", `${date}T00:00:00Z`)
+      .lte("scheduled_start", `${date}T23:59:59Z`),
+  ]);
+  if (availError) throw availError;
+  if (leaveError) throw leaveError;
+  if (activeError) throw activeError;
+  if (cancelledError) throw cancelledError;
+
+  const availByCoach = new Map<string, { start_time: string; end_time: string }[]>();
+  for (const a of (availability ?? []) as any[]) {
+    const list = availByCoach.get(a.coach_id) ?? [];
+    list.push(a);
+    availByCoach.set(a.coach_id, list);
+  }
+
+  const fullDayLeaveCoaches = new Set<string>();
+  const partialLeaveByCoach = new Map<string, { startMin: number; endMin: number }[]>();
+  for (const l of (leave ?? []) as any[]) {
+    if (l.leave_type !== "partial") {
+      fullDayLeaveCoaches.add(l.coach_id);
+    } else if (l.partial_start_time && l.partial_end_time) {
+      const [psH, psM] = l.partial_start_time.split(":").map(Number);
+      const [peH, peM] = l.partial_end_time.split(":").map(Number);
+      const list = partialLeaveByCoach.get(l.coach_id) ?? [];
+      list.push({ startMin: psH * 60 + psM, endMin: peH * 60 + peM });
+      partialLeaveByCoach.set(l.coach_id, list);
+    }
+  }
+
+  const keyOf = (coachId: string, iso: string) => `${coachId}|${iso}`;
+  const bookingByKey = new Map<string, any>();
+  for (const b of (activeBookings ?? []) as any[]) bookingByKey.set(keyOf(b.coach_id, new Date(b.scheduled_start).toISOString()), b);
+  const cancelledByKey = new Map<string, any>();
+  for (const b of (cancelledBookings ?? []) as any[]) cancelledByKey.set(keyOf(b.coach_id, new Date(b.scheduled_start).toISOString()), b);
+
+  const fitsWithinWindow = (h: number, m: number, windows: { start_time: string; end_time: string }[]) =>
+    windows.some((w) => {
+      const [wsH, wsM] = w.start_time.split(":").map(Number);
+      const [weH, weM] = w.end_time.split(":").map(Number);
+      return h * 60 + m >= wsH * 60 + wsM && h * 60 + m < weH * 60 + weM;
+    });
+
+  const toISTTimeString = (iso: string): string => {
+    const min = istTimeOfDayMinutes(iso);
+    return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+  };
+
+  const slots: AvailabilityCheckSlot[] = [];
+  for (const coach of coaches as any[]) {
+    const windows = availByCoach.get(coach.id) ?? [];
+    const onFullDayLeave = fullDayLeaveCoaches.has(coach.id);
+    const partialWindows = partialLeaveByCoach.get(coach.id) ?? [];
+    const coachName = coachNameById.get(coach.id) ?? "Coach";
+
+    // The booking engine only ever creates whole-hour slots going forward
+    // (see getBookingWindow's own doc comment) -- but real rows in this
+    // table aren't guaranteed to respect that (older data, manual/seed
+    // inserts). A booking is ground truth: it must show up here even if its
+    // time doesn't land on the standard grid, so the grid is widened with
+    // any actual booking/cancellation time for this coach on this date,
+    // rather than silently skipping whatever doesn't fit the hourly grid.
+    const actualTimes = new Set<string>();
+    for (const b of (activeBookings ?? []) as any[]) if (b.coach_id === coach.id) actualTimes.add(toISTTimeString(b.scheduled_start));
+    for (const b of (cancelledBookings ?? []) as any[]) if (b.coach_id === coach.id) actualTimes.add(toISTTimeString(b.scheduled_start));
+
+    const candidateTimes = new Set<string>(grid);
+    for (const t of actualTimes) candidateTimes.add(t);
+
+    for (const slotTime of Array.from(candidateTimes).sort()) {
+      const [h, m] = slotTime.split(":").map(Number);
+      const isRealSlot = actualTimes.has(slotTime);
+
+      // Synthetic (grid-only) slots are filtered by working hours/leave --
+      // a real booking's own time always shows regardless, since it's
+      // ground truth, not a hypothetical opportunity to book.
+      if (!isRealSlot) {
+        if (!fitsWithinWindow(h, m, windows)) continue;
+        const slotStartMin = h * 60 + m;
+        const overlapsPartialLeave = partialWindows.some((w) => slotStartMin < w.endMin && slotStartMin >= w.startMin);
+        if (onFullDayLeave || overlapsPartialLeave) continue; // excluded, not "free" -- see doc comment above
+      }
+
+      const slotStart = istWallClockToInstant(date, slotTime);
+      const key = keyOf(coach.id, slotStart.toISOString());
+      const bookingRow = bookingByKey.get(key);
+
+      if (bookingRow) {
+        slots.push({
+          date,
+          time: slotTime,
+          coachId: coach.id,
+          coachName,
+          status: "booked",
+          booking: {
+            id: bookingRow.id,
+            clientId: bookingRow.client?.id ?? "",
+            clientCode: bookingRow.client?.client_code ?? "",
+            clientName: bookingRow.client?.profile?.full_name ?? "Client",
+          },
+          freeReason: null,
+        });
+        continue;
+      }
+
+      const cancelledRow = cancelledByKey.get(key);
+      slots.push({
+        date,
+        time: slotTime,
+        coachId: coach.id,
+        coachName,
+        status: "free",
+        booking: null,
+        freeReason: cancelledRow
+          ? `Cancelled by ${cancelledRow.canceller?.full_name ?? "someone"}${cancelledRow.cancel_reason ? ` — "${cancelledRow.cancel_reason}"` : ""}`
+          : null,
+      });
+    }
+  }
+
+  return slots.sort((a, b) => a.time.localeCompare(b.time) || a.coachName.localeCompare(b.coachName));
+}
+
 /** The signed-in client's own active recurring slots, if any — used to avoid
  * offering the pattern-setup screen a second time once one exists. */
 export async function getMyActiveRecurringSlots(accessToken: string) {

@@ -29,6 +29,7 @@ import {
   ShieldAlert,
   Search,
   Receipt,
+  CalendarSearch,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import Badge from "../ui/Badge";
@@ -67,6 +68,7 @@ const NAV: Record<Role, { label: string; href: string; icon: any }[]> = {
     { label: "Sessions", href: "/admin/sessions", icon: CalendarDays },
     { label: "Sales", href: "/admin/sales", icon: Receipt },
     { label: "Scheduling", href: "/admin/scheduling", icon: ClipboardList },
+    { label: "Availability Check", href: "/admin/availability", icon: CalendarSearch },
     { label: "Coach Change Requests", href: "/admin/coach-change-requests", icon: RefreshCw },
     { label: "Leave Requests", href: "/admin/leave-requests", icon: Clock },
     { label: "Shadow Coverage", href: "/admin/shadow-coverage", icon: ShieldAlert },
