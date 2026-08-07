@@ -6,7 +6,7 @@ import { getMyLatestSubscription, activateMyPlan } from "@/lib/services/planPurc
 import { getMyOnboarding, submitOnboarding, OnboardingInput } from "@/lib/services/onboarding.service";
 import { getMyActiveRecurringSlots } from "@/lib/services/scheduling.service";
 import { listPackages } from "@/lib/services/packages.service";
-import { findDemoSlots, DemoSlotOption } from "@/lib/services/demoBooking.service";
+import { findDemoSlots, confirmDemoBooking, getMyLatestDemoSession, DemoSessionSummary } from "@/lib/services/demoBooking.service";
 
 async function requireToken(): Promise<string> {
   const token = await getAccessToken();
@@ -14,40 +14,65 @@ async function requireToken(): Promise<string> {
   return token;
 }
 
-export type ClientJourneyStage = "marketing" | "awaiting_activation" | "onboarding" | "slot_selection" | "active";
+export type ClientJourneyStage =
+  | "marketing"
+  | "demo_booked"
+  | "demo_completed"
+  | "awaiting_activation"
+  | "onboarding"
+  | "slot_selection"
+  | "active";
 
 export interface ClientJourneyState {
   stage: ClientJourneyStage;
   subscriptionId: string | null;
   packageName: string | null;
+  /** Only populated for demo_booked/demo_completed -- the client's most
+   * recent demo booking, auto-assigned coach and all. */
+  demoSession: DemoSessionSummary | null;
 }
 
 /** Decides which experience client/dashboard renders -- the single gate
  * described in the plan, walking purchase -> activation -> onboarding ->
  * slot selection -> the real dashboard. Each stage reuses an existing,
- * already-verified read (getMyActiveRecurringSlots, getMyOnboarding). */
+ * already-verified read (getMyActiveRecurringSlots, getMyOnboarding).
+ * Demo stages are checked only once a client has no active/pending
+ * subscription -- a demo is a pre-subscription waypoint, not something
+ * that coexists with (or blocks) an actual paid plan. */
 export async function getMyJourneyStateAction(): Promise<ActionResult<ClientJourneyState>> {
   return runAction(async () => {
     const token = await requireToken();
     const sub: any = await getMyLatestSubscription(token);
 
-    if (!sub) return { stage: "marketing", subscriptionId: null, packageName: null };
-    if (sub.status === "awaiting_activation") {
-      return { stage: "awaiting_activation", subscriptionId: sub.id, packageName: sub.package?.name ?? null };
+    if (sub) {
+      if (sub.status === "awaiting_activation") {
+        return { stage: "awaiting_activation", subscriptionId: sub.id, packageName: sub.package?.name ?? null, demoSession: null };
+      }
+      if (sub.status === "active") {
+        const onboarding = await getMyOnboarding(token);
+        if (!onboarding) return { stage: "onboarding", subscriptionId: sub.id, packageName: sub.package?.name ?? null, demoSession: null };
+
+        const slots = await getMyActiveRecurringSlots(token);
+        if (!slots || slots.length === 0) {
+          return { stage: "slot_selection", subscriptionId: sub.id, packageName: sub.package?.name ?? null, demoSession: null };
+        }
+        return { stage: "active", subscriptionId: sub.id, packageName: sub.package?.name ?? null, demoSession: null };
+      }
+      // paused/inactive with no newer subscription falls through below --
+      // treat as if no subscription exists so the client isn't stuck.
     }
-    if (sub.status !== "active") {
-      // paused/inactive with no newer subscription -- treat as marketing so
-      // the client can see plans again rather than getting stuck.
-      return { stage: "marketing", subscriptionId: null, packageName: null };
+
+    const demoSession = await getMyLatestDemoSession(token);
+    if (demoSession) {
+      return {
+        stage: demoSession.status === "upcoming" ? "demo_booked" : "demo_completed",
+        subscriptionId: null,
+        packageName: null,
+        demoSession,
+      };
     }
 
-    const onboarding = await getMyOnboarding(token);
-    if (!onboarding) return { stage: "onboarding", subscriptionId: sub.id, packageName: sub.package?.name ?? null };
-
-    const slots = await getMyActiveRecurringSlots(token);
-    if (!slots || slots.length === 0) return { stage: "slot_selection", subscriptionId: sub.id, packageName: sub.package?.name ?? null };
-
-    return { stage: "active", subscriptionId: sub.id, packageName: sub.package?.name ?? null };
+    return { stage: "marketing", subscriptionId: null, packageName: null, demoSession: null };
   });
 }
 
@@ -97,13 +122,32 @@ export async function submitOnboardingAction(input: OnboardingInput): Promise<Ac
   });
 }
 
-export async function findDemoSlotsAction(input: {
+export interface DemoBookingResult {
+  bookingId: string;
+  coachName: string;
+  coachPhoto: string;
+  slotStart: string;
+}
+
+/** The client never picks a coach for a demo -- findDemoSlots already
+ * ranks candidates (by utilization), so this just takes the top-ranked
+ * option and confirms it immediately. No payment step: the demo is free.
+ * (The Razorpay demo-payment path in payments.service.ts/payments.actions.ts
+ * is left intact but unused by this flow, in case a paid-demo model is
+ * wanted again later.) */
+export async function bookDemoSessionAction(input: {
   date: string;
   preferredTime?: string;
   genderPreference?: "male" | "female" | "other";
-}): Promise<ActionResult<DemoSlotOption[]>> {
+}): Promise<ActionResult<DemoBookingResult>> {
   return runAction(async () => {
     const token = await requireToken();
-    return findDemoSlots(token, input);
+    const options = await findDemoSlots(token, input);
+    if (options.length === 0) {
+      throw new Error("No coaches are available for that date or time -- try a different date or time.");
+    }
+    const top = options[0];
+    const bookingId = await confirmDemoBooking(token, top.coachId, top.slotStart);
+    return { bookingId, coachName: top.coachName, coachPhoto: top.coachPhoto, slotStart: top.slotStart };
   });
 }

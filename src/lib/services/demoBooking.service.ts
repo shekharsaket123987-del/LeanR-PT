@@ -2,7 +2,6 @@ import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { getBookingWindow, hourlyGrid, istWallClockToInstant } from "./scheduling.service";
 import { createBooking } from "./bookings.service";
-import { DEMO_SESSION_FEE } from "@/lib/constants/pricing";
 
 export interface DemoSlotOption {
   coachId: string;
@@ -83,11 +82,15 @@ export async function findDemoSlots(
   return options.slice(0, 20);
 }
 
-/** Confirms a demo booking after the (stubbed) payment step succeeds --
- * reuses the same hold-then-confirm booking path every other session type
- * goes through (createBooking -> holdSlot/confirmHold), with
- * sessionType: 'assessment' so it's re-checked server-side for conflicts
- * exactly like a regular booking would be. */
+/** Confirms a demo booking -- reuses the same hold-then-confirm booking path
+ * every other session type goes through (createBooking -> holdSlot/confirmHold),
+ * with sessionType: 'assessment' so it's re-checked server-side for conflicts
+ * exactly like a regular booking would be. The demo itself is free (no
+ * payment collected -- see bookDemoSessionAction in client-journey.actions.ts,
+ * which calls this directly with no Razorpay step); DEMO_SESSION_FEE still
+ * exists for the dormant Razorpay demo-payment path in payments.service.ts,
+ * left intact but unused by this flow in case a paid-demo model is wanted
+ * again later. */
 export async function confirmDemoBooking(accessToken: string, coachId: string, slotStart: string, durationMinutes = 60) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["client"]);
@@ -100,6 +103,52 @@ export async function confirmDemoBooking(accessToken: string, coachId: string, s
     slotStart,
     durationMinutes,
     sessionType: "assessment",
-    amountPaid: DEMO_SESSION_FEE,
+    amountPaid: 0,
   });
+}
+
+export interface DemoSessionSummary {
+  bookingId: string;
+  coachId: string;
+  coachName: string;
+  coachPhoto: string;
+  slotStart: string;
+  status: "upcoming" | "completed" | "missed";
+}
+
+/** The client journey state machine's only signal of "has this client ever
+ * demoed" -- deliberately a live read of `bookings` (session_type =
+ * 'assessment'), not a new tracking column/table, matching this codebase's
+ * existing preference for derived state over duplicated state that can
+ * drift (see subscription_usage_view, pause_days_used). Returns the most
+ * recent demo booking regardless of outcome; cancelled demos are excluded
+ * so a client who cancelled reads as never having demoed, free to book
+ * again. */
+export async function getMyLatestDemoSession(accessToken: string): Promise<DemoSessionSummary | null> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["client"]);
+  const { data: client, error } = await ctx.client.from("client_profiles").select("id").eq("profile_id", ctx.userId).single();
+  if (error || !client) throw error ?? new Error("Client profile not found");
+
+  const { data, error: bookingsError } = await ctx.client
+    .from("bookings")
+    .select("id, scheduled_start, status, coach:coach_profiles(id, profile:profiles(full_name, photo_url))")
+    .eq("client_id", client.id)
+    .eq("session_type", "assessment")
+    .in("status", ["upcoming", "completed", "missed"])
+    .order("scheduled_start", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (bookingsError) throw bookingsError;
+  if (!data) return null;
+
+  const coach = (data as any).coach;
+  return {
+    bookingId: data.id,
+    coachId: coach?.id ?? "",
+    coachName: coach?.profile?.full_name ?? "Coach",
+    coachPhoto: coach?.profile?.photo_url ?? FALLBACK_PHOTO(data.id),
+    slotStart: data.scheduled_start,
+    status: data.status as "upcoming" | "completed" | "missed",
+  };
 }

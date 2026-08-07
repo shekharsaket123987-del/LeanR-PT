@@ -2,8 +2,9 @@
 
 import { getAccessToken } from "@/lib/supabase/server-client";
 import { ActionResult, runAction } from "./action-result";
-import { getMyCurrentCoachId } from "@/lib/services/clients.service";
+import { getMyRecurringCoachId } from "@/lib/services/clients.service";
 import { getCoach } from "@/lib/services/coaches.service";
+import { getMyLatestDemoSession } from "@/lib/services/demoBooking.service";
 
 async function requireToken(): Promise<string> {
   const token = await getAccessToken();
@@ -24,14 +25,39 @@ export interface MyCoachView {
   yearsExperience: number;
   rating: number;
   reviewCount: number;
+  /** True when this is a demo-assigned coach (no ongoing plan/recurring
+   * slot yet) -- the page renders a simpler card without the "Request
+   * Coach Change" flow, which only makes sense for an ongoing relationship. */
+  isDemoCoach: boolean;
 }
 
 export async function getMyCoachAction(): Promise<ActionResult<MyCoachView | null>> {
   return runAction(async () => {
     const token = await requireToken();
-    const coachId = await getMyCurrentCoachId(token);
-    if (!coachId) return null;
-    const coach: any = await getCoach(token, coachId);
+    const coachId = await getMyRecurringCoachId(token);
+    if (coachId) {
+      const coach: any = await getCoach(token, coachId);
+      return {
+        id: coach.id,
+        name: coach.profile?.full_name ?? "Coach",
+        photo: coach.profile?.photo_url ?? FALLBACK_PHOTO(coach.id),
+        specialization: coach.specialization ?? "",
+        bio: coach.bio,
+        certifications: coach.certifications ?? [],
+        languages: coach.languages ?? [],
+        yearsExperience: coach.years_experience ?? 0,
+        rating: Number(coach.rating ?? 0),
+        reviewCount: coach.review_count ?? 0,
+        isDemoCoach: false,
+      };
+    }
+
+    // No recurring-slot coach yet -- fall back to the demo-assigned coach,
+    // only while the demo is still upcoming (once it's completed, the
+    // journey spec calls for "No Active Coach" until a real plan is bought).
+    const demo = await getMyLatestDemoSession(token);
+    if (!demo || demo.status !== "upcoming" || !demo.coachId) return null;
+    const coach: any = await getCoach(token, demo.coachId);
     return {
       id: coach.id,
       name: coach.profile?.full_name ?? "Coach",
@@ -43,6 +69,7 @@ export async function getMyCoachAction(): Promise<ActionResult<MyCoachView | nul
       yearsExperience: coach.years_experience ?? 0,
       rating: Number(coach.rating ?? 0),
       reviewCount: coach.review_count ?? 0,
+      isDemoCoach: true,
     };
   });
 }

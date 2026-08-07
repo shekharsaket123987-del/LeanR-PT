@@ -67,10 +67,10 @@ export default function PlansMarketingClient({ plans }: { plans: MarketingPlan[]
       <Card className="mb-8 flex flex-col items-center gap-4 p-6 text-center sm:flex-row sm:justify-between sm:text-left">
         <div>
           <p className="text-sm font-bold">Not sure yet?</p>
-          <p className="mt-1 text-xs text-black/50">Try a paid demo session with a coach before committing to a plan.</p>
+          <p className="mt-1 text-xs text-black/50">Try a free demo session with a coach before committing to a plan.</p>
         </div>
         <Button variant="outline" onClick={() => router.push("/client/demo-booking")}>
-          Book a Demo Session
+          Book Free Demo Session
         </Button>
       </Card>
 

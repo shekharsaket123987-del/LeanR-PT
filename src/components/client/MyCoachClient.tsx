@@ -89,7 +89,44 @@ export default function MyCoachClient({ coach, request }: { coach: MyCoachView |
   const needsCompletion = request?.status === "approved" && !request.newCoachId;
 
   if (!coach) {
-    return <p className="text-sm text-black/50">No coach assigned yet.</p>;
+    return (
+      <Card className="flex flex-col items-center gap-3 p-8 text-center">
+        <p className="text-sm font-bold">No Active Coach</p>
+        <p className="max-w-sm text-sm text-black/50">
+          You&apos;ll be matched with a coach automatically once you book a free demo session or choose a plan.
+        </p>
+        <Button href="/client/demo-booking" className="mt-2">
+          Book Free Demo Session
+        </Button>
+      </Card>
+    );
+  }
+
+  if (coach.isDemoCoach) {
+    return (
+      <Card className="overflow-hidden">
+        <div className="relative h-48 w-full">
+          <Image src={`https://picsum.photos/seed/${coach.id}-cover/900/300`} alt="" fill className="object-cover" />
+          <div className="absolute inset-0 bg-black/30" />
+        </div>
+        <div className="relative -mt-14 px-6">
+          <div className="relative h-28 w-28 overflow-hidden rounded-2xl border-4 border-white shadow-soft">
+            <Image src={coach.photo} alt={coach.name} fill className="object-cover" />
+          </div>
+        </div>
+        <div className="p-6 pt-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-display text-2xl font-bold italic">{coach.name}</p>
+            <Badge variant="outline-yellow">Demo Coach</Badge>
+          </div>
+          <p className="mt-1 text-sm font-medium text-black/50">{coach.specialization}</p>
+          <p className="mt-4 text-sm text-black/60">
+            Assigned automatically for your demo session. Once you choose a plan, you&apos;ll be matched with a dedicated coach for
+            ongoing training.
+          </p>
+        </div>
+      </Card>
+    );
   }
 
   return (

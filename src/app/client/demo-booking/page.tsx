@@ -4,7 +4,7 @@ import DemoBookingClient from "@/components/client/DemoBookingClient";
 export default function DemoBookingPage() {
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader title="Book a Demo Session" description="Try a live 1:1 session with a coach before you commit to a plan. ₹700." />
+      <PageHeader title="Book a Free Demo Session" description="Try a live 1:1 session with a coach before you commit to a plan — completely free." />
       <DemoBookingClient />
     </div>
   );

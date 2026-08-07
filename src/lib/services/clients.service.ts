@@ -371,3 +371,30 @@ export async function getMyCurrentCoachId(accessToken: string): Promise<string |
     .maybeSingle();
   return latestBooking?.coach_id ?? null;
 }
+
+/** Coach from an ACTIVE recurring slot only -- unlike getMyCurrentCoachId(),
+ * deliberately does NOT fall back to "coach of the most recent booking of
+ * any kind", since that fallback conflates a genuine ongoing relationship
+ * with a one-off demo/assessment booking. Used wherever "does this client
+ * have a real assigned coach" must exclude demo-only clients (see
+ * getMyCoachAction's isDemoCoach branch in client-coach.actions.ts). */
+export async function getMyRecurringCoachId(accessToken: string): Promise<string | null> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["client"]);
+
+  const { data: client, error: clientError } = await ctx.client
+    .from("client_profiles")
+    .select("id")
+    .eq("profile_id", ctx.userId)
+    .single();
+  if (clientError || !client) throw clientError ?? new Error("Client profile not found");
+
+  const { data: activeSlot } = await ctx.client
+    .from("recurring_slots")
+    .select("coach_id")
+    .eq("client_id", client.id)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+  return activeSlot?.coach_id ?? null;
+}

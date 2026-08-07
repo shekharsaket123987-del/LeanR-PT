@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
-import { Flame, CalendarCheck2, TrendingUp, AlertTriangle, Scale } from "lucide-react";
+import Image from "next/image";
+import { Flame, CalendarCheck2, TrendingUp, AlertTriangle, Scale, CalendarClock, Sparkles } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
 import ProgressRing from "@/components/ui/ProgressRing";
 import StatCard from "@/components/ui/StatCard";
 import EmptyState from "@/components/ui/EmptyState";
@@ -10,7 +12,7 @@ import { getClientDashboardAction } from "@/lib/actions/client-portal.actions";
 import { getMyJourneyStateAction } from "@/lib/actions/client-journey.actions";
 import { getMyProgressAction } from "@/lib/actions/client-progress.actions";
 import { isFailure } from "@/lib/actions/action-result";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatTime } from "@/lib/utils";
 
 /** Arrow always reflects the TRUE direction the number moved (↓ = went
  * down, ↑ = went up) -- lowerIsBetter only controls the color (is this
@@ -28,11 +30,52 @@ function diffLabel(dayOne: number | null, latest: number | null, lowerIsBetter =
 export default async function ClientDashboardPage() {
   const journeyResult = await getMyJourneyStateAction();
   if (!isFailure(journeyResult)) {
-    const stage = journeyResult.data.stage;
+    const { stage, demoSession } = journeyResult.data;
     if (stage === "marketing") redirect("/client/plans");
     if (stage === "awaiting_activation") redirect("/client/activate");
     if (stage === "onboarding") redirect("/client/onboarding");
     if (stage === "slot_selection") redirect("/client/schedule");
+
+    if (stage === "demo_booked" && demoSession) {
+      return (
+        <div className="mx-auto max-w-3xl">
+          <PageHeader title="Your Demo Session" description="You're all set — here's what's coming up." />
+          <Card className="flex flex-col items-center gap-4 p-8 text-center">
+            <div className="relative h-16 w-16 overflow-hidden rounded-2xl">
+              <Image src={demoSession.coachPhoto} alt={demoSession.coachName} fill className="object-cover" />
+            </div>
+            <div>
+              <p className="text-display text-xl font-bold italic">{demoSession.coachName}</p>
+              <p className="mt-1 flex items-center justify-center gap-1.5 text-sm text-black/60">
+                <CalendarClock className="h-4 w-4" />
+                {formatDate(demoSession.slotStart)} · {formatTime(demoSession.slotStart)}
+              </p>
+            </div>
+            <p className="max-w-sm text-sm text-black/50">
+              Your coach was automatically matched based on availability. We&apos;ll send a reminder before your session.
+            </p>
+          </Card>
+        </div>
+      );
+    }
+
+    if (stage === "demo_completed") {
+      return (
+        <div className="mx-auto max-w-3xl">
+          <PageHeader title="Welcome back" description="Your free demo is complete — ready to go all in?" />
+          <Card className="flex flex-col items-center gap-4 p-8 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-yellow/15">
+              <Sparkles className="h-7 w-7" />
+            </div>
+            <div>
+              <p className="text-display text-xl font-bold italic">How was your demo with {demoSession?.coachName ?? "your coach"}?</p>
+              <p className="mt-1 text-sm text-black/50">Pick a plan to keep training with a dedicated coach every week.</p>
+            </div>
+            <Button href="/client/plans">Choose Your Plan</Button>
+          </Card>
+        </div>
+      );
+    }
   }
 
   const [result, progressResult] = await Promise.all([getClientDashboardAction(), getMyProgressAction()]);
