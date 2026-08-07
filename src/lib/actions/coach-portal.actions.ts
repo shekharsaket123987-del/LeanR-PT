@@ -2,6 +2,7 @@
 
 import { getAccessToken } from "@/lib/supabase/server-client";
 import { ActionResult, runAction } from "./action-result";
+import { calculateBmi } from "@/lib/utils";
 import { getMyProfile } from "@/lib/services/profiles.service";
 import { getClientProfileById, listMyClients, searchAllClients } from "@/lib/services/clients.service";
 import { getMyCoachProfile } from "@/lib/services/coaches.service";
@@ -413,6 +414,7 @@ export interface ClientDemographics {
   gender: string | null;
   heightCm: number | null;
   weightKg: number | null;
+  bmi: number | null;
   fitnessGoal: string | null;
 }
 
@@ -556,6 +558,7 @@ export async function getCoachClientDetailAction(clientId: string): Promise<Acti
             gender: onboarding.gender ?? null,
             heightCm: onboarding.height_cm ?? null,
             weightKg: onboarding.weight_kg ?? null,
+            bmi: calculateBmi(onboarding.height_cm, onboarding.weight_kg),
             fitnessGoal: onboarding.fitness_goal ?? null,
           }
         : null,

@@ -5,6 +5,8 @@ import { ActionResult, runAction } from "./action-result";
 import { getMyProfile, updateMyProfile } from "@/lib/services/profiles.service";
 import { getMyClientProfile, updateMyClientProfile } from "@/lib/services/clients.service";
 import { getSubscriptionsForClient } from "@/lib/services/subscriptions.service";
+import { getMyOnboarding } from "@/lib/services/onboarding.service";
+import { calculateBmi } from "@/lib/utils";
 
 const FALLBACK_PHOTO = (seed: string) => `https://i.pravatar.cc/300?u=${seed}`;
 
@@ -17,6 +19,9 @@ export interface ClientProfileView {
   goals: string[];
   equipment: string[];
   medicalNotes: string | null;
+  heightCm: number | null;
+  weightKg: number | null;
+  bmi: number | null;
 }
 
 async function requireSession() {
@@ -28,9 +33,15 @@ async function requireSession() {
 export async function getMyProfileAction(): Promise<ActionResult<ClientProfileView>> {
   return runAction(async () => {
     const session = await requireSession();
-    const [profile, clientProfile] = await Promise.all([getMyProfile(session.token), getMyClientProfile(session.token)]);
+    const [profile, clientProfile, onboarding] = await Promise.all([
+      getMyProfile(session.token),
+      getMyClientProfile(session.token),
+      getMyOnboarding(session.token),
+    ]);
     const subscriptions = await getSubscriptionsForClient(session.token, (clientProfile as any).id);
     const activeSub = (subscriptions as any[]).find((s) => s.status === "active") ?? null;
+    const heightCm = (onboarding as any)?.height_cm ?? null;
+    const weightKg = (onboarding as any)?.weight_kg ?? null;
 
     return {
       name: profile.full_name || "",
@@ -41,6 +52,9 @@ export async function getMyProfileAction(): Promise<ActionResult<ClientProfileVi
       goals: (clientProfile as any).goals ?? [],
       equipment: (clientProfile as any).equipment ?? [],
       medicalNotes: (clientProfile as any).medical_notes ?? null,
+      heightCm,
+      weightKg,
+      bmi: calculateBmi(heightCm, weightKg),
     };
   });
 }

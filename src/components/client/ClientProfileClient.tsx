@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Mail, Phone, Target, Dumbbell, HeartPulse, KeyRound } from "lucide-react";
+import { Mail, Phone, Target, Dumbbell, HeartPulse, KeyRound, Ruler, Weight, Scale } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
@@ -106,6 +106,21 @@ export default function ClientProfileClient({ profile }: { profile: ClientProfil
           <div className="flex items-center gap-3 text-sm">
             <Phone className="h-4 w-4 text-black/40" />
             {profile.phone || "Not set"}
+          </div>
+        </div>
+
+        <div className="mt-6 grid grid-cols-3 gap-4 border-t border-black/[0.06] pt-6">
+          <div className="flex items-center gap-2 text-sm">
+            <Ruler className="h-4 w-4 text-black/40" />
+            {profile.heightCm ? `${profile.heightCm} cm` : "Height —"}
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Weight className="h-4 w-4 text-black/40" />
+            {profile.weightKg ? `${profile.weightKg} kg` : "Weight —"}
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Scale className="h-4 w-4 text-black/40" />
+            {profile.bmi ? `BMI ${profile.bmi}` : "BMI —"}
           </div>
         </div>
 

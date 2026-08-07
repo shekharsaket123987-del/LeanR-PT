@@ -15,6 +15,8 @@ import {
   MessageCircleWarning,
   Scale,
   CheckCircle2,
+  Ruler,
+  Weight,
 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -206,6 +208,17 @@ export default function AdminClientDetailClient({
             </div>
           </div>
           <div className="mt-4 space-y-3 border-t border-black/[0.06] pt-4">
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="flex items-center gap-1.5 text-black/60">
+                <Ruler className="h-3.5 w-3.5 text-black/35" /> {client.demographics?.heightCm ? `${client.demographics.heightCm} cm` : "—"}
+              </div>
+              <div className="flex items-center gap-1.5 text-black/60">
+                <Weight className="h-3.5 w-3.5 text-black/35" /> {client.demographics?.weightKg ? `${client.demographics.weightKg} kg` : "—"}
+              </div>
+              <div className="flex items-center gap-1.5 text-black/60">
+                <Scale className="h-3.5 w-3.5 text-black/35" /> {client.demographics?.bmi ? `BMI ${client.demographics.bmi}` : "—"}
+              </div>
+            </div>
             <div>
               <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase text-black/40">
                 <Target className="h-3.5 w-3.5" /> Goals

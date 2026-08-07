@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Target, HeartPulse, Dumbbell, AlertTriangle, User, Ruler, Weight, Goal } from "lucide-react";
+import { Target, HeartPulse, Dumbbell, AlertTriangle, User, Ruler, Weight, Goal, Scale } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
@@ -69,6 +69,9 @@ export default async function CoachClientDetailPage({ params }: { params: { id: 
               </div>
               <div className="flex items-center gap-1.5 text-black/60">
                 <Weight className="h-3.5 w-3.5 text-black/35" /> {d?.weightKg ? `${d.weightKg} kg` : "Weight —"}
+              </div>
+              <div className="col-span-2 flex items-center gap-1.5 text-black/60">
+                <Scale className="h-3.5 w-3.5 text-black/35" /> {d?.bmi ? `BMI ${d.bmi}` : "BMI —"}
               </div>
               <div className="col-span-2 flex items-center gap-1.5 text-black/60">
                 <Goal className="h-3.5 w-3.5 text-black/35" /> {d?.fitnessGoal ? GOAL_LABEL[d.fitnessGoal] ?? d.fitnessGoal : "Goal —"}

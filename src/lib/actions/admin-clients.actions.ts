@@ -14,7 +14,9 @@ import {
 } from "@/lib/services/subscriptions.service";
 import { logRefundRequest } from "@/lib/services/audit.service";
 import { listProgressLogsForClient } from "@/lib/services/progressLogs.service";
+import { getOnboardingForClient } from "@/lib/services/onboarding.service";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
+import { calculateBmi } from "@/lib/utils";
 
 async function requireToken(): Promise<string> {
   const token = await getAccessToken();
@@ -80,6 +82,7 @@ export interface AdminClientDetailView {
   joinedDate: string;
   goals: string[];
   medicalNotes: string | null;
+  demographics: { age: number | null; gender: string | null; heightCm: number | null; weightKg: number | null; bmi: number | null } | null;
   coach: { id: string; name: string; specialization: string | null; photo: string } | null;
   subscription: {
     id: string;
@@ -99,12 +102,13 @@ export async function getAdminClientDetailAction(clientId: string): Promise<Acti
     const token = await requireToken();
     const client: any = await getClient(token, clientId);
 
-    const [subs, bookings, authUser, currentCoachId, progressLogs] = await Promise.all([
+    const [subs, bookings, authUser, currentCoachId, progressLogs, onboarding]: [any[], any[], any, string | null, any[], any] = await Promise.all([
       getSubscriptionsForClient(token, clientId),
       listBookingsForClient(token, clientId),
       supabaseAdmin.auth.admin.getUserById(client.profile.id),
       getClientCurrentCoachId(token, clientId),
       listProgressLogsForClient(token, clientId),
+      getOnboardingForClient(token, clientId),
     ]);
 
     let coach: AdminClientDetailView["coach"] = null;
@@ -142,6 +146,15 @@ export async function getAdminClientDetailAction(clientId: string): Promise<Acti
       joinedDate: client.joined_date,
       goals: client.goals ?? [],
       medicalNotes: client.medical_notes,
+      demographics: onboarding
+        ? {
+            age: onboarding.age ?? null,
+            gender: onboarding.gender ?? null,
+            heightCm: onboarding.height_cm ?? null,
+            weightKg: onboarding.weight_kg ?? null,
+            bmi: calculateBmi(onboarding.height_cm, onboarding.weight_kg),
+          }
+        : null,
       coach,
       subscription,
       history: (bookings as any[]).map((b) => ({
@@ -173,6 +186,36 @@ export interface AdminCoachOption {
   id: string;
   name: string;
   specialization: string | null;
+}
+
+export interface AdminClientSearchResult {
+  id: string;
+  clientCode: string;
+  name: string;
+  photo: string;
+  phone: string | null;
+  status: "active" | "inactive" | "paused";
+}
+
+/** Admin Universal Search (FEATURE_SPEC_PORTAL_ENHANCEMENTS.md §2.1) --
+ * admin already has unrestricted RLS read access to every client (no
+ * widening needed, unlike the coach-facing version of this feature), so
+ * this just reshapes the same listClients() roster already used by the
+ * clients list page for a fast client-side name/ID/phone filter, following
+ * the identical pattern CoachSearchClient uses. */
+export async function searchAdminClientsAction(): Promise<ActionResult<AdminClientSearchResult[]>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const rows = await listClients(token);
+    return (rows as any[]).map((c) => ({
+      id: c.id,
+      clientCode: c.client_code ?? "",
+      name: c.profile?.full_name ?? "Client",
+      photo: c.profile?.photo_url ?? FALLBACK_PHOTO(c.id),
+      phone: c.profile?.phone ?? null,
+      status: c.status,
+    }));
+  });
 }
 
 export async function listAdminCoachOptionsAction(): Promise<ActionResult<AdminCoachOption[]>> {

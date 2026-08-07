@@ -61,6 +61,7 @@ const NAV: Record<Role, { label: string; href: string; icon: any }[]> = {
   ],
   admin: [
     { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
+    { label: "Search", href: "/admin/search", icon: Search },
     { label: "Clients", href: "/admin/clients", icon: Users },
     { label: "Coaches", href: "/admin/coaches", icon: UserCog },
     { label: "Sessions", href: "/admin/sessions", icon: CalendarDays },
