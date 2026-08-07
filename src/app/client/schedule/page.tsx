@@ -11,7 +11,11 @@ import { isFailure } from "@/lib/actions/action-result";
 import { formatDate, formatTime } from "@/lib/utils";
 
 export default async function SchedulePage() {
-  const journeyResult = await getMyJourneyStateAction();
+  // Parallel, not sequential -- see the identical comment in
+  // src/app/client/subscription/page.tsx for why. getScheduleSetupOptionsAction
+  // never throws (runAction catches internally), safe to kick off
+  // unconditionally even though only the "active" branch below uses it.
+  const [journeyResult, result] = await Promise.all([getMyJourneyStateAction(), getScheduleSetupOptionsAction()]);
 
   if (!isFailure(journeyResult)) {
     const { stage, demoSession } = journeyResult.data;
@@ -56,8 +60,6 @@ export default async function SchedulePage() {
       );
     }
   }
-
-  const result = await getScheduleSetupOptionsAction();
 
   if (isFailure(result)) {
     return (

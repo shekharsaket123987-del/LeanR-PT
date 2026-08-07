@@ -28,7 +28,20 @@ function diffLabel(dayOne: number | null, latest: number | null, lowerIsBetter =
 }
 
 export default async function ClientDashboardPage() {
-  const journeyResult = await getMyJourneyStateAction();
+  // All three fetched in parallel -- none of getMyJourneyStateAction/
+  // getClientDashboardAction/getMyProgressAction depend on each other's
+  // output, and none of them throw (runAction catches internally), so
+  // there's no correctness reason to wait for the journey check before
+  // starting the other two. For the common case (an active client, no
+  // redirect) this halves the round trips versus fetching sequentially;
+  // for the rarer redirect/demo-stage cases, the other two results are
+  // simply unused -- a wasted query, not a bug.
+  const [journeyResult, result, progressResult] = await Promise.all([
+    getMyJourneyStateAction(),
+    getClientDashboardAction(),
+    getMyProgressAction(),
+  ]);
+
   if (!isFailure(journeyResult)) {
     const { stage, demoSession } = journeyResult.data;
     if (stage === "marketing") redirect("/client/plans");
@@ -77,8 +90,6 @@ export default async function ClientDashboardPage() {
       );
     }
   }
-
-  const [result, progressResult] = await Promise.all([getClientDashboardAction(), getMyProgressAction()]);
 
   if (isFailure(result)) {
     return (

@@ -11,7 +11,14 @@ import { isFailure } from "@/lib/actions/action-result";
 import { formatDate, formatTime } from "@/lib/utils";
 
 export default async function ClientSubscriptionPage() {
-  const journeyResult = await getMyJourneyStateAction();
+  // Fetched in parallel, not sequentially -- getMySubscriptionAction never
+  // throws (runAction catches internally), so it's safe to kick off
+  // unconditionally even though its result is only used for the "active"
+  // branch below. Waiting on the journey check first before even starting
+  // this fetch would add a full extra round trip to every visit, including
+  // the common case (an active client) that doesn't need the journey
+  // check's answer at all.
+  const [journeyResult, result] = await Promise.all([getMyJourneyStateAction(), getMySubscriptionAction()]);
 
   if (!isFailure(journeyResult)) {
     const { stage, demoSession } = journeyResult.data;
@@ -61,8 +68,6 @@ export default async function ClientSubscriptionPage() {
       );
     }
   }
-
-  const result = await getMySubscriptionAction();
 
   return (
     <div className="mx-auto max-w-2xl">
