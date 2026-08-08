@@ -1,6 +1,7 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { logTimelineEvent } from "./timeline.service";
+import { DAY_GROUPS, PAIRS_MWF, PAIRS_TTS } from "@/lib/constants/scheduling";
 
 export interface OpenSlot {
   start: string; // ISO
@@ -523,24 +524,9 @@ export async function confirmHold(
 }
 
 // ── Recurring pattern matching (Screen 1: "Set Your Recurring Schedule") ──
-
-export const DAY_GROUPS = {
-  mwf: [1, 3, 5], // Mon, Wed, Fri
-  tts: [2, 4, 6], // Tue, Thu, Sat
-  sixday: [1, 2, 3, 4, 5, 6], // Mon–Sat, Sunday always off
-} as const;
-
-// Same-trio pairs only — not all 21 possible day combinations.
-const PAIRS_MWF = [
-  [1, 3],
-  [1, 5],
-  [3, 5],
-];
-const PAIRS_TTS = [
-  [2, 4],
-  [2, 6],
-  [4, 6],
-];
+// DAY_GROUPS/PAIRS_MWF/PAIRS_TTS now live in lib/constants/scheduling.ts so
+// ScheduleSetupClient.tsx ("use client") can import the same values without
+// pulling this server-only module into the browser bundle.
 
 export type PatternKey = "mwf" | "tts" | "sixday" | "custom";
 
@@ -636,6 +622,9 @@ export async function findAvailableCoach(
     if (!input.customDays || input.customDays.length < 2 || input.customDays.length > 5) {
       throw new Error("Custom schedule needs between 2 and 5 days");
     }
+    if (input.customDays.includes(0)) {
+      throw new Error("Sunday is a holiday and isn't available for scheduling.");
+    }
     days = input.customDays;
   } else {
     days = [...DAY_GROUPS[input.pattern]];
@@ -691,6 +680,9 @@ export async function matchRecurringPattern(
   if (input.pattern === "custom") {
     if (!input.customDays || input.customDays.length < 2 || input.customDays.length > 5) {
       throw new Error("Custom schedule needs between 2 and 5 days");
+    }
+    if (input.customDays.includes(0)) {
+      throw new Error("Sunday is a holiday and isn't available for scheduling.");
     }
     if (await patternFreeAt(input.coachId, input.customDays, input.preferredTime, durationMinutes)) {
       return { days: input.customDays, timeOfDay: input.preferredTime, patternUsed: "custom", exact: true };

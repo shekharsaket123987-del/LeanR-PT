@@ -8,6 +8,13 @@ export interface OnboardingInput {
   gender?: "male" | "female" | "other";
   heightCm?: number;
   weightKg?: number;
+  bodyFatPct?: number;
+  musclePct?: number;
+  waist?: number;
+  chest?: number;
+  hip?: number;
+  arms?: number;
+  thigh?: number;
   medicalConditions?: string;
   injuries?: string;
   medications?: string;
@@ -18,7 +25,17 @@ export interface OnboardingInput {
 /** One-time client-submitted assessment, taken right after plan activation.
  * RLS lets a client insert their own row but never update it -- enforced
  * here too (not just RLS) so the error message is clear rather than a raw
- * RLS-denied. Only admin can correct it afterward, via updateOnboarding. */
+ * RLS-denied. Only admin can correct it afterward, via updateOnboarding.
+ *
+ * Also plants the Day 1 entry in progress_logs (whichever of the optional
+ * measurement fields were actually filled in) -- so "Progress Since Day 1"
+ * on the dashboard and the Progress page's graph start counting from the
+ * moment the client's transformation journey actually begins, not from
+ * whenever they happen to submit their first weekly update later. This is
+ * a separate insert from client_onboarding (which stays the one-time
+ * demographic/medical snapshot used for BMI etc.) -- intentionally
+ * duplicates weight into both, since the two tables serve different
+ * purposes and progress_logs needs its own row to anchor the time series. */
 export async function submitOnboarding(accessToken: string, input: OnboardingInput) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["client"]);
@@ -46,6 +63,31 @@ export async function submitOnboarding(accessToken: string, input: OnboardingInp
     .select()
     .single();
   if (error) throw error;
+
+  const hasMeasurements =
+    input.weightKg != null ||
+    input.bodyFatPct != null ||
+    input.musclePct != null ||
+    input.waist != null ||
+    input.chest != null ||
+    input.hip != null ||
+    input.arms != null ||
+    input.thigh != null;
+  if (hasMeasurements) {
+    const { error: progressError } = await ctx.client.from("progress_logs").insert({
+      client_id: client.id,
+      weight: input.weightKg ?? null,
+      body_fat_pct: input.bodyFatPct ?? null,
+      muscle_pct: input.musclePct ?? null,
+      waist: input.waist ?? null,
+      chest: input.chest ?? null,
+      hip: input.hip ?? null,
+      arms: input.arms ?? null,
+      thigh: input.thigh ?? null,
+      notes: "Day 1 -- initial assessment",
+    });
+    if (progressError) throw progressError;
+  }
 
   await logTimelineEvent(client.id, "plan_activated", "Initial assessment completed", { actorId: ctx.userId });
 

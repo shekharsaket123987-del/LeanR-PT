@@ -2,20 +2,24 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { CalendarClock, Check, Info } from "lucide-react";
+import { CalendarClock, Check, Info, ChevronLeft } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { ScheduleMatchResult, ScheduleSetupOptions, confirmScheduleAction, matchScheduleAction, reportScheduleUnmatchedAction } from "@/lib/actions/schedule.actions";
 import { isFailure } from "@/lib/actions/action-result";
 import { PatternKey } from "@/lib/services/scheduling.service";
+import { DAY_LABELS, PAIR_OPTIONS } from "@/lib/constants/scheduling";
 
-const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const PATTERN_OPTIONS: { key: PatternKey; label: string; hint: string }[] = [
+const STANDARD_PATTERNS: { key: "mwf" | "tts" | "sixday"; label: string; hint: string }[] = [
   { key: "mwf", label: "Mon / Wed / Fri", hint: "3 sessions a week" },
   { key: "tts", label: "Tue / Thu / Sat", hint: "3 sessions a week" },
   { key: "sixday", label: "6 Days a Week", hint: "Mon–Sat" },
-  { key: "custom", label: "Specific Days", hint: "Pick 2–5 days" },
 ];
+
+// Monday(1)..Saturday(6) only -- Sunday is always a holiday, never offered.
+const CUSTOM_DAYS = [1, 2, 3, 4, 5, 6];
+
+type Mode = "standard" | "pair" | "custom";
 
 function formatHour(h: number) {
   const period = h >= 12 ? "PM" : "AM";
@@ -27,11 +31,17 @@ function daysLabel(days: number[]) {
   return [...days].sort((a, b) => a - b).map((d) => DAY_LABELS[d]).join(" / ");
 }
 
+function samePair(a: number[], b: number[]) {
+  return a.length === b.length && [...a].sort().join(",") === [...b].sort().join(",");
+}
+
 export default function ScheduleSetupClient({ options }: { options: ScheduleSetupOptions }) {
   const grid = Array.from({ length: options.endHour - options.startHour }, (_, i) => options.startHour + i);
-  const [pattern, setPattern] = useState<PatternKey>("mwf");
-  const [preferredTime, setPreferredTime] = useState(`${String(grid[0]).padStart(2, "0")}:00`);
+  const [mode, setMode] = useState<Mode>("standard");
+  const [standardPattern, setStandardPattern] = useState<"mwf" | "tts" | "sixday">("mwf");
+  const [selectedPair, setSelectedPair] = useState<number[] | null>(null);
   const [customDays, setCustomDays] = useState<number[]>([]);
+  const [preferredTime, setPreferredTime] = useState(`${String(grid[0]).padStart(2, "0")}:00`);
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState("");
   const [result, setResult] = useState<ScheduleMatchResult | null | undefined>(undefined); // undefined = not checked yet
@@ -39,9 +49,37 @@ export default function ScheduleSetupClient({ options }: { options: ScheduleSetu
   const [confirmed, setConfirmed] = useState(false);
   const [reportedToAdmin, setReportedToAdmin] = useState(false);
 
+  function resetResult() {
+    setResult(undefined);
+    setCheckError("");
+  }
+
   function toggleCustomDay(day: number) {
     setCustomDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : prev.length < 5 ? [...prev, day] : prev));
+    resetResult();
   }
+
+  function openMoreOptions() {
+    setMode("pair");
+    setSelectedPair(null);
+    setCustomDays([]);
+    resetResult();
+  }
+
+  function backToStandard() {
+    setMode("standard");
+    setSelectedPair(null);
+    setCustomDays([]);
+    resetResult();
+  }
+
+  const pattern: PatternKey = mode === "standard" ? standardPattern : "custom";
+  const activeDays = mode === "standard" ? undefined : mode === "pair" ? selectedPair ?? undefined : customDays;
+
+  const customValid =
+    mode === "standard" ||
+    (mode === "pair" && !!selectedPair) ||
+    (mode === "custom" && customDays.length >= 2 && customDays.length <= 5);
 
   async function checkAvailability() {
     setChecking(true);
@@ -50,7 +88,7 @@ export default function ScheduleSetupClient({ options }: { options: ScheduleSetu
     const res = await matchScheduleAction({
       pattern,
       preferredTime,
-      customDays: pattern === "custom" ? customDays : undefined,
+      customDays: pattern === "custom" ? activeDays : undefined,
     });
     setChecking(false);
     if (isFailure(res)) {
@@ -96,8 +134,6 @@ export default function ScheduleSetupClient({ options }: { options: ScheduleSetu
     );
   }
 
-  const customValid = pattern !== "custom" || (customDays.length >= 2 && customDays.length <= 5);
-
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       {options.coach && (
@@ -113,64 +149,125 @@ export default function ScheduleSetupClient({ options }: { options: ScheduleSetu
       )}
 
       <Card className="p-6">
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-          <div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-black/40">Time</p>
-            <select
-              value={preferredTime}
-              onChange={(e) => {
-                setPreferredTime(e.target.value);
-                setResult(undefined);
-              }}
-              className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
-            >
-              {grid.map((h) => (
-                <option key={h} value={`${String(h).padStart(2, "0")}:00`}>
-                  {formatHour(h)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-black/40">Days</p>
-            <select
-              value={pattern}
-              onChange={(e) => {
-                setPattern(e.target.value as PatternKey);
-                setResult(undefined);
-              }}
-              className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
-            >
-              {PATTERN_OPTIONS.map((p) => (
-                <option key={p.key} value={p.key}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="mb-6">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-black/40">Time</p>
+          <select
+            value={preferredTime}
+            onChange={(e) => {
+              setPreferredTime(e.target.value);
+              resetResult();
+            }}
+            className="w-full max-w-[220px] rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+          >
+            {grid.map((h) => (
+              <option key={h} value={`${String(h).padStart(2, "0")}:00`}>
+                {formatHour(h)}
+              </option>
+            ))}
+          </select>
         </div>
 
-        {pattern === "custom" && (
-          <div className="mt-4">
-            <p className="mb-2 text-xs text-black/50">Pick 2–5 days ({customDays.length} selected)</p>
-            <div className="grid grid-cols-7 gap-1.5">
-              {DAY_LABELS.map((label, day) => (
+        {mode === "standard" && (
+          <>
+            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-black/40">How Many Days a Week?</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {STANDARD_PATTERNS.map((p) => (
                 <button
-                  key={day}
+                  key={p.key}
+                  type="button"
                   onClick={() => {
-                    toggleCustomDay(day);
-                    setResult(undefined);
+                    setStandardPattern(p.key);
+                    resetResult();
                   }}
-                  className={`rounded-lg border py-2 text-[11px] font-bold ${
-                    customDays.includes(day) ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10 hover:border-black/25"
+                  className={`rounded-xl border-2 p-4 text-left transition-colors ${
+                    standardPattern === p.key ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10 hover:border-black/25"
                   }`}
                 >
-                  {label}
+                  <p className="text-sm font-bold">{p.label}</p>
+                  <p className="mt-0.5 text-xs text-black/45">{p.hint}</p>
                 </button>
               ))}
             </div>
-          </div>
+            <button type="button" onClick={openMoreOptions} className="mt-4 text-xs font-bold text-black/50 underline hover:text-black">
+              Not happy with these slots?
+            </button>
+          </>
+        )}
+
+        {mode !== "standard" && (
+          <>
+            <button type="button" onClick={backToStandard} className="mb-4 flex items-center gap-1 text-xs font-bold text-black/50 hover:text-black">
+              <ChevronLeft className="h-3.5 w-3.5" /> Back to standard patterns
+            </button>
+
+            <div className="mb-4 flex gap-2 rounded-xl bg-black/5 p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("pair");
+                  setCustomDays([]);
+                  resetResult();
+                }}
+                className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold ${mode === "pair" ? "bg-white shadow-card" : "text-black/50"}`}
+              >
+                2 Days a Week
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("custom");
+                  setSelectedPair(null);
+                  resetResult();
+                }}
+                className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold ${mode === "custom" ? "bg-white shadow-card" : "text-black/50"}`}
+              >
+                Choose Your Own Days
+              </button>
+            </div>
+
+            {mode === "pair" && (
+              <div>
+                <p className="mb-3 text-xs text-black/50">Pick a fixed 2-day-a-week pairing.</p>
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                  {PAIR_OPTIONS.map((pair) => (
+                    <button
+                      key={pair.join("-")}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPair(pair);
+                        resetResult();
+                      }}
+                      className={`rounded-xl border-2 py-3 text-xs font-bold ${
+                        selectedPair && samePair(selectedPair, pair) ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10 hover:border-black/25"
+                      }`}
+                    >
+                      {daysLabel(pair)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {mode === "custom" && (
+              <div>
+                <p className="mb-3 text-xs text-black/50">Pick 2–5 days ({customDays.length} selected). Sunday is always off.</p>
+                <div className="grid grid-cols-6 gap-1.5">
+                  {CUSTOM_DAYS.map((day) => (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => toggleCustomDay(day)}
+                      className={`rounded-lg border py-2 text-[11px] font-bold ${
+                        customDays.includes(day) ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10 hover:border-black/25"
+                      }`}
+                    >
+                      {DAY_LABELS[day]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         <div className="mt-6 flex justify-end">
@@ -187,23 +284,16 @@ export default function ScheduleSetupClient({ options }: { options: ScheduleSetu
               <Info className="h-4 w-4" /> No match found for that option.
             </p>
             <p className="mt-1 text-xs text-black/50">
-              {pattern === "custom"
-                ? "We tried your selected days at every available hour and couldn't find a fit."
+              {mode !== "standard"
+                ? "We tried this option at every available hour and couldn't find a fit."
                 : options.coach
-                ? "We tried this pattern, alternate times, and nearby day pairings. Try picking specific days instead, or let us notify support to help manually."
+                ? "We tried this pattern, alternate times, and nearby day pairings. Try a 2-day pairing or your own specific days instead, or let us notify support to help manually."
                 : "No coach is free for that exact day/time. Try a different day or time, or let us notify support to help manually."}
             </p>
             <div className="mt-3 flex gap-2">
-              {pattern !== "custom" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setPattern("custom");
-                    setResult(undefined);
-                  }}
-                >
-                  Try Specific Days
+              {mode === "standard" && (
+                <Button size="sm" variant="outline" onClick={openMoreOptions}>
+                  Try Other Options
                 </Button>
               )}
               <Button size="sm" variant="destructive-outline" onClick={notifyOps}>

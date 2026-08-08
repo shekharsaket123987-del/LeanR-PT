@@ -8,8 +8,9 @@ import Button from "@/components/ui/Button";
 import { changeScheduleAction } from "@/lib/actions/schedule.actions";
 import { isFailure } from "@/lib/actions/action-result";
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+// Monday(1)..Saturday(6) only -- Sunday is always a holiday, never offered.
+const PICKABLE_DAYS = [1, 2, 3, 4, 5, 6];
 
 export default function ChangeScheduleClient({ existingSchedule }: { existingSchedule: { dayOfWeek: number; startTime: string }[] }) {
   const router = useRouter();
@@ -75,14 +76,14 @@ export default function ChangeScheduleClient({ existingSchedule }: { existingSch
       <p className="text-sm font-bold">Pick your new days &amp; time</p>
       <p className="mt-1 text-xs text-black/45">We'll check your current coach's availability first.</p>
       <div className="mt-4 flex flex-wrap gap-2">
-        {DAYS.map((d, i) => (
+        {PICKABLE_DAYS.map((i) => (
           <button
-            key={d}
+            key={i}
             type="button"
             onClick={() => toggleDay(i)}
             className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${days.includes(i) ? "border-brand-yellow bg-brand-yellow/15" : "border-black/15"}`}
           >
-            {d}
+            {DAY_LABELS[i].slice(0, 3)}
           </button>
         ))}
       </div>

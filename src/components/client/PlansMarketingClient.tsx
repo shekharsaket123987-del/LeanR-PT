@@ -11,14 +11,14 @@ import {
   Trophy,
   Star,
   ImagePlus,
+  PartyPopper,
+  Check,
 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
-import { MarketingPlan } from "@/lib/actions/client-journey.actions";
-import { createPackagePurchaseOrderAction } from "@/lib/actions/payments.actions";
+import { MarketingPlan, purchaseMyPlanDirectAction } from "@/lib/actions/client-journey.actions";
 import { isFailure } from "@/lib/actions/action-result";
-import { useRazorpayCheckout } from "@/components/shared/useRazorpayCheckout";
 
 const WHY_LEANR = [
   { icon: BadgeCheck, title: "Certified Personal Trainers", description: "Every coach is certified and vetted before joining LeanR." },
@@ -33,31 +33,30 @@ const WHY_LEANR = [
 
 export default function PlansMarketingClient({ plans }: { plans: MarketingPlan[] }) {
   const router = useRouter();
-  const { openCheckout } = useRazorpayCheckout();
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [purchasedPlan, setPurchasedPlan] = useState<MarketingPlan | null>(null);
 
+  // Razorpay integration lands later -- purchaseMyPlanDirectAction creates
+  // the subscription with no payment step for now (see its doc comment).
+  // Redirect happens only after the client dismisses the congratulations
+  // modal (continueToActivation), not immediately on purchase success.
   async function purchase(plan: MarketingPlan) {
     setPurchasingId(plan.id);
     setError("");
-    const order = await createPackagePurchaseOrderAction(plan.id);
-    if (isFailure(order)) {
-      setPurchasingId(null);
-      setError(order.error.message);
+    const result = await purchaseMyPlanDirectAction(plan.id);
+    setPurchasingId(null);
+    if (isFailure(result)) {
+      setError(result.error.message);
       return;
     }
-    openCheckout(
-      order.data,
-      { name: "LEANR", description: `Purchase ${plan.name}` },
-      {
-        onSuccess: () => router.push("/client/dashboard"),
-        onError: (message) => {
-          setPurchasingId(null);
-          setError(message);
-        },
-        onDismiss: () => setPurchasingId(null),
-      }
-    );
+    setPurchasedPlan(plan);
+  }
+
+  function continueToActivation() {
+    setPurchasedPlan(null);
+    router.push("/client/dashboard");
+    router.refresh();
   }
 
   return (
@@ -119,6 +118,38 @@ export default function PlansMarketingClient({ plans }: { plans: MarketingPlan[]
           ))}
         </div>
       </div>
+
+      {purchasedPlan && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
+          <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 text-center shadow-2xl animate-slide-up">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-yellow/15">
+              <PartyPopper className="h-7 w-7" />
+            </div>
+            <p className="text-display text-2xl font-bold italic">Congratulations!</p>
+            <p className="mt-2 text-sm text-black/60">
+              You&apos;ve purchased the <span className="font-bold">{purchasedPlan.name}</span>. Wishing you a strong start and every
+              success on your transformation journey — your coach is ready to help you get there.
+            </p>
+            {purchasedPlan.features.length > 0 && (
+              <div className="mt-5 rounded-xl bg-black/[0.03] p-4 text-left">
+                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-black/40">You now have full access to</p>
+                <ul className="space-y-1.5">
+                  {purchasedPlan.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2 text-sm text-black/70">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <Button className="mt-6 w-full" onClick={continueToActivation}>
+              Understood
+            </Button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
