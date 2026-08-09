@@ -3,7 +3,7 @@
 import { getAccessToken } from "@/lib/supabase/server-client";
 import { ActionResult, fail, ok, runAction } from "./action-result";
 import { getMyClientProfile, getMyCurrentCoachId } from "@/lib/services/clients.service";
-import { getCoach } from "@/lib/services/coaches.service";
+import { getCoach, listCoaches } from "@/lib/services/coaches.service";
 import {
   findSubstituteCoachCandidates,
   getBookingWindow,
@@ -366,6 +366,62 @@ export async function getRescheduleOptionsAction(bookingId: string): Promise<Act
       startHour,
       endHour,
     };
+  });
+}
+
+export interface CoachClosestSlot {
+  coachId: string;
+  coachName: string;
+  isOwnCoach: boolean;
+  start: string;
+  end: string;
+}
+
+/** Backs the RescheduleModal's "Fastest Available" list -- rather than the
+ * client guessing a date/time and checking it one at a time (the old
+ * checkRescheduleTimeAction-only flow), this proactively finds each active
+ * coach's own SOONEST open slot in the reschedule window and hands back the
+ * whole list sorted earliest-first, so "closest available with my coach" vs
+ * "closest available with someone else" is visible at a glance. Reuses
+ * getOpenSlots() per coach -- same source of truth getRescheduleOptionsAction
+ * already uses for the own-coach grid, just run once per active coach. */
+export async function getClosestSlotsPerCoachAction(bookingId: string): Promise<ActionResult<CoachClosestSlot[]>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const client = await getMyClientProfile(token);
+    const booking: any = await getBooking(token, bookingId);
+    if (booking.client?.id !== client.id) throw new Error("Not your session");
+    if (booking.status !== "upcoming") throw new Error("Only upcoming sessions can be rescheduled");
+
+    const now = new Date();
+    const windowEnd = new Date(now.getTime() + RESCHEDULE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const nowMs = now.getTime();
+    const windowEndMs = windowEnd.getTime();
+
+    const [allCoaches, busyDates] = await Promise.all([listCoaches(token), getClientBusyDates(token, client.id, bookingId)]);
+    const activeCoaches = (allCoaches as any[]).filter((c) => c.status === "active");
+
+    const results = await Promise.all(
+      activeCoaches.map(async (c): Promise<CoachClosestSlot | null> => {
+        const rawSlots = await getOpenSlots(token, c.id, fmt(now), fmt(windowEnd), booking.duration_minutes);
+        const nextFree = rawSlots.find((s) => {
+          const startMs = new Date(s.start).getTime();
+          if (startMs <= nowMs || startMs >= windowEndMs) return false;
+          return !busyDates.has(istDateString(s.start));
+        });
+        if (!nextFree) return null;
+        return {
+          coachId: c.id,
+          coachName: c.profile?.full_name ?? "Coach",
+          isOwnCoach: c.id === booking.coach_id,
+          start: nextFree.start,
+          end: nextFree.end,
+        };
+      })
+    );
+
+    return results.filter((r): r is CoachClosestSlot => r !== null).sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
   });
 }
 

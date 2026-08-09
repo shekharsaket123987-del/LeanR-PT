@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarDays, Loader2, Users } from "lucide-react";
+import { CalendarDays, Loader2, Users, Zap } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
 import { formatDate, formatTime } from "@/lib/utils";
 import {
+  CoachClosestSlot,
   RescheduleOptions,
   RescheduleTimeCheck,
   checkRescheduleTimeAction,
+  getClosestSlotsPerCoachAction,
   getRescheduleOptionsAction,
   rescheduleSessionAction,
   rescheduleSessionToSubstituteAction,
@@ -44,6 +46,11 @@ export default function RescheduleModal({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
+  const [closestSlots, setClosestSlots] = useState<CoachClosestSlot[] | null>(null);
+  const [closestLoading, setClosestLoading] = useState(false);
+  const [bookingClosestKey, setBookingClosestKey] = useState<string | null>(null);
+  const [closestError, setClosestError] = useState("");
+
   const [desiredDate, setDesiredDate] = useState("");
   const [desiredTime, setDesiredTime] = useState("");
   const [checkingDesired, setCheckingDesired] = useState(false);
@@ -62,6 +69,8 @@ export default function RescheduleModal({
     setDesiredTime("");
     setDesiredError("");
     setDesiredResult(null);
+    setClosestSlots(null);
+    setClosestError("");
     getRescheduleOptionsAction(bookingId).then((result) => {
       setLoading(false);
       if (isFailure(result)) {
@@ -70,6 +79,16 @@ export default function RescheduleModal({
       }
       setOptions(result.data);
       setDesiredTime(`${String(result.data.startHour).padStart(2, "0")}:00`);
+    });
+
+    setClosestLoading(true);
+    getClosestSlotsPerCoachAction(bookingId).then((result) => {
+      setClosestLoading(false);
+      if (isFailure(result)) {
+        setClosestError(result.error.message);
+        return;
+      }
+      setClosestSlots(result.data);
     });
   }, [open, bookingId]);
 
@@ -113,6 +132,21 @@ export default function RescheduleModal({
     onRescheduled(desiredResult.desiredStart);
   }
 
+  async function bookClosestSlot(slot: CoachClosestSlot) {
+    if (!bookingId) return;
+    setBookingClosestKey(slot.coachId);
+    setClosestError("");
+    const result = slot.isOwnCoach
+      ? await rescheduleSessionAction(bookingId, slot.start)
+      : await rescheduleSessionToSubstituteAction(bookingId, slot.start, slot.coachId);
+    setBookingClosestKey(null);
+    if (isFailure(result)) {
+      setClosestError(result.error.message);
+      return;
+    }
+    onRescheduled(slot.start);
+  }
+
   async function assignSubstitute(coachId: string) {
     if (!bookingId || !desiredResult) return;
     setAssigningCoachId(coachId);
@@ -140,8 +174,54 @@ export default function RescheduleModal({
 
       {!loading && options && (
         <>
+          {(closestLoading || (closestSlots && closestSlots.length > 0)) && (
+            <div className="mb-5 rounded-xl border border-black/[0.06] bg-black/[0.02] p-4">
+              <p className="mb-1 flex items-center gap-1.5 text-sm font-bold">
+                <Zap className="h-4 w-4 text-brand-yellow" /> Fastest Available
+              </p>
+              <p className="mb-3 text-xs text-black/45">
+                Each coach&apos;s soonest open slot, so you don&apos;t have to check times one by one.
+              </p>
+              {closestLoading && (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin text-black/40" />
+                </div>
+              )}
+              {!closestLoading && closestSlots && (
+                <div className="space-y-2">
+                  {closestSlots.map((slot) => (
+                    <div
+                      key={slot.coachId}
+                      className={`flex items-center justify-between rounded-lg border p-3 ${
+                        slot.isOwnCoach ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10"
+                      }`}
+                    >
+                      <div>
+                        <p className="text-sm font-semibold">
+                          {slot.coachName} {slot.isOwnCoach && <span className="text-xs font-bold text-brand-yellow">· Your coach</span>}
+                        </p>
+                        <p className="text-xs text-black/50">
+                          {formatDate(slot.start)} · {formatTime(slot.start)}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant={slot.isOwnCoach ? "primary" : "outline"}
+                        loading={bookingClosestKey === slot.coachId}
+                        onClick={() => bookClosestSlot(slot)}
+                      >
+                        Book This
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {closestError && <p className="mt-2 text-xs text-red-600">{closestError}</p>}
+            </div>
+          )}
+
           <p className="mb-4 text-xs text-black/45">
-            Showing {options.coach.name.split(" ")[0]}&apos;s open slots for the next 30 days ·{" "}
+            Or browse {options.coach.name.split(" ")[0]}&apos;s open slots for the next 30 days ·{" "}
             <span className="font-bold text-black/60">{options.reschedulesRemaining} of 2 reschedules left this week</span>
           </p>
           <p className="mb-4 rounded-lg bg-black/[0.03] p-3 text-xs text-black/50">
