@@ -7,7 +7,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { SessionStatusBadge } from "@/components/ui/Badge";
 import Modal from "@/components/ui/Modal";
-import { requestLeaveAction, saveAvailabilityAction } from "@/lib/actions/coach-portal.actions";
+import { requestLeaveAction } from "@/lib/actions/coach-portal.actions";
 import { AvailabilityWindow } from "@/lib/services/availability.service";
 import { isFailure } from "@/lib/actions/action-result";
 import { formatDate } from "@/lib/utils";
@@ -53,10 +53,7 @@ export default function CoachAvailabilityClient({
     partial_end_time?: string | null;
   }[];
 }) {
-  const [rows, setRows] = useState<DayRow[]>(buildInitialRows(initialWindows));
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState("");
-  const [saved, setSaved] = useState(false);
+  const rows = buildInitialRows(initialWindows);
 
   const [leave, setLeave] = useState(initialLeave);
   const [leaveOpen, setLeaveOpen] = useState(false);
@@ -68,31 +65,6 @@ export default function CoachAvailabilityClient({
   const [partialEnd, setPartialEnd] = useState("");
   const [leaveSubmitting, setLeaveSubmitting] = useState(false);
   const [leaveError, setLeaveError] = useState("");
-
-  function toggleDay(i: number) {
-    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, enabled: !r.enabled } : r)));
-    setSaved(false);
-  }
-
-  function updateTime(i: number, field: "start" | "end", value: string) {
-    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
-    setSaved(false);
-  }
-
-  async function save() {
-    setSaving(true);
-    setSaveError("");
-    const windows: AvailabilityWindow[] = rows
-      .map((r, day) => ({ day_of_week: day, start_time: r.start, end_time: r.end, is_active: r.enabled }))
-      .filter((w) => w.is_active);
-    const result = await saveAvailabilityAction(windows);
-    setSaving(false);
-    if (isFailure(result)) {
-      setSaveError(result.error.message);
-      return;
-    }
-    setSaved(true);
-  }
 
   function resetLeaveForm() {
     setLeaveOpen(false);
@@ -147,45 +119,26 @@ export default function CoachAvailabilityClient({
 
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader title="Availability" description="Set your working hours and manage time off." />
+      <PageHeader title="Availability" description="Your working hours, set by admin, and your time off." />
 
       <Card className="p-6">
-        <p className="mb-4 text-sm font-bold">Weekly Working Hours</p>
+        <p className="mb-1 text-sm font-bold">Weekly Working Hours</p>
+        <p className="mb-4 text-xs text-black/40">Only admin can change your working hours. Contact admin if these need updating.</p>
         <div className="space-y-2">
           {DAY_LABELS.map((label, i) => (
             <div key={label} className="flex flex-wrap items-center gap-4 rounded-xl border border-black/[0.06] px-4 py-3">
-              <label className="flex w-32 items-center gap-2.5">
-                <input type="checkbox" checked={rows[i].enabled} onChange={() => toggleDay(i)} className="h-4 w-4 accent-brand-yellow" />
-                <span className="text-sm font-semibold">{label}</span>
-              </label>
+              <span className="w-32 text-sm font-semibold">{label}</span>
               {rows[i].enabled ? (
-                <div className="flex items-center gap-2 text-sm">
-                  <input
-                    type="time"
-                    value={rows[i].start}
-                    onChange={(e) => updateTime(i, "start", e.target.value)}
-                    className="rounded-lg border border-black/15 px-2 py-1 text-sm"
-                  />
+                <div className="flex items-center gap-2 text-sm text-black/70">
+                  <span>{rows[i].start}</span>
                   <span className="text-black/40">–</span>
-                  <input
-                    type="time"
-                    value={rows[i].end}
-                    onChange={(e) => updateTime(i, "end", e.target.value)}
-                    className="rounded-lg border border-black/15 px-2 py-1 text-sm"
-                  />
+                  <span>{rows[i].end}</span>
                 </div>
               ) : (
                 <span className="text-sm text-black/30">Unavailable</span>
               )}
             </div>
           ))}
-        </div>
-        {saveError && <p className="mt-4 text-sm text-red-600">{saveError}</p>}
-        {saved && <p className="mt-4 text-sm text-emerald-600">Saved.</p>}
-        <div className="mt-5 flex justify-end">
-          <Button onClick={save} loading={saving}>
-            Save Working Hours
-          </Button>
         </div>
       </Card>
 

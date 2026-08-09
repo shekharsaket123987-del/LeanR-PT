@@ -3,17 +3,18 @@ import PageHeader from "@/components/shared/PageHeader";
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
 import AdminCoachDetailClient from "@/components/admin/AdminCoachDetailClient";
-import { getAdminCoachDetailAction, getCoachWeekCalendarAction } from "@/lib/actions/admin-coach.actions";
+import { getAdminCoachDetailAction, getCoachWeekCalendarAction, getCoachAvailabilityForAdminAction } from "@/lib/actions/admin-coach.actions";
 import { listAdminCoachOptionsAction } from "@/lib/actions/admin-clients.actions";
 import { getCoachPerformanceAction } from "@/lib/actions/admin-coach-performance.actions";
 import { isFailure } from "@/lib/actions/action-result";
 
 export default async function AdminCoachDetailPage({ params }: { params: { id: string } }) {
-  const [coachResult, coachOptionsResult, performanceResult, calendarResult] = await Promise.all([
+  const [coachResult, coachOptionsResult, performanceResult, calendarResult, availabilityResult] = await Promise.all([
     getAdminCoachDetailAction(params.id),
     listAdminCoachOptionsAction(),
     getCoachPerformanceAction(params.id),
     getCoachWeekCalendarAction(params.id),
+    getCoachAvailabilityForAdminAction(params.id),
   ]);
 
   if (isFailure(coachResult)) {
@@ -28,6 +29,7 @@ export default async function AdminCoachDetailPage({ params }: { params: { id: s
   const coaches = isFailure(coachOptionsResult) ? [] : coachOptionsResult.data;
   const performance = isFailure(performanceResult) ? null : performanceResult.data;
   const calendar = isFailure(calendarResult) ? [] : calendarResult.data;
+  const availability = isFailure(availabilityResult) ? [] : availabilityResult.data;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -36,7 +38,7 @@ export default async function AdminCoachDetailPage({ params }: { params: { id: s
         description={coach.specialization ?? ""}
         action={<Badge variant={coach.status === "active" ? "green" : coach.status === "on-leave" ? "outline-yellow" : "gray"}>{coach.status}</Badge>}
       />
-      <AdminCoachDetailClient coach={coach} coaches={coaches} performance={performance} calendar={calendar} />
+      <AdminCoachDetailClient coach={coach} coaches={coaches} performance={performance} calendar={calendar} availability={availability} />
     </div>
   );
 }

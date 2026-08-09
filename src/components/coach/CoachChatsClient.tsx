@@ -64,13 +64,18 @@ export default function CoachChatsClient({ conversations }: { conversations: Coa
                 <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full">
                   <Image src={c.client.photo} alt={c.client.name} fill className="object-cover" />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold">
                     Client {c.client.name}
                     {c.client.clientCode ? ` · ${c.client.clientCode}` : ""}
                   </p>
                   <p className="text-xs text-black/45">{c.status === "closed" ? "Closed" : "Active"}</p>
                 </div>
+                {c.unreadCount > 0 && (
+                  <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
+                    {c.unreadCount}
+                  </span>
+                )}
               </button>
             ))}
           </div>

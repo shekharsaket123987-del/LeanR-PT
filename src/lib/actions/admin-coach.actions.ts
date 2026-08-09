@@ -5,7 +5,7 @@ import { ActionResult, runAction } from "./action-result";
 import { CoachSlotPattern, createCoach, listCoaches, getCoach, updateCoach, updateCoachSkills, updateCoachStatus } from "@/lib/services/coaches.service";
 import { CoachCalendarSlot, getCoachWeekCalendar } from "@/lib/services/scheduling.service";
 import { listClients, listActiveClientIdsForCoach, reassignClientCoach } from "@/lib/services/clients.service";
-import { createOneDayLeave } from "@/lib/services/availability.service";
+import { createOneDayLeave, getCoachAvailability, setCoachAvailability, AvailabilityWindow } from "@/lib/services/availability.service";
 
 async function requireToken(): Promise<string> {
   const token = await getAccessToken();
@@ -199,6 +199,22 @@ export async function blockCoachSlotAction(coachId: string, date: string, reason
   return runAction(async () => {
     const token = await requireToken();
     await createOneDayLeave(token, coachId, date, reason);
+    return null;
+  });
+}
+
+export async function getCoachAvailabilityForAdminAction(coachId: string): Promise<ActionResult<AvailabilityWindow[]>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const windows = await getCoachAvailability(token, coachId);
+    return windows as unknown as AvailabilityWindow[];
+  });
+}
+
+export async function setCoachAvailabilityAction(coachId: string, windows: AvailabilityWindow[]): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    await setCoachAvailability(token, coachId, windows);
     return null;
   });
 }

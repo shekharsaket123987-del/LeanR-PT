@@ -65,11 +65,16 @@ export async function updateMyProfileAction(input: {
   goals: string[];
   equipment: string[];
   medicalNotes: string;
+  photoUrl?: string;
 }): Promise<ActionResult<null>> {
   return runAction(async () => {
     const session = await requireSession();
     await Promise.all([
-      updateMyProfile(session.token, { full_name: input.fullName, phone: input.phone }),
+      updateMyProfile(session.token, {
+        full_name: input.fullName,
+        phone: input.phone,
+        ...(input.photoUrl ? { photo_url: input.photoUrl } : {}),
+      }),
       updateMyClientProfile(session.token, {
         goals: input.goals,
         equipment: input.equipment,

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Mail, Phone, Target, Dumbbell, HeartPulse, KeyRound, Ruler, Weight, Scale } from "lucide-react";
+import { Mail, Phone, Target, Dumbbell, HeartPulse, KeyRound, Ruler, Weight, Scale, Camera } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
@@ -23,6 +23,10 @@ export default function ClientProfileClient({ profile }: { profile: ClientProfil
   const [goals, setGoals] = useState(profile.goals);
   const [equipment, setEquipment] = useState(profile.equipment);
   const [medicalNotes, setMedicalNotes] = useState(profile.medicalNotes ?? "");
+  const [photoUrl, setPhotoUrl] = useState(profile.photo);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const [pwOpen, setPwOpen] = useState(false);
   const [newPassword, setNewPassword] = useState("");
@@ -65,14 +69,44 @@ export default function ClientProfileClient({ profile }: { profile: ClientProfil
     setGoals(profile.goals);
     setEquipment(profile.equipment);
     setMedicalNotes(profile.medicalNotes ?? "");
+    setPhotoUrl(profile.photo);
+    setPhotoError("");
     setError("");
     setOpen(true);
+  }
+
+  async function uploadPhoto(file: File) {
+    setPhotoUploading(true);
+    setPhotoError("");
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("avatars").upload(path, file, { upsert: false });
+      if (uploadError) throw uploadError;
+      const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+      setPhotoUrl(pub.publicUrl);
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : "Failed to upload photo");
+    } finally {
+      setPhotoUploading(false);
+    }
   }
 
   async function save() {
     setBusy(true);
     setError("");
-    const result = await updateMyProfileAction({ fullName: name, phone, goals, equipment, medicalNotes });
+    const result = await updateMyProfileAction({
+      fullName: name,
+      phone,
+      goals,
+      equipment,
+      medicalNotes,
+      photoUrl: photoUrl !== profile.photo ? photoUrl : undefined,
+    });
     setBusy(false);
     if (isFailure(result)) {
       setError(result.error.message);
@@ -210,6 +244,32 @@ export default function ClientProfileClient({ profile }: { profile: ClientProfil
 
       <Modal open={open} onClose={() => setOpen(false)} title="Edit Profile">
         <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl">
+              <Image src={photoUrl} alt={name} fill className="object-cover" />
+            </div>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) uploadPhoto(file);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              loading={photoUploading}
+              onClick={() => photoInputRef.current?.click()}
+            >
+              {!photoUploading && <Camera className="h-3.5 w-3.5" />} Change Photo
+            </Button>
+          </div>
+          {photoError && <p className="text-xs text-red-600">{photoError}</p>}
           <div>
             <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Name</label>
             <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-black/15 p-2.5 text-sm" />

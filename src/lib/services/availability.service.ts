@@ -45,26 +45,21 @@ export interface AvailabilityWindow {
   is_active: boolean;
 }
 
-/** Replaces the coach's entire weekly template (matches the prototype's
- * "Availability" page, which edits the full week at once). */
-export async function setMyAvailability(accessToken: string, windows: AvailabilityWindow[]) {
+/** Admin-only: replaces a coach's entire weekly template (matches the
+ * prototype's "Availability" page, which edits the full week at once).
+ * Coaches lost direct write access to coach_availability in migration 0045 —
+ * only admin can set working hours now. */
+export async function setCoachAvailability(accessToken: string, coachId: string, windows: AvailabilityWindow[]) {
   const ctx = await getCallerContext(accessToken);
-  requireRole(ctx, ["coach"]);
+  requireRole(ctx, ["admin"]);
 
-  const { data: coach, error: coachError } = await ctx.client
-    .from("coach_profiles")
-    .select("id")
-    .eq("profile_id", ctx.userId)
-    .single();
-  if (coachError || !coach) throw coachError ?? new Error("Coach profile not found");
-
-  const { error: deleteError } = await ctx.client.from("coach_availability").delete().eq("coach_id", coach.id);
+  const { error: deleteError } = await supabaseAdmin.from("coach_availability").delete().eq("coach_id", coachId);
   if (deleteError) throw deleteError;
 
   if (windows.length === 0) return [];
-  const { data, error } = await ctx.client
+  const { data, error } = await supabaseAdmin
     .from("coach_availability")
-    .insert(windows.map((w) => ({ ...w, coach_id: coach.id })))
+    .insert(windows.map((w) => ({ ...w, coach_id: coachId })))
     .select();
   if (error) throw error;
   return data;

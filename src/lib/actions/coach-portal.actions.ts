@@ -12,7 +12,6 @@ import {
   getMyLeaveRequests,
   requestLeave,
   RequestLeaveInput,
-  setMyAvailability,
 } from "@/lib/services/availability.service";
 import { listEscalationsForCoach } from "@/lib/services/escalations.service";
 import { getMyCoachPerformance, CoachPerformance } from "@/lib/services/coachPerformance.service";
@@ -722,14 +721,6 @@ export async function getCoachAvailabilityAction(): Promise<ActionResult<{ windo
     const token = await requireToken();
     const [windows, leave] = await Promise.all([getMyAvailability(token), getMyLeaveRequests(token)]);
     return { windows: windows as unknown as AvailabilityWindow[], leave };
-  });
-}
-
-export async function saveAvailabilityAction(windows: AvailabilityWindow[]): Promise<ActionResult<null>> {
-  return runAction(async () => {
-    const token = await requireToken();
-    await setMyAvailability(token, windows);
-    return null;
   });
 }
 

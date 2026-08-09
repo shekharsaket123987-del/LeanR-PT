@@ -98,6 +98,7 @@ export default function PortalShell({
   children,
   hideBookSessionNav,
   showChatNav,
+  chatUnreadCount,
 }: {
   role: Role;
   identity?: { name: string; photo: string; sub: string };
@@ -111,6 +112,10 @@ export default function PortalShell({
    * item stays hidden until one has actually been opened. Coaches always see
    * theirs (no gating needed -- an empty inbox is a normal state for them). */
   showChatNav?: boolean;
+  /** Total unread messages across all of this user's conversations -- shown
+   * as a small badge on "My Chats." Only refreshes on navigation/server
+   * round-trips, not live. */
+  chatUnreadCount?: number;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -184,7 +189,14 @@ export default function PortalShell({
                     }`}
                   >
                     <Icon className={`h-4.5 w-4.5 ${active ? "text-brand-yellow" : ""}`} style={{ height: 18, width: 18 }} />
-                    {item.label}
+                    <span className="flex-1">{item.label}</span>
+                    {item.href === "/client/chats" || item.href === "/coach/chats" ? (
+                      chatUnreadCount ? (
+                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
+                          {chatUnreadCount}
+                        </span>
+                      ) : null
+                    ) : null}
                   </Link>
                 );
               })}

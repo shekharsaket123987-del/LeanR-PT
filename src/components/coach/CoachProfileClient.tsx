@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Mail, Phone, ShieldAlert, Award, Languages, Sparkles, Star, Hash, CalendarDays, Clock, Gauge, KeyRound, Plus } from "lucide-react";
+import { Mail, Phone, ShieldAlert, Award, Languages, Sparkles, Star, Hash, CalendarDays, Clock, Gauge, KeyRound, Plus, Camera } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
@@ -42,6 +42,9 @@ export default function CoachProfileClient({ profile }: { profile: CoachProfileV
   const [phone, setPhone] = useState(profile.phone ?? "");
   const [emergencyContact, setEmergencyContact] = useState(profile.emergencyContact ?? "");
   const [photoUrl, setPhotoUrl] = useState(profile.photo);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const [pwOpen, setPwOpen] = useState(false);
   const [newPassword, setNewPassword] = useState("");
@@ -54,8 +57,30 @@ export default function CoachProfileClient({ profile }: { profile: CoachProfileV
     setPhone(profile.phone ?? "");
     setEmergencyContact(profile.emergencyContact ?? "");
     setPhotoUrl(profile.photo);
+    setPhotoError("");
     setError("");
     setOpen(true);
+  }
+
+  async function uploadPhoto(file: File) {
+    setPhotoUploading(true);
+    setPhotoError("");
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("avatars").upload(path, file, { upsert: false });
+      if (uploadError) throw uploadError;
+      const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+      setPhotoUrl(pub.publicUrl);
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : "Failed to upload photo");
+    } finally {
+      setPhotoUploading(false);
+    }
   }
 
   async function save() {
@@ -257,8 +282,33 @@ export default function CoachProfileClient({ profile }: { profile: CoachProfileV
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Profile Picture URL</label>
-            <input value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} className="w-full rounded-xl border border-black/15 p-2.5 text-sm" />
+            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Profile Picture</label>
+            <div className="flex items-center gap-4">
+              <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl">
+                <Image src={photoUrl} alt={profile.name} fill className="object-cover" />
+              </div>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) uploadPhoto(file);
+                  e.target.value = "";
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                loading={photoUploading}
+                onClick={() => photoInputRef.current?.click()}
+              >
+                {!photoUploading && <Camera className="h-3.5 w-3.5" />} Change Photo
+              </Button>
+            </div>
+            {photoError && <p className="mt-1.5 text-xs text-red-600">{photoError}</p>}
           </div>
           {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex justify-end gap-3">

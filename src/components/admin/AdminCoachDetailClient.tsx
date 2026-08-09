@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Star, Ban, RefreshCcw, Users2, CalendarClock, Pencil } from "lucide-react";
+import { AvailabilityWindow } from "@/lib/services/availability.service";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
@@ -18,6 +19,7 @@ import {
   blockCoachSlotAction,
   updateCoachAction,
   updateCoachSkillsAction,
+  setCoachAvailabilityAction,
 } from "@/lib/actions/admin-coach.actions";
 import { AdminCoachOption } from "@/lib/actions/admin-coach-change.actions";
 import CoachPerformancePanel from "@/components/admin/CoachPerformancePanel";
@@ -26,16 +28,33 @@ import { CoachPerformance } from "@/lib/services/coachPerformance.service";
 import { CoachCalendarSlot } from "@/lib/services/scheduling.service";
 import { isFailure } from "@/lib/actions/action-result";
 
+const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+interface DayRow {
+  enabled: boolean;
+  start: string;
+  end: string;
+}
+
+function buildInitialRows(windows: AvailabilityWindow[]): DayRow[] {
+  return DAY_LABELS.map((_, day) => {
+    const w = windows.find((x) => x.day_of_week === day);
+    return w ? { enabled: w.is_active, start: w.start_time.slice(0, 5), end: w.end_time.slice(0, 5) } : { enabled: false, start: "06:00", end: "20:00" };
+  });
+}
+
 export default function AdminCoachDetailClient({
   coach,
   coaches,
   performance,
   calendar,
+  availability,
 }: {
   coach: AdminCoachDetailView;
   coaches: AdminCoachOption[];
   performance: CoachPerformance | null;
   calendar: CoachCalendarSlot[];
+  availability: AvailabilityWindow[];
 }) {
   const router = useRouter();
   const [disableOpen, setDisableOpen] = useState(false);
@@ -131,6 +150,36 @@ export default function AdminCoachDetailClient({
     router.refresh();
   }
 
+  const [availRows, setAvailRows] = useState<DayRow[]>(() => buildInitialRows(availability));
+  const [availSaving, setAvailSaving] = useState(false);
+  const [availError, setAvailError] = useState("");
+  const [availSaved, setAvailSaved] = useState(false);
+
+  function toggleAvailDay(i: number) {
+    setAvailRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, enabled: !r.enabled } : r)));
+    setAvailSaved(false);
+  }
+
+  function updateAvailTime(i: number, field: "start" | "end", value: string) {
+    setAvailRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
+    setAvailSaved(false);
+  }
+
+  async function saveAvailability() {
+    setAvailSaving(true);
+    setAvailError("");
+    const windows: AvailabilityWindow[] = availRows
+      .map((r, day) => ({ day_of_week: day, start_time: r.start, end_time: r.end, is_active: r.enabled }))
+      .filter((w) => w.is_active);
+    const result = await setCoachAvailabilityAction(coach.id, windows);
+    setAvailSaving(false);
+    if (isFailure(result)) {
+      setAvailError(result.error.message);
+      return;
+    }
+    setAvailSaved(true);
+  }
+
   async function confirmBlock() {
     if (!blockDate) return;
     setBusy(true);
@@ -221,6 +270,54 @@ export default function AdminCoachDetailClient({
               </div>
             ))}
             {coach.clients.length === 0 && <p className="p-4 text-sm text-black/40">No clients assigned.</p>}
+          </Card>
+        </div>
+
+        <div>
+          <h2 className="text-display mb-4 text-lg font-bold italic">Weekly Working Hours</h2>
+          <Card className="p-5">
+            <p className="mb-4 text-xs text-black/40">Only admin can set a coach's working hours — coaches see this read-only.</p>
+            <div className="space-y-2">
+              {DAY_LABELS.map((label, i) => (
+                <div key={label} className="flex flex-wrap items-center gap-4 rounded-xl border border-black/[0.06] px-4 py-3">
+                  <label className="flex w-32 items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      checked={availRows[i].enabled}
+                      onChange={() => toggleAvailDay(i)}
+                      className="h-4 w-4 accent-brand-yellow"
+                    />
+                    <span className="text-sm font-semibold">{label}</span>
+                  </label>
+                  {availRows[i].enabled ? (
+                    <div className="flex items-center gap-2 text-sm">
+                      <input
+                        type="time"
+                        value={availRows[i].start}
+                        onChange={(e) => updateAvailTime(i, "start", e.target.value)}
+                        className="rounded-lg border border-black/15 px-2 py-1 text-sm"
+                      />
+                      <span className="text-black/40">–</span>
+                      <input
+                        type="time"
+                        value={availRows[i].end}
+                        onChange={(e) => updateAvailTime(i, "end", e.target.value)}
+                        className="rounded-lg border border-black/15 px-2 py-1 text-sm"
+                      />
+                    </div>
+                  ) : (
+                    <span className="text-sm text-black/30">Unavailable</span>
+                  )}
+                </div>
+              ))}
+            </div>
+            {availError && <p className="mt-4 text-sm text-red-600">{availError}</p>}
+            {availSaved && <p className="mt-4 text-sm text-emerald-600">Saved.</p>}
+            <div className="mt-5 flex justify-end">
+              <Button onClick={saveAvailability} loading={availSaving}>
+                Save Working Hours
+              </Button>
+            </div>
           </Card>
         </div>
 

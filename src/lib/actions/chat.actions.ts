@@ -8,10 +8,13 @@ import {
   CoachConversationView,
   MessageView,
   clientHasAnyConversation,
+  getMyTotalUnreadAsClient,
+  getMyTotalUnreadAsCoach,
   listAllConversationsForClient,
   listMessages,
   listMyConversationsAsClient,
   listMyConversationsAsCoach,
+  markConversationRead,
   sendMessage,
 } from "@/lib/services/chat.service";
 
@@ -51,10 +54,32 @@ export async function getConversationMessagesAction(conversationId: string): Pro
   });
 }
 
-export async function sendChatMessageAction(conversationId: string, body: string): Promise<ActionResult<MessageView>> {
+export async function sendChatMessageAction(conversationId: string, body: string, attachmentUrl?: string): Promise<ActionResult<MessageView>> {
   return runAction(async () => {
     const token = await requireToken();
-    return sendMessage(token, conversationId, body);
+    return sendMessage(token, conversationId, body, attachmentUrl);
+  });
+}
+
+export async function markConversationReadAction(conversationId: string): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    await markConversationRead(token, conversationId);
+    return null;
+  });
+}
+
+export async function getMyUnreadChatCountAsClientAction(): Promise<ActionResult<number>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    return getMyTotalUnreadAsClient(token);
+  });
+}
+
+export async function getMyUnreadChatCountAsCoachAction(): Promise<ActionResult<number>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    return getMyTotalUnreadAsCoach(token);
   });
 }
 
