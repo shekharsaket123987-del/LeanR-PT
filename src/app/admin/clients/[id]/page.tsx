@@ -6,15 +6,17 @@ import AdminClientDetailClient from "@/components/admin/AdminClientDetailClient"
 import { getAdminClientDetailAction, listAdminCoachOptionsAction } from "@/lib/actions/admin-clients.actions";
 import { getClientTimelineAction } from "@/lib/actions/admin-timeline.actions";
 import { listEscalationsForClientAction } from "@/lib/actions/admin-escalations.actions";
+import { getClientChatsForAdminAction } from "@/lib/actions/chat.actions";
 import { isFailure } from "@/lib/actions/action-result";
 import { formatDate } from "@/lib/utils";
 
 export default async function AdminClientDetailPage({ params }: { params: { id: string } }) {
-  const [clientResult, coachesResult, timelineResult, escalationsResult] = await Promise.all([
+  const [clientResult, coachesResult, timelineResult, escalationsResult, chatsResult] = await Promise.all([
     getAdminClientDetailAction(params.id),
     listAdminCoachOptionsAction(),
     getClientTimelineAction(params.id),
     listEscalationsForClientAction(params.id),
+    getClientChatsForAdminAction(params.id),
   ]);
 
   if (isFailure(clientResult)) {
@@ -29,6 +31,7 @@ export default async function AdminClientDetailPage({ params }: { params: { id: 
   const coaches = isFailure(coachesResult) ? [] : coachesResult.data;
   const timelineEvents = isFailure(timelineResult) ? [] : timelineResult.data;
   const escalations = isFailure(escalationsResult) ? [] : escalationsResult.data;
+  const conversations = isFailure(chatsResult) ? [] : chatsResult.data;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -46,7 +49,13 @@ export default async function AdminClientDetailPage({ params }: { params: { id: 
           </div>
         }
       />
-      <AdminClientDetailClient client={client} coaches={coaches} timelineEvents={timelineEvents} escalations={escalations} />
+      <AdminClientDetailClient
+        client={client}
+        coaches={coaches}
+        timelineEvents={timelineEvents}
+        escalations={escalations}
+        conversations={conversations}
+      />
     </div>
   );
 }

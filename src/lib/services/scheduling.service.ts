@@ -1,6 +1,7 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { logTimelineEvent } from "./timeline.service";
+import { ensureConversationForCoachAssignment } from "./chat.service";
 import { DAY_GROUPS, PAIRS_MWF, PAIRS_TTS } from "@/lib/constants/scheduling";
 
 export interface OpenSlot {
@@ -487,6 +488,21 @@ export async function getMyActiveRecurringSlots(accessToken: string) {
   return data;
 }
 
+/** IST calendar dates the client already has another `upcoming` booking on
+ * -- backs the reschedule flow's "no 2 sessions in a day" rule.
+ * excludeBookingId should be the booking currently being rescheduled, so
+ * moving it to a different hour on the same day it's already on isn't
+ * mistaken for a conflict with itself. */
+export async function getClientBusyDates(accessToken: string, clientId: string, excludeBookingId?: string): Promise<Set<string>> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["client"]);
+  let query = ctx.client.from("bookings").select("id, scheduled_start").eq("client_id", clientId).eq("status", "upcoming");
+  if (excludeBookingId) query = query.neq("id", excludeBookingId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return new Set((data ?? []).map((b) => istDateString(b.scheduled_start)));
+}
+
 export async function holdSlot(accessToken: string, input: { clientId: string; coachId: string; slotStart: string; durationMinutes: number }) {
   const ctx = await getCallerContext(accessToken);
   const { data, error } = await ctx.client.rpc("create_temporary_booking", {
@@ -654,6 +670,88 @@ export async function findAvailableCoach(
     }
   }
   return null;
+}
+
+/** Is this ONE coach free for this ONE instant? Thin wrapper around the same
+ * two conflict-safe RPCs findSubstituteCoachCandidates checks per-candidate,
+ * used to test the client's own coach before ever looking for a substitute. */
+export async function isSlotFreeForCoach(accessToken: string, coachId: string, slotStart: string, durationMinutes: number): Promise<boolean> {
+  const ctx = await getCallerContext(accessToken);
+  const [{ data: withinHours, error: hoursError }, { data: hasConflict, error: conflictError }] = await Promise.all([
+    ctx.client.rpc("is_slot_within_working_hours", { p_coach_id: coachId, p_slot_start: slotStart, p_duration_minutes: durationMinutes }),
+    ctx.client.rpc("has_scheduling_conflict", { p_coach_id: coachId, p_slot_start: slotStart, p_duration_minutes: durationMinutes }),
+  ]);
+  if (hoursError) throw hoursError;
+  if (conflictError) throw conflictError;
+  return Boolean(withinHours) && !hasConflict;
+}
+
+export interface SubstituteCoachCandidate {
+  coachId: string;
+  name: string;
+  utilizationPct: number;
+}
+
+/** One-off reschedule fallback: the client's own coach isn't free at their
+ * desired new time, so this finds who else is, for that SINGLE instant only
+ * (unlike findAvailableCoach, which needs a coach free for a whole weekly
+ * pattern). Allowed for the `client` role -- unlike admin-only
+ * findShadowCoachCandidates -- since this is a self-serve one-time swap, not
+ * a leave-coverage assignment. Reuses the same conflict-safe RPCs
+ * (is_slot_within_working_hours / has_scheduling_conflict) the real booking
+ * engine depends on, ranked by utilization like findAvailableCoach, capped
+ * at 3 so the client isn't shown an unwieldy list for a single session. */
+export async function findSubstituteCoachCandidates(
+  accessToken: string,
+  input: { excludeCoachId: string; slotStart: string; durationMinutes: number }
+): Promise<SubstituteCoachCandidate[]> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["client"]);
+
+  const { data: coaches, error: coachesError } = await ctx.client
+    .from("coach_profiles")
+    .select("id, profile:profiles(full_name)")
+    .eq("status", "active")
+    .neq("id", input.excludeCoachId);
+  if (coachesError) throw coachesError;
+  if (!coaches || coaches.length === 0) return [];
+
+  const { data: util, error: utilError } = await ctx.client
+    .from("coach_utilization_view")
+    .select("coach_id, utilization_pct")
+    .in(
+      "coach_id",
+      coaches.map((c: any) => c.id)
+    );
+  if (utilError) throw utilError;
+  const utilByCoach = new Map((util ?? []).map((u) => [u.coach_id, u.utilization_pct]));
+
+  const free = await Promise.all(
+    (coaches as any[]).map(async (coach) => {
+      const [{ data: withinHours, error: hoursError }, { data: hasConflict, error: conflictError }] = await Promise.all([
+        ctx.client.rpc("is_slot_within_working_hours", {
+          p_coach_id: coach.id,
+          p_slot_start: input.slotStart,
+          p_duration_minutes: input.durationMinutes,
+        }),
+        ctx.client.rpc("has_scheduling_conflict", {
+          p_coach_id: coach.id,
+          p_slot_start: input.slotStart,
+          p_duration_minutes: input.durationMinutes,
+        }),
+      ]);
+      if (hoursError) throw hoursError;
+      if (conflictError) throw conflictError;
+      const isFree = Boolean(withinHours) && !hasConflict;
+      const utilizationPct = utilByCoach.get(coach.id) ?? 0;
+      return isFree ? { coachId: coach.id, name: coach.profile?.full_name ?? "Coach", utilizationPct } : null;
+    })
+  );
+
+  return free
+    .filter((c): c is SubstituteCoachCandidate => c !== null)
+    .sort((a, b) => a.utilizationPct - b.utilizationPct)
+    .slice(0, 3);
 }
 
 /** Walks: requested pattern @ requested time -> requested pattern @ any grid
@@ -1055,17 +1153,21 @@ export async function listShadowCoverageGaps(accessToken: string): Promise<Shado
   return [...gaps.values()].sort((a, b) => new Date(a.scheduledStart).getTime() - new Date(b.scheduledStart).getTime());
 }
 
-/** Client-initiated "change my schedule, same coach" -- unlike
- * createRecurringSlots() (which only ADDS slots, used for first-time setup),
- * this replaces the client's current active pattern: deactivates the old
- * recurring_slots rows, cancels their still-upcoming generated bookings
- * (freeing the coach's calendar), then matches + creates the new pattern
- * with the same coach. No reschedule-cutoff applies here since this is the
- * client's own choice, not an admin/coach action on an existing booking. */
+/** Client-initiated "change my schedule" -- unlike createRecurringSlots()
+ * (which only ADDS slots, used for first-time setup), this replaces the
+ * client's current active pattern: deactivates the old recurring_slots
+ * rows, cancels their still-upcoming generated bookings (freeing the
+ * coach's calendar), then creates the new pattern with the given coach.
+ * The coach is resolved by the caller (schedule.actions.ts::matchScheduleAction,
+ * per the client's same/new/no-preference trainer choice) rather than
+ * re-matched here, so the previewed "Check Availability" result and what
+ * actually gets committed can never disagree. No reschedule-cutoff applies
+ * here since this is the client's own choice, not an admin/coach action on
+ * an existing booking. */
 export async function changeMyRecurringSchedule(
   accessToken: string,
-  input: { pattern: PatternKey; preferredTime: string; customDays?: number[]; durationMinutes?: number }
-): Promise<PatternMatchResult | null> {
+  input: { coachId: string; days: number[]; timeOfDay: string; durationMinutes?: number }
+): Promise<{ createdSlotIds: string[] }> {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["client"]);
 
@@ -1074,15 +1176,11 @@ export async function changeMyRecurringSchedule(
 
   const { data: activeSlots, error: slotsError } = await ctx.client
     .from("recurring_slots")
-    .select("id, coach_id")
+    .select("id")
     .eq("client_id", client.id)
     .eq("status", "active");
   if (slotsError) throw slotsError;
   if (!activeSlots || activeSlots.length === 0) throw new Error("No active recurring schedule to change -- set one up first.");
-  const coachId = activeSlots[0].coach_id;
-
-  const match = await matchRecurringPattern(accessToken, { coachId, pattern: input.pattern, preferredTime: input.preferredTime, customDays: input.customDays, durationMinutes: input.durationMinutes });
-  if (!match) return null;
 
   const slotIds = activeSlots.map((s) => s.id);
   const { error: deactivateError } = await ctx.client.from("recurring_slots").update({ status: "cancelled" }).in("id", slotIds);
@@ -1095,14 +1193,19 @@ export async function changeMyRecurringSchedule(
     .eq("status", "upcoming");
   if (cancelBookingsError) throw cancelBookingsError;
 
-  await createRecurringSlots(accessToken, { coachId, days: match.days, timeOfDay: match.timeOfDay, durationMinutes: input.durationMinutes });
+  const createdSlotIds = await createRecurringSlots(accessToken, {
+    coachId: input.coachId,
+    days: input.days,
+    timeOfDay: input.timeOfDay,
+    durationMinutes: input.durationMinutes,
+  });
 
   await logTimelineEvent(client.id, "session_rescheduled", "Recurring schedule changed", {
-    description: `${match.days.join(",")} at ${match.timeOfDay}`,
+    description: `${input.days.join(",")} at ${input.timeOfDay}`,
     actorId: ctx.userId,
   });
 
-  return match;
+  return { createdSlotIds };
 }
 
 /** Creates one recurring_slots row per day in the matched pattern, and
@@ -1155,6 +1258,12 @@ export async function createRecurringSlots(
     actorId: ctx.userId,
     metadata: { coachId: input.coachId, days: input.days, timeOfDay: input.timeOfDay },
   });
+
+  // Covers first-time setup, "change my schedule" (same/new/no-preference),
+  // and coachChange.service.ts::completeCoachChange -- all three funnel
+  // through this one function, so this is the single choke point for
+  // "a client's coach just became input.coachId."
+  await ensureConversationForCoachAssignment(client.id, input.coachId);
 
   return createdIds;
 }

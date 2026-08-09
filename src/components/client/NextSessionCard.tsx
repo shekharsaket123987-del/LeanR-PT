@@ -19,9 +19,9 @@ export default function NextSessionCard({ session, measurementsStale }: { sessio
       <Card className="flex flex-col items-center justify-center p-10 text-center">
         <CalendarClock className="mb-3 h-9 w-9 text-black/20" />
         <p className="text-display text-lg font-bold italic">No upcoming sessions</p>
-        <p className="mt-1 text-sm text-black/45">Book your next session to keep your streak going.</p>
-        <Button href="/client/book" className="mt-5">
-          Book a Session
+        <p className="mt-1 text-sm text-black/45">Set up your recurring schedule to keep your streak going.</p>
+        <Button href="/client/schedule" className="mt-5">
+          Go to My Schedule
         </Button>
       </Card>
     );

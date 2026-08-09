@@ -34,10 +34,12 @@ import {
 } from "@/lib/actions/admin-clients.actions";
 import ShadowCoachAssignModal from "@/components/admin/ShadowCoachAssignModal";
 import ClientTimeline from "@/components/admin/ClientTimeline";
+import AdminClientChats from "@/components/admin/AdminClientChats";
 import MeasurementChart from "@/components/shared/MeasurementChart";
 import { AdminEscalationView, logEscalationAction, resolveEscalationAction } from "@/lib/actions/admin-escalations.actions";
 import { logMeasurementAction } from "@/lib/actions/admin-progress.actions";
 import { TimelineEventRow } from "@/lib/services/timeline.service";
+import { AdminConversationView } from "@/lib/services/chat.service";
 import { isFailure } from "@/lib/actions/action-result";
 import { formatDate } from "@/lib/utils";
 
@@ -46,11 +48,13 @@ export default function AdminClientDetailClient({
   coaches,
   timelineEvents,
   escalations,
+  conversations,
 }: {
   client: AdminClientDetailView;
   coaches: AdminCoachOption[];
   timelineEvents: TimelineEventRow[];
   escalations: AdminEscalationView[];
+  conversations: AdminConversationView[];
 }) {
   const router = useRouter();
   const [modal, setModal] = useState<null | "adjust" | "transfer" | "refund" | "shadow" | "escalation" | "measurement" | "pauseDays">(null);
@@ -338,6 +342,11 @@ export default function AdminClientDetailClient({
         <h2 className="text-display mb-4 text-lg font-bold italic">Client Journey Timeline</h2>
         <div className="mb-8">
           <ClientTimeline events={timelineEvents} measurementsStale={client.measurementsStale} lastMeasurementAt={client.lastMeasurementAt} />
+        </div>
+
+        <h2 className="text-display mb-4 text-lg font-bold italic">Client Chats</h2>
+        <div className="mb-8">
+          <AdminClientChats conversations={conversations} />
         </div>
 
         {client.progressHistory.length > 0 && (

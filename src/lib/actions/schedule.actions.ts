@@ -64,17 +64,44 @@ export interface ScheduleMatchResult extends PatternMatchResult {
   newCoach?: { id: string; name: string };
 }
 
+/** "same": stick with the client's current coach (its own alt-time/pair
+ * fallback ladder). "new": require a DIFFERENT coach, exact pattern/time
+ * only (mirrors coachChange.service.ts::findCoachChangeOptions's use of the
+ * same excludeCoachId knob). "no_preference": try the current coach first
+ * (maximizes continuity), then widen to the whole active roster if that
+ * comes up empty. Irrelevant/ignored for first-time setup (no current coach
+ * to prefer). */
+export type CoachPreference = "same" | "new" | "no_preference";
+
 export async function matchScheduleAction(input: {
   pattern: PatternKey;
   preferredTime: string;
   customDays?: number[];
+  coachPreference?: CoachPreference;
 }): Promise<ActionResult<ScheduleMatchResult | null>> {
   return runAction(async () => {
     const token = await requireToken();
     const coachId = await getMyCurrentCoachId(token);
 
     if (coachId) {
-      return matchRecurringPattern(token, { coachId, ...input });
+      const preference = input.coachPreference ?? "same";
+
+      if (preference === "new") {
+        const match = await findAvailableCoach(token, { ...input, excludeCoachId: coachId });
+        if (!match) return null;
+        const coach: any = await getCoachPublicInfo(match.coachId);
+        return { days: match.days, timeOfDay: match.timeOfDay, patternUsed: input.pattern, exact: true, newCoach: { id: match.coachId, name: coach.profile?.full_name ?? "Coach" } };
+      }
+
+      const sameCoachMatch = await matchRecurringPattern(token, { coachId, ...input });
+      if (sameCoachMatch || preference === "same") return sameCoachMatch;
+
+      // no_preference and the current coach has nothing free: widen to the
+      // whole active roster rather than reporting "no match" outright.
+      const anyMatch = await findAvailableCoach(token, input);
+      if (!anyMatch) return null;
+      const coach: any = await getCoachPublicInfo(anyMatch.coachId);
+      return { days: anyMatch.days, timeOfDay: anyMatch.timeOfDay, patternUsed: input.pattern, exact: true, newCoach: { id: anyMatch.coachId, name: coach.profile?.full_name ?? "Coach" } };
     }
 
     // First-time assignment: no coach yet, so search the whole active roster.
@@ -102,13 +129,18 @@ export async function confirmScheduleAction(input: { days: number[]; timeOfDay: 
 }
 
 /** Client already has a coach + active pattern and wants a different
- * day/time with the SAME coach -- unlike confirmScheduleAction (first-time
- * setup, only adds slots), this replaces the existing pattern. */
-export async function changeScheduleAction(input: { days: number[]; timeOfDay: string; pattern?: PatternKey }): Promise<ActionResult<PatternMatchResult | null>> {
+ * day/time (and possibly a different coach, per matchScheduleAction's
+ * coachPreference) -- unlike confirmScheduleAction (first-time setup, only
+ * adds slots), this replaces the existing pattern. coachId is the coach
+ * already resolved by the preceding matchScheduleAction call; falls back to
+ * the client's current coach if omitted (the "Same Trainer" case never
+ * bothers passing one explicitly). */
+export async function changeScheduleAction(input: { days: number[]; timeOfDay: string; coachId?: string }): Promise<ActionResult<{ createdSlotIds: string[] }>> {
   return runAction(async () => {
     const token = await requireToken();
-    const pattern: PatternKey = input.pattern ?? "custom";
-    return changeMyRecurringSchedule(token, { pattern, preferredTime: input.timeOfDay, customDays: input.days });
+    const coachId = input.coachId ?? (await getMyCurrentCoachId(token));
+    if (!coachId) throw new Error("No coach is assigned to your account yet — contact support to get started.");
+    return changeMyRecurringSchedule(token, { coachId, days: input.days, timeOfDay: input.timeOfDay });
   });
 }
 

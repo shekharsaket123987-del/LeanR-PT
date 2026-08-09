@@ -1,6 +1,6 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
-import { holdSlot, confirmHold } from "./scheduling.service";
+import { holdSlot, confirmHold, getClientBusyDates, istDateString } from "./scheduling.service";
 import { logTimelineEvent, listClientTimeline } from "./timeline.service";
 import { createFromTemplate, notifyAdmins } from "./notifications.service";
 import { createZoomMeeting, deleteZoomMeeting } from "./zoom.service";
@@ -21,6 +21,12 @@ export function endOfWeekUTC(d: Date): Date {
 }
 
 export const MAX_RESCHEDULES_PER_WEEK = 2;
+
+/** How far into the future a client can pick a reschedule date -- deliberately
+ * a rolling window rather than "the rest of this calendar week" (the old
+ * rule), so a client can see and use their coach's actual full availability
+ * instead of whatever happens to be left before Sunday. */
+export const RESCHEDULE_WINDOW_DAYS = 30;
 
 /** How many times this client has already rescheduled a session during the
  * current calendar week (Monday-start) -- shared by rescheduleBooking()'s
@@ -348,25 +354,36 @@ export async function cancelBooking(accessToken: string, bookingId: string, reas
   }
 }
 
-export async function rescheduleBooking(accessToken: string, bookingId: string, newStart: string, newDurationMinutes?: number) {
+/** newCoachId, when given, moves this ONE booking to a substitute coach --
+ * used when the client's desired new time isn't free with their own coach.
+ * recurring_slot_id (and the coach it points at) is untouched, so future
+ * auto-generated occurrences keep going to the original coach with no
+ * separate reversion step needed (see migration 0041). */
+export async function rescheduleBooking(accessToken: string, bookingId: string, newStart: string, newDurationMinutes?: number, newCoachId?: string) {
   const ctx = await getCallerContext(accessToken);
   const enforceCutoff = ctx.role !== "admin";
   const booking = await getBooking(accessToken, bookingId);
 
-  // Weekly-limit + same-week checks are client-only business rules (Admin
-  // overrides everything, per policy) -- kept in the app layer rather than
-  // the RPC, same precedent as the once-per-week progress-log rule.
+  // Forward-window + weekly-limit + no-double-booking-per-day checks are
+  // client-only business rules (Admin overrides everything, per policy) --
+  // kept in the app layer rather than the RPC, same precedent as the
+  // once-per-week progress-log rule.
   if (ctx.role === "client") {
     const now = new Date();
-    const weekEnd = endOfWeekUTC(now);
+    const windowEnd = new Date(now.getTime() + RESCHEDULE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
     const newStartDate = new Date(newStart);
-    if (newStartDate < now || newStartDate >= weekEnd) {
-      throw new Error("The new session time must fall within the remainder of this calendar week.");
+    if (newStartDate < now || newStartDate >= windowEnd) {
+      throw new Error(`The new session time must fall within the next ${RESCHEDULE_WINDOW_DAYS} days.`);
     }
 
     const reschedulesThisWeek = await countReschedulesThisWeek(accessToken, (booking as any).client_id);
     if (reschedulesThisWeek >= MAX_RESCHEDULES_PER_WEEK) {
       throw new Error("You have already used your maximum reschedule limit for this week.");
+    }
+
+    const busyDates = await getClientBusyDates(accessToken, (booking as any).client_id, bookingId);
+    if (busyDates.has(istDateString(newStart))) {
+      throw new Error("You already have another session booked on that day.");
     }
   }
 
@@ -375,6 +392,7 @@ export async function rescheduleBooking(accessToken: string, bookingId: string, 
     p_new_start: newStart,
     p_new_duration_minutes: newDurationMinutes ?? null,
     p_enforce_cutoff: enforceCutoff,
+    p_new_coach_id: newCoachId ?? null,
   });
   if (error) throw error;
 
@@ -389,6 +407,9 @@ export async function rescheduleBooking(accessToken: string, bookingId: string, 
   });
 
   const clientName = (booking as any).client?.profile?.full_name ?? "Client";
+  // Notifications go to whichever coach the session actually ends up with --
+  // the substitute, when one was assigned, not the original.
+  const targetCoachId = newCoachId ?? (booking as any).coach_id;
 
   // Only notify the coach when Admin is the one moving the session -- a
   // client rescheduling their own booking doesn't need a "schedule changed
@@ -397,7 +418,7 @@ export async function rescheduleBooking(accessToken: string, bookingId: string, 
     const { data: coach } = await supabaseAdmin
       .from("coach_profiles")
       .select("profile_id")
-      .eq("id", (booking as any).coach_id)
+      .eq("id", targetCoachId)
       .maybeSingle();
     if (coach) {
       await createFromTemplate("admin_changed_schedule", coach.profile_id, {
@@ -412,7 +433,7 @@ export async function rescheduleBooking(accessToken: string, bookingId: string, 
     const { data: coach } = await supabaseAdmin
       .from("coach_profiles")
       .select("profile_id")
-      .eq("id", (booking as any).coach_id)
+      .eq("id", targetCoachId)
       .maybeSingle();
     const oldTime = new Date((booking as any).scheduled_start).toLocaleString();
     const newTime = new Date(newStart).toLocaleString();

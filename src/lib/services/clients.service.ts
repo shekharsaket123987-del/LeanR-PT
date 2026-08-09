@@ -2,6 +2,7 @@ import { getCallerContext, requireRole } from "./_auth";
 import { logTimelineEvent } from "./timeline.service";
 import { createFromTemplate } from "./notifications.service";
 import { getLatestMeasurementDatesForClients } from "./progressLogs.service";
+import { ensureConversationForCoachAssignment } from "./chat.service";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 
 /** Admin roster view — merges each client's active subscription (package
@@ -307,6 +308,7 @@ export async function reassignClientCoach(
   if (bookingsError) throw bookingsError;
 
   await logTimelineEvent(clientId, "coach_changed", "Coach changed", { actorId: ctx.userId, metadata: { fromCoachId, toCoachId } });
+  await ensureConversationForCoachAssignment(clientId, toCoachId);
 
   const [{ data: client }, { data: fromCoach }, { data: toCoach }] = await Promise.all([
     supabaseAdmin.from("client_profiles").select("profile:profiles(full_name)").eq("id", clientId).maybeSingle(),

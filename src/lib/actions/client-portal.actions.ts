@@ -4,7 +4,16 @@ import { getAccessToken } from "@/lib/supabase/server-client";
 import { ActionResult, fail, ok, runAction } from "./action-result";
 import { getMyClientProfile, getMyCurrentCoachId } from "@/lib/services/clients.service";
 import { getCoach } from "@/lib/services/coaches.service";
-import { getOpenSlots } from "@/lib/services/scheduling.service";
+import {
+  findSubstituteCoachCandidates,
+  getBookingWindow,
+  getClientBusyDates,
+  getOpenSlots,
+  isSlotFreeForCoach,
+  istDateString,
+  istWallClockToInstant,
+  SubstituteCoachCandidate,
+} from "@/lib/services/scheduling.service";
 import { getSubscriptionsForClient, getPauseDaysStatus } from "@/lib/services/subscriptions.service";
 import { listMySales } from "@/lib/services/sales.service";
 import { getAllSettings } from "@/lib/services/settings.service";
@@ -13,12 +22,12 @@ import {
   cancelBooking,
   countReschedulesThisWeek,
   createBooking,
-  endOfWeekUTC,
   ensureZoomMeetingForBooking,
   getBooking,
   listMyBookingsAsClient,
   listMyWorkoutNotes,
   MAX_RESCHEDULES_PER_WEEK,
+  RESCHEDULE_WINDOW_DAYS,
   rateBooking,
   rescheduleBooking,
 } from "@/lib/services/bookings.service";
@@ -301,6 +310,10 @@ export interface RescheduleOptions {
   reschedulesUsedThisWeek: number;
   reschedulesRemaining: number;
   cutoffHours: number;
+  /** Booking-window hours, so the "specific date & time" input only ever
+   * offers the whole-hour times the platform actually schedules on. */
+  startHour: number;
+  endHour: number;
 }
 
 export async function getRescheduleOptionsAction(bookingId: string): Promise<ActionResult<RescheduleOptions>> {
@@ -328,14 +341,19 @@ export async function getRescheduleOptionsAction(bookingId: string): Promise<Act
     if (!coach) throw new Error("Coach not found");
 
     const now = new Date();
-    const weekEnd = endOfWeekUTC(now);
+    const windowEnd = new Date(now.getTime() + RESCHEDULE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
-    const rawSlots = await getOpenSlots(token, coach.id, fmt(now), fmt(weekEnd), booking.duration_minutes);
+    const [rawSlots, busyDates, { startHour, endHour }] = await Promise.all([
+      getOpenSlots(token, coach.id, fmt(now), fmt(windowEnd), booking.duration_minutes),
+      getClientBusyDates(token, client.id, bookingId),
+      getBookingWindow(token),
+    ]);
     const nowMs = now.getTime();
-    const weekEndMs = weekEnd.getTime();
+    const windowEndMs = windowEnd.getTime();
     const slots = rawSlots.filter((s) => {
       const startMs = new Date(s.start).getTime();
-      return startMs > nowMs && startMs < weekEndMs;
+      if (startMs <= nowMs || startMs >= windowEndMs) return false;
+      return !busyDates.has(istDateString(s.start));
     });
 
     return {
@@ -345,6 +363,8 @@ export async function getRescheduleOptionsAction(bookingId: string): Promise<Act
       reschedulesUsedThisWeek: usedThisWeek,
       reschedulesRemaining: remaining,
       cutoffHours,
+      startHour,
+      endHour,
     };
   });
 }
@@ -353,6 +373,63 @@ export async function rescheduleSessionAction(bookingId: string, newStart: strin
   return runAction(async () => {
     const token = await requireToken();
     await rescheduleBooking(token, bookingId, newStart);
+    return null;
+  });
+}
+
+export interface RescheduleTimeCheck {
+  /** Resolved ISO instant for the requested IST date+time -- handed back so
+   * the client only ever sends the exact instant this check ran against to
+   * rescheduleSessionAction/rescheduleSessionToSubstituteAction, rather than
+   * re-deriving it (and risking drift) from the raw date/time inputs twice. */
+  desiredStart: string;
+  available: boolean;
+  /** Populated only when `available` is false -- other coaches free at this
+   * exact instant, so the client can assign one just for this one session. */
+  candidates: SubstituteCoachCandidate[];
+}
+
+/** Backs the RescheduleModal's "prefer a specific date & time?" input --
+ * used when the client wants a slot that isn't already in the pre-computed
+ * open-slots grid (e.g. it's not free with their own coach). desiredDate/
+ * desiredTime are IST wall-clock ("YYYY-MM-DD"/"HH:MM"), same convention as
+ * every other booking-time input in the app. */
+export async function checkRescheduleTimeAction(bookingId: string, desiredDate: string, desiredTime: string): Promise<ActionResult<RescheduleTimeCheck>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const client = await getMyClientProfile(token);
+    const booking: any = await getBooking(token, bookingId);
+    if (booking.client?.id !== client.id) throw new Error("Not your session");
+    if (booking.status !== "upcoming") throw new Error("Only upcoming sessions can be rescheduled");
+
+    const desiredStart = istWallClockToInstant(desiredDate, desiredTime).toISOString();
+    if (new Date(desiredStart).getTime() <= Date.now()) {
+      throw new Error("Pick a time in the future.");
+    }
+    const busyDates = await getClientBusyDates(token, client.id, bookingId);
+    if (busyDates.has(istDateString(desiredStart))) {
+      throw new Error("You already have another session booked on that day.");
+    }
+
+    const freeWithOwnCoach = await isSlotFreeForCoach(token, booking.coach_id, desiredStart, booking.duration_minutes);
+    if (freeWithOwnCoach) return { desiredStart, available: true, candidates: [] };
+
+    const candidates = await findSubstituteCoachCandidates(token, {
+      excludeCoachId: booking.coach_id,
+      slotStart: desiredStart,
+      durationMinutes: booking.duration_minutes,
+    });
+    return { desiredStart, available: false, candidates };
+  });
+}
+
+/** Commits the one-off substitute-coach fallback from checkRescheduleTimeAction
+ * -- moves just this booking, leaving the client's recurring pattern (and
+ * therefore every future occurrence) pointed at their original coach. */
+export async function rescheduleSessionToSubstituteAction(bookingId: string, newStart: string, substituteCoachId: string): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    await rescheduleBooking(token, bookingId, newStart, undefined, substituteCoachId);
     return null;
   });
 }

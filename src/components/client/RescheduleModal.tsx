@@ -1,13 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarDays, Loader2 } from "lucide-react";
+import { CalendarDays, Loader2, Users } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
 import { formatDate, formatTime } from "@/lib/utils";
-import { RescheduleOptions, getRescheduleOptionsAction, rescheduleSessionAction } from "@/lib/actions/client-portal.actions";
+import {
+  RescheduleOptions,
+  RescheduleTimeCheck,
+  checkRescheduleTimeAction,
+  getRescheduleOptionsAction,
+  rescheduleSessionAction,
+  rescheduleSessionToSubstituteAction,
+} from "@/lib/actions/client-portal.actions";
 import { isFailure } from "@/lib/actions/action-result";
+
+function formatHour(h: number) {
+  const period = h >= 12 ? "PM" : "AM";
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return `${hour12}:00 ${period}`;
+}
+
+function todayDateString() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export default function RescheduleModal({
   open,
@@ -27,6 +44,13 @@ export default function RescheduleModal({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
+  const [desiredDate, setDesiredDate] = useState("");
+  const [desiredTime, setDesiredTime] = useState("");
+  const [checkingDesired, setCheckingDesired] = useState(false);
+  const [desiredError, setDesiredError] = useState("");
+  const [desiredResult, setDesiredResult] = useState<RescheduleTimeCheck | null>(null);
+  const [assigningCoachId, setAssigningCoachId] = useState<string | null>(null);
+
   useEffect(() => {
     if (!open || !bookingId) return;
     setLoading(true);
@@ -34,6 +58,10 @@ export default function RescheduleModal({
     setOptions(null);
     setSelectedSlot(null);
     setSubmitError("");
+    setDesiredDate("");
+    setDesiredTime("");
+    setDesiredError("");
+    setDesiredResult(null);
     getRescheduleOptionsAction(bookingId).then((result) => {
       setLoading(false);
       if (isFailure(result)) {
@@ -41,6 +69,7 @@ export default function RescheduleModal({
         return;
       }
       setOptions(result.data);
+      setDesiredTime(`${String(result.data.startHour).padStart(2, "0")}:00`);
     });
   }, [open, bookingId]);
 
@@ -57,6 +86,48 @@ export default function RescheduleModal({
     onRescheduled(selectedSlot.start);
   }
 
+  async function checkDesiredTime() {
+    if (!bookingId || !desiredDate || !desiredTime) return;
+    setCheckingDesired(true);
+    setDesiredError("");
+    setDesiredResult(null);
+    const result = await checkRescheduleTimeAction(bookingId, desiredDate, desiredTime);
+    setCheckingDesired(false);
+    if (isFailure(result)) {
+      setDesiredError(result.error.message);
+      return;
+    }
+    setDesiredResult(result.data);
+  }
+
+  async function confirmDesiredTime() {
+    if (!bookingId || !desiredResult) return;
+    setSubmitting(true);
+    setSubmitError("");
+    const result = await rescheduleSessionAction(bookingId, desiredResult.desiredStart);
+    setSubmitting(false);
+    if (isFailure(result)) {
+      setSubmitError(result.error.message);
+      return;
+    }
+    onRescheduled(desiredResult.desiredStart);
+  }
+
+  async function assignSubstitute(coachId: string) {
+    if (!bookingId || !desiredResult) return;
+    setAssigningCoachId(coachId);
+    setDesiredError("");
+    const result = await rescheduleSessionToSubstituteAction(bookingId, desiredResult.desiredStart, coachId);
+    setAssigningCoachId(null);
+    if (isFailure(result)) {
+      setDesiredError(result.error.message);
+      return;
+    }
+    onRescheduled(desiredResult.desiredStart);
+  }
+
+  const hourOptions = options ? Array.from({ length: options.endHour - options.startHour }, (_, i) => options.startHour + i) : [];
+
   return (
     <Modal open={open} onClose={onClose} title="Reschedule Session" maxWidth="max-w-xl">
       {loading && (
@@ -70,16 +141,16 @@ export default function RescheduleModal({
       {!loading && options && (
         <>
           <p className="mb-4 text-xs text-black/45">
-            Showing {options.coach.name.split(" ")[0]}&apos;s open slots for the rest of this week ·{" "}
+            Showing {options.coach.name.split(" ")[0]}&apos;s open slots for the next 30 days ·{" "}
             <span className="font-bold text-black/60">{options.reschedulesRemaining} of 2 reschedules left this week</span>
           </p>
           <p className="mb-4 rounded-lg bg-black/[0.03] p-3 text-xs text-black/50">
-            Sessions can be rescheduled up to 2 times per week, and must be moved at least {options.cutoffHours} hour
-            {options.cutoffHours === 1 ? "" : "s"} before the original start time.
+            Sessions can be rescheduled up to 2 times per week, must be moved at least {options.cutoffHours} hour
+            {options.cutoffHours === 1 ? "" : "s"} before the original start time, and can't land on a day you already have another session.
           </p>
 
           {options.slots.length === 0 && (
-            <EmptyState icon={CalendarDays} title="No open slots left this week" description="Try again next week, or contact support." />
+            <EmptyState icon={CalendarDays} title="No open slots found" description="Try a specific date & time below, or contact support." />
           )}
 
           <div className="grid max-h-80 grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2">
@@ -115,6 +186,83 @@ export default function RescheduleModal({
             <Button onClick={submit} disabled={!selectedSlot} loading={submitting}>
               Confirm New Time
             </Button>
+          </div>
+
+          <div className="mt-6 border-t border-black/[0.06] pt-5">
+            <p className="text-sm font-bold">Prefer a specific date &amp; time?</p>
+            <p className="mt-1 text-xs text-black/45">
+              If it's not free with {options.coach.name.split(" ")[0]}, we'll check whether another coach can cover just this one session.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <input
+                type="date"
+                min={todayDateString()}
+                value={desiredDate}
+                onChange={(e) => {
+                  setDesiredDate(e.target.value);
+                  setDesiredResult(null);
+                }}
+                className="rounded-xl border border-black/15 p-2.5 text-sm"
+              />
+              <select
+                value={desiredTime}
+                onChange={(e) => {
+                  setDesiredTime(e.target.value);
+                  setDesiredResult(null);
+                }}
+                className="rounded-xl border border-black/15 p-2.5 text-sm"
+              >
+                {hourOptions.map((h) => (
+                  <option key={h} value={`${String(h).padStart(2, "0")}:00`}>
+                    {formatHour(h)}
+                  </option>
+                ))}
+              </select>
+              <Button size="sm" variant="outline" onClick={checkDesiredTime} disabled={!desiredDate || !desiredTime} loading={checkingDesired}>
+                Check This Time
+              </Button>
+            </div>
+
+            {desiredError && <p className="mt-3 text-xs text-red-600">{desiredError}</p>}
+
+            {desiredResult?.available && (
+              <div className="mt-4 rounded-xl bg-black/[0.03] p-4">
+                <p className="text-sm font-semibold">
+                  {formatDate(desiredResult.desiredStart)} · {formatTime(desiredResult.desiredStart)} is free with {options.coach.name}.
+                </p>
+                <Button size="sm" className="mt-3" onClick={confirmDesiredTime} loading={submitting}>
+                  Confirm This Time
+                </Button>
+              </div>
+            )}
+
+            {desiredResult && !desiredResult.available && (
+              <div className="mt-4 rounded-xl bg-black/[0.03] p-4">
+                <p className="text-sm font-semibold">Not free with {options.coach.name.split(" ")[0]} at that time.</p>
+                {desiredResult.candidates.length === 0 ? (
+                  <p className="mt-1 text-xs text-black/50">No other coach is free then either — try another time, or contact support.</p>
+                ) : (
+                  <>
+                    <p className="mt-1 text-xs text-black/50">
+                      These coaches are free just for this one session — your regular sessions stay with {options.coach.name.split(" ")[0]}.
+                    </p>
+                    <div className="mt-3 space-y-2">
+                      {desiredResult.candidates.map((c) => (
+                        <div key={c.coachId} className="flex items-center justify-between rounded-lg border border-black/10 p-3">
+                          <span className="flex items-center gap-2 text-sm font-semibold">
+                            <Users className="h-4 w-4 text-black/40" />
+                            {c.name}
+                          </span>
+                          <Button size="sm" variant="outline" onClick={() => assignSubstitute(c.coachId)} loading={assigningCoachId === c.coachId}>
+                            Assign &amp; Reschedule
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </>
       )}

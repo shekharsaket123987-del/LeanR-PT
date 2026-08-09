@@ -96,7 +96,7 @@ export default function MySessionsClient({ initialSessions, rules: initialRules 
               ? "You don't have any sessions booked yet. Let's fix that."
               : `You don't have any ${tab} sessions on record.`
           }
-          action={tab === "upcoming" ? <Button href="/client/book">Book a Session</Button> : undefined}
+          action={tab === "upcoming" ? <Button href="/client/schedule">Set Up My Schedule</Button> : undefined}
         />
       )}
 
@@ -179,7 +179,7 @@ export default function MySessionsClient({ initialSessions, rules: initialRules 
         title="Cancel this session?"
         description={`Sessions must be cancelled at least ${rules.cancellationCutoffHours} hour${
           rules.cancellationCutoffHours === 1 ? "" : "s"
-        } in advance. This session will be released back into your coach's calendar — you can always book a new one from the Book a Session page.`}
+        } in advance. This session will be released back into your coach's calendar — manage your ongoing bookings from My Schedule.`}
         confirmLabel="Cancel Session"
       />
 

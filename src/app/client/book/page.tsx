@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { AlertTriangle, Ban, CalendarClock } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import Card from "@/components/ui/Card";
@@ -24,6 +25,15 @@ export default async function BookSessionPage() {
 
   if (!isFailure(journeyResult)) {
     const { stage, demoSession } = journeyResult.data;
+
+    // Once a plan is active, the recurring schedule (My Schedule) is the
+    // client's only ongoing booking mechanism -- this ad-hoc wizard is
+    // redundant and would let a client create bookings the recurring-slot
+    // change flow doesn't know about. Nav already hides the link (see
+    // PortalShell's hideBookSessionNav); this catches direct navigation too.
+    if (journeyResult.data.subscriptionId != null) {
+      redirect("/client/schedule");
+    }
 
     if (stage === "demo_booked" && demoSession) {
       return (

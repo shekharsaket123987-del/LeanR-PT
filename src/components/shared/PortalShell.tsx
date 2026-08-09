@@ -30,6 +30,7 @@ import {
   Search,
   Receipt,
   CalendarSearch,
+  MessagesSquare,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import Badge from "../ui/Badge";
@@ -42,6 +43,7 @@ const NAV: Record<Role, { label: string; href: string; icon: any }[]> = {
     { label: "My Sessions", href: "/client/sessions", icon: CalendarDays },
     { label: "Book a Session", href: "/client/book", icon: CalendarPlus },
     { label: "My Schedule", href: "/client/schedule", icon: Clock },
+    { label: "My Chats", href: "/client/chats", icon: MessagesSquare },
     { label: "My Coach", href: "/client/coach", icon: UserRound },
     { label: "Subscription", href: "/client/subscription", icon: Receipt },
     { label: "Progress", href: "/client/progress", icon: TrendingUp },
@@ -53,6 +55,7 @@ const NAV: Record<Role, { label: string; href: string; icon: any }[]> = {
     { label: "Dashboard", href: "/coach/dashboard", icon: LayoutDashboard },
     { label: "Schedule", href: "/coach/schedule", icon: CalendarDays },
     { label: "Clients", href: "/coach/clients", icon: Users },
+    { label: "My Chats", href: "/coach/chats", icon: MessagesSquare },
     { label: "Search", href: "/coach/search", icon: Search },
     { label: "Escalations", href: "/coach/escalations", icon: AlertTriangle },
     { label: "Performance", href: "/coach/performance", icon: BarChart3 },
@@ -90,15 +93,33 @@ export default function PortalShell({
   role,
   identity,
   children,
+  hideBookSessionNav,
+  showChatNav,
 }: {
   role: Role;
   identity?: { name: string; photo: string; sub: string };
   children: React.ReactNode;
+  /** Once a client has an active plan, the recurring schedule (My Schedule)
+   * is their only ongoing booking mechanism -- the ad-hoc "Book a Session"
+   * wizard becomes a redundant, easy-to-confuse-with-it second path. */
+  hideBookSessionNav?: boolean;
+  /** Chat only exists once a client has paid and a coach is assigned -- a
+   * brand-new lead/demo-only client has no conversation to show, so the nav
+   * item stays hidden until one has actually been opened. Coaches always see
+   * theirs (no gating needed -- an empty inbox is a normal state for them). */
+  showChatNav?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const nav = NAV[role];
+  const nav =
+    role === "client"
+      ? NAV.client.filter((item) => {
+          if (item.href === "/client/book" && hideBookSessionNav) return false;
+          if (item.href === "/client/chats" && !showChatNav) return false;
+          return true;
+        })
+      : NAV[role];
   const resolvedIdentity = identity ?? IDENTITY_FALLBACK[role];
 
   async function handleLogout() {

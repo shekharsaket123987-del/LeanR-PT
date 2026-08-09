@@ -76,11 +76,7 @@ export default async function SchedulePage() {
     <div className="mx-auto max-w-2xl">
       <PageHeader title="Set Your Recurring Schedule" description="Reserve a permanent weekly training pattern with your coach." />
 
-      {data.existingSchedule ? (
-        <ChangeScheduleClient existingSchedule={data.existingSchedule} />
-      ) : (
-        <ScheduleSetupClient options={data} />
-      )}
+      {data.existingSchedule ? <ChangeScheduleClient options={data} /> : <ScheduleSetupClient options={data} />}
     </div>
   );
 }
