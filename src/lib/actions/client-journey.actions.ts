@@ -2,7 +2,7 @@
 
 import { getAccessToken } from "@/lib/supabase/server-client";
 import { ActionResult, runAction } from "./action-result";
-import { getMyLatestSubscription, activateMyPlan, purchaseMyPlan } from "@/lib/services/planPurchase.service";
+import { getMyLatestSubscription, activateMyPlan, purchaseMyPlan, checkRenewalStage } from "@/lib/services/planPurchase.service";
 import { getMyOnboarding, submitOnboarding, OnboardingInput } from "@/lib/services/onboarding.service";
 import { getMyActiveRecurringSlots } from "@/lib/services/scheduling.service";
 import { listPackages } from "@/lib/services/packages.service";
@@ -22,6 +22,8 @@ export type ClientJourneyStage =
   | "demo_completed"
   | "awaiting_activation"
   | "onboarding"
+  | "renewal_checkin"
+  | "renewal_scheduling"
   | "slot_selection"
   | "active";
 
@@ -53,6 +55,16 @@ export async function getMyJourneyStateAction(): Promise<ActionResult<ClientJour
       if (sub.status === "active") {
         const onboarding = await getMyOnboarding(token);
         if (!onboarding) return { stage: "onboarding", subscriptionId: sub.id, packageName: sub.package?.name ?? null, demoSession: null };
+
+        // Renewal-only steps -- a no-op (returns null immediately) for a
+        // genuinely first-time client, since neither exists without an
+        // older subscription to be renewing from.
+        const renewalStage = await checkRenewalStage(token, {
+          clientId: sub.client_id,
+          subscriptionId: sub.id,
+          activatedAt: sub.activated_at,
+        });
+        if (renewalStage) return { stage: renewalStage, subscriptionId: sub.id, packageName: sub.package?.name ?? null, demoSession: null };
 
         const slots = await getMyActiveRecurringSlots(token);
         if (!slots || slots.length === 0) {

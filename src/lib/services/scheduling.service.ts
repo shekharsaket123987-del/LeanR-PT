@@ -627,7 +627,17 @@ export interface CoachMatchResult {
  * landing on the first one found. */
 export async function findAvailableCoach(
   accessToken: string,
-  input: { pattern: PatternKey; preferredTime: string; customDays?: number[]; durationMinutes?: number; excludeCoachId?: string }
+  input: {
+    pattern: PatternKey;
+    preferredTime: string;
+    customDays?: number[];
+    durationMinutes?: number;
+    excludeCoachId?: string;
+    /** Same hard filter demoBooking.service.ts::findDemoSlots already uses
+     * for a demo's coach match -- reused here for the renewal flow's "New
+     * Trainer" gender preference. */
+    genderPreference?: "male" | "female" | "other";
+  }
 ): Promise<CoachMatchResult | null> {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["client"]);
@@ -648,6 +658,7 @@ export async function findAvailableCoach(
 
   let coachQuery = ctx.client.from("coach_profiles").select("id").eq("status", "active");
   if (input.excludeCoachId) coachQuery = coachQuery.neq("id", input.excludeCoachId);
+  if (input.genderPreference) coachQuery = coachQuery.eq("gender", input.genderPreference);
   const { data: coaches, error: coachesError } = await coachQuery;
   if (coachesError) throw coachesError;
   if (!coaches || coaches.length === 0) return null;
@@ -1166,7 +1177,7 @@ export async function listShadowCoverageGaps(accessToken: string): Promise<Shado
  * an existing booking. */
 export async function changeMyRecurringSchedule(
   accessToken: string,
-  input: { coachId: string; days: number[]; timeOfDay: string; durationMinutes?: number }
+  input: { coachId: string; days: number[]; timeOfDay: string; durationMinutes?: number; subscriptionId?: string }
 ): Promise<{ createdSlotIds: string[] }> {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["client"]);
@@ -1198,14 +1209,62 @@ export async function changeMyRecurringSchedule(
     days: input.days,
     timeOfDay: input.timeOfDay,
     durationMinutes: input.durationMinutes,
+    subscriptionId: input.subscriptionId,
   });
 
-  await logTimelineEvent(client.id, "session_rescheduled", "Recurring schedule changed", {
-    description: `${input.days.join(",")} at ${input.timeOfDay}`,
-    actorId: ctx.userId,
-  });
+  // A subscriptionId only ever comes from the renewal-scheduling flow (a
+  // regular mid-plan schedule change never passes one) -- log it distinctly
+  // so the timeline reflects the renewal, not a plain reschedule.
+  if (input.subscriptionId) {
+    await logTimelineEvent(client.id, "plan_renewed", "Plan renewed", {
+      description: `${input.days.join(",")} at ${input.timeOfDay}`,
+      actorId: ctx.userId,
+      metadata: { subscriptionId: input.subscriptionId, coachId: input.coachId },
+    });
+  } else {
+    await logTimelineEvent(client.id, "session_rescheduled", "Recurring schedule changed", {
+      description: `${input.days.join(",")} at ${input.timeOfDay}`,
+      actorId: ctx.userId,
+    });
+  }
 
   return { createdSlotIds };
+}
+
+/** Renewal's "keep as-is" shortcut: unlike changeMyRecurringSchedule (retire
+ * + recreate), this just repoints the client's existing active recurring_slots
+ * to the new subscription -- coach, days, and time all carry over completely
+ * untouched, and future auto-generated bookings correctly bill against the
+ * new plan from here on. */
+export async function keepRenewalSchedule(accessToken: string, newSubscriptionId: string): Promise<void> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["client"]);
+
+  const { data: client, error: clientError } = await ctx.client.from("client_profiles").select("id").eq("profile_id", ctx.userId).single();
+  if (clientError || !client) throw clientError ?? new Error("Client profile not found");
+
+  const { data: activeSlots, error: slotsError } = await ctx.client
+    .from("recurring_slots")
+    .select("id")
+    .eq("client_id", client.id)
+    .eq("status", "active");
+  if (slotsError) throw slotsError;
+  if (!activeSlots || activeSlots.length === 0) throw new Error("No active recurring schedule to carry over -- set one up instead.");
+
+  const { error: repointError } = await ctx.client
+    .from("recurring_slots")
+    .update({ subscription_id: newSubscriptionId })
+    .in(
+      "id",
+      activeSlots.map((s) => s.id)
+    );
+  if (repointError) throw repointError;
+
+  await logTimelineEvent(client.id, "plan_renewed", "Plan renewed", {
+    description: "Kept the same trainer and schedule",
+    actorId: ctx.userId,
+    metadata: { subscriptionId: newSubscriptionId },
+  });
 }
 
 /** Creates one recurring_slots row per day in the matched pattern, and

@@ -47,6 +47,8 @@ export default async function ClientDashboardPage() {
     if (stage === "marketing") redirect("/client/plans");
     if (stage === "awaiting_activation") redirect("/client/activate");
     if (stage === "onboarding") redirect("/client/onboarding");
+    if (stage === "renewal_checkin") redirect("/client/renewal-checkin");
+    if (stage === "renewal_scheduling") redirect("/client/schedule");
     if (stage === "slot_selection") redirect("/client/schedule");
 
     if (stage === "demo_booked" && demoSession) {

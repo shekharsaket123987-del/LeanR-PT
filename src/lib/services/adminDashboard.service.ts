@@ -1,4 +1,5 @@
 import { getCallerContext, requireRole } from "./_auth";
+import { listRenewalOpportunities } from "./renewals.service";
 
 export interface AdminDashboardMetrics {
   totalClients: number;
@@ -14,6 +15,13 @@ export interface AdminDashboardMetrics {
   avgCoachRating: number;
   /** Completed sessions per day, trailing 30-day window. */
   avgSessionsPerDay: number;
+  /** Live snapshot, not calendar-month-anchored: of every client currently
+   * flagged in Renewal Opportunities (low-on-sessions or expired) right now,
+   * what % have already bought a renewal. Null (not 0%) when nobody is
+   * currently flagged at all, so the UI can distinguish "no data" from
+   * "zero conversions." */
+  renewalOpportunityCount: number;
+  renewalRatePct: number | null;
 }
 
 export interface AdminDashboardData {
@@ -106,6 +114,13 @@ export async function getAdminDashboard(accessToken: string): Promise<AdminDashb
   if (durationError) throw durationError;
   if (ratingsError) throw ratingsError;
 
+  const renewalOpportunities = await listRenewalOpportunities(accessToken);
+  const renewalOpportunityCount = renewalOpportunities.length;
+  const renewalRatePct =
+    renewalOpportunityCount > 0
+      ? Math.round((renewalOpportunities.filter((o) => o.converted).length / renewalOpportunityCount) * 100)
+      : null;
+
   const avgCoachRating =
     (activeCoachRatings ?? []).length > 0
       ? Math.round((activeCoachRatings!.reduce((s, c: any) => s + Number(c.rating ?? 0), 0) / activeCoachRatings!.length) * 10) / 10
@@ -162,6 +177,8 @@ export async function getAdminDashboard(accessToken: string): Promise<AdminDashb
       activeCoachesCount: activeCoachesCount ?? 0,
       avgCoachRating,
       avgSessionsPerDay,
+      renewalOpportunityCount,
+      renewalRatePct,
     },
     revenueTrend: revenue.map((r) => ({
       month: new Date(r.month).toLocaleDateString("en-US", { month: "short" }),

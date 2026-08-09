@@ -14,6 +14,7 @@ import {
   findAvailableCoach,
   getBookingWindow,
   getMyActiveRecurringSlots,
+  keepRenewalSchedule,
   matchRecurringPattern,
 } from "@/lib/services/scheduling.service";
 
@@ -78,6 +79,10 @@ export async function matchScheduleAction(input: {
   preferredTime: string;
   customDays?: number[];
   coachPreference?: CoachPreference;
+  /** Only meaningful alongside coachPreference "new" -- the renewal flow's
+   * Male/Female/Other/No Preference choice, reusing the demo-booking gender
+   * filter. Ignored otherwise. */
+  genderPreference?: "male" | "female" | "other";
 }): Promise<ActionResult<ScheduleMatchResult | null>> {
   return runAction(async () => {
     const token = await requireToken();
@@ -87,7 +92,7 @@ export async function matchScheduleAction(input: {
       const preference = input.coachPreference ?? "same";
 
       if (preference === "new") {
-        const match = await findAvailableCoach(token, { ...input, excludeCoachId: coachId });
+        const match = await findAvailableCoach(token, { ...input, excludeCoachId: coachId, genderPreference: input.genderPreference });
         if (!match) return null;
         const coach: any = await getCoachPublicInfo(match.coachId);
         return { days: match.days, timeOfDay: match.timeOfDay, patternUsed: input.pattern, exact: true, newCoach: { id: match.coachId, name: coach.profile?.full_name ?? "Coach" } };
@@ -135,12 +140,29 @@ export async function confirmScheduleAction(input: { days: number[]; timeOfDay: 
  * already resolved by the preceding matchScheduleAction call; falls back to
  * the client's current coach if omitted (the "Same Trainer" case never
  * bothers passing one explicitly). */
-export async function changeScheduleAction(input: { days: number[]; timeOfDay: string; coachId?: string }): Promise<ActionResult<{ createdSlotIds: string[] }>> {
+export async function changeScheduleAction(input: {
+  days: number[];
+  timeOfDay: string;
+  coachId?: string;
+  /** Only ever set by the renewal-scheduling flow -- bills the new pattern
+   * against the renewed plan instead of leaving it unattached. */
+  subscriptionId?: string;
+}): Promise<ActionResult<{ createdSlotIds: string[] }>> {
   return runAction(async () => {
     const token = await requireToken();
     const coachId = input.coachId ?? (await getMyCurrentCoachId(token));
     if (!coachId) throw new Error("No coach is assigned to your account yet — contact support to get started.");
-    return changeMyRecurringSchedule(token, { coachId, days: input.days, timeOfDay: input.timeOfDay });
+    return changeMyRecurringSchedule(token, { coachId, days: input.days, timeOfDay: input.timeOfDay, subscriptionId: input.subscriptionId });
+  });
+}
+
+/** Renewal's "keep as-is" shortcut -- carries the client's current coach and
+ * schedule over onto the newly-activated subscription with zero disruption. */
+export async function keepRenewalScheduleAction(subscriptionId: string): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    await keepRenewalSchedule(token, subscriptionId);
+    return null;
   });
 }
 

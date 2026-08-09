@@ -11,6 +11,7 @@ import {
   ScheduleSetupOptions,
   changeScheduleAction,
   confirmScheduleAction,
+  keepRenewalScheduleAction,
   matchScheduleAction,
   reportScheduleUnmatchedAction,
 } from "@/lib/actions/schedule.actions";
@@ -29,6 +30,23 @@ const COACH_PREFERENCE_OPTIONS: { key: CoachPreference; label: string; hint: str
   { key: "new", label: "New Trainer", hint: "Match me with someone else" },
   { key: "no_preference", label: "No Preference", hint: "Whoever's free at this time" },
 ];
+
+// Renewal only offers Same/New (no "no preference") -- narrower than the
+// regular mid-plan change flow, per the confirmed renewal trainer flow.
+const RENEWAL_COACH_PREFERENCE_OPTIONS = COACH_PREFERENCE_OPTIONS.filter((p) => p.key !== "no_preference");
+
+const GENDER_PREFERENCE_OPTIONS: { key: "male" | "female" | "other" | ""; label: string }[] = [
+  { key: "", label: "No Preference" },
+  { key: "male", label: "Male" },
+  { key: "female", label: "Female" },
+  { key: "other", label: "Other" },
+];
+
+function daysAndTimeLabel(existingSchedule: { dayOfWeek: number; startTime: string }[]) {
+  const days = existingSchedule.map((s) => s.dayOfWeek);
+  const time = existingSchedule[0]?.startTime?.slice(0, 5) ?? "";
+  return `${daysLabel(days)} at ${formatHour(Number(time.split(":")[0]))}`;
+}
 
 // Monday(1)..Saturday(6) only -- Sunday is always a holiday, never offered.
 const CUSTOM_DAYS = [1, 2, 3, 4, 5, 6];
@@ -52,13 +70,18 @@ function samePair(a: number[], b: number[]) {
 export default function ScheduleSetupClient({
   options,
   scheduleMode = "setup",
+  renewalSubscriptionId,
 }: {
   options: ScheduleSetupOptions;
   /** "setup": first-time recurring schedule (no coach preference -- the
    * assigned coach carries over). "change": client already has an active
    * pattern and can additionally choose whether to keep, switch, or not
-   * care about their trainer. */
-  scheduleMode?: "setup" | "change";
+   * care about their trainer. "renewal": same as "change", plus a "keep
+   * everything as-is" shortcut and a gender preference when picking a new
+   * trainer -- and the confirmed pattern bills against renewalSubscriptionId
+   * instead of the client's current plan. */
+  scheduleMode?: "setup" | "change" | "renewal";
+  renewalSubscriptionId?: string;
 }) {
   const grid = Array.from({ length: options.endHour - options.startHour }, (_, i) => options.startHour + i);
   const [mode, setMode] = useState<Mode>("standard");
@@ -67,12 +90,20 @@ export default function ScheduleSetupClient({
   const [customDays, setCustomDays] = useState<number[]>([]);
   const [preferredTime, setPreferredTime] = useState(`${String(grid[0]).padStart(2, "0")}:00`);
   const [coachPreference, setCoachPreference] = useState<CoachPreference>("same");
+  const [genderPreference, setGenderPreference] = useState<"male" | "female" | "other" | "">("");
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState("");
   const [result, setResult] = useState<ScheduleMatchResult | null | undefined>(undefined); // undefined = not checked yet
   const [confirming, setConfirming] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [reportedToAdmin, setReportedToAdmin] = useState(false);
+  // Renewal-only: whether the client wants to change anything at all before
+  // showing the normal pattern-picker -- "ask" is the initial "Keep as-is?"
+  // card, "change" reveals the picker below (same UI as "change" mode).
+  const [renewalDecision, setRenewalDecision] = useState<"ask" | "change">("ask");
+  const [keepingSchedule, setKeepingSchedule] = useState(false);
+  const [keepError, setKeepError] = useState("");
+  const [kept, setKept] = useState(false);
 
   function resetResult() {
     setResult(undefined);
@@ -114,7 +145,8 @@ export default function ScheduleSetupClient({
       pattern,
       preferredTime,
       customDays: pattern === "custom" ? activeDays : undefined,
-      coachPreference: scheduleMode === "change" ? coachPreference : undefined,
+      coachPreference: scheduleMode !== "setup" ? coachPreference : undefined,
+      genderPreference: scheduleMode === "renewal" && coachPreference === "new" && genderPreference ? genderPreference : undefined,
     });
     setChecking(false);
     if (isFailure(res)) {
@@ -129,9 +161,14 @@ export default function ScheduleSetupClient({
     setConfirming(true);
     setCheckError("");
     const res =
-      scheduleMode === "change"
-        ? await changeScheduleAction({ days: result.days, timeOfDay: result.timeOfDay, coachId: result.newCoach?.id })
-        : await confirmScheduleAction({ days: result.days, timeOfDay: result.timeOfDay, coachId: result.newCoach?.id });
+      scheduleMode === "setup"
+        ? await confirmScheduleAction({ days: result.days, timeOfDay: result.timeOfDay, coachId: result.newCoach?.id })
+        : await changeScheduleAction({
+            days: result.days,
+            timeOfDay: result.timeOfDay,
+            coachId: result.newCoach?.id,
+            subscriptionId: scheduleMode === "renewal" ? renewalSubscriptionId : undefined,
+          });
     setConfirming(false);
     if (isFailure(res)) {
       setCheckError(res.error.message);
@@ -140,9 +177,39 @@ export default function ScheduleSetupClient({
     setConfirmed(true);
   }
 
+  async function keepSchedule() {
+    if (!renewalSubscriptionId) return;
+    setKeepingSchedule(true);
+    setKeepError("");
+    const res = await keepRenewalScheduleAction(renewalSubscriptionId);
+    setKeepingSchedule(false);
+    if (isFailure(res)) {
+      setKeepError(res.error.message);
+      return;
+    }
+    setKept(true);
+  }
+
   async function notifyOps() {
     await reportScheduleUnmatchedAction();
     setReportedToAdmin(true);
+  }
+
+  if (kept) {
+    return (
+      <Card className="mx-auto max-w-xl p-6">
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100">
+          <Check className="h-6 w-6 text-emerald-600" />
+        </div>
+        <p className="text-display text-xl font-bold italic">You're all set!</p>
+        <p className="mt-2 text-sm text-black/60">
+          Your schedule with {options.coach?.name} carries over exactly as it was -- nothing else to do.
+        </p>
+        <Button href="/client/dashboard" className="mt-6">
+          Back to Dashboard
+        </Button>
+      </Card>
+    );
   }
 
   if (confirmed && result) {
@@ -152,7 +219,7 @@ export default function ScheduleSetupClient({
           <Check className="h-6 w-6 text-emerald-600" />
         </div>
         <p className="text-display text-xl font-bold italic">
-          {scheduleMode === "change" ? "Your schedule has been updated!" : "Your recurring schedule is set!"}
+          {scheduleMode !== "setup" ? "Your schedule has been updated!" : "Your recurring schedule is set!"}
         </p>
         <p className="mt-2 text-sm text-black/60">
           {daysLabel(result.days)} at {formatHour(Number(result.timeOfDay.split(":")[0]))}, with{" "}
@@ -162,6 +229,37 @@ export default function ScheduleSetupClient({
           Back to Dashboard
         </Button>
       </Card>
+    );
+  }
+
+  if (scheduleMode === "renewal" && renewalDecision === "ask" && options.coach && options.existingSchedule) {
+    return (
+      <div className="mx-auto max-w-xl space-y-6">
+        <Card className="flex items-center gap-4 p-5">
+          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl">
+            <Image src={options.coach.photo} alt={options.coach.name} fill className="object-cover" />
+          </div>
+          <div>
+            <p className="text-sm font-bold">{options.coach.name}</p>
+            <p className="text-xs text-black/45">{options.coach.specialization}</p>
+          </div>
+        </Card>
+        <Card className="p-6">
+          <p className="text-sm font-bold">
+            Keep training with {options.coach.name} at {daysAndTimeLabel(options.existingSchedule)}?
+          </p>
+          <p className="mt-1 text-xs text-black/45">Your renewed plan can carry your exact schedule over with no changes.</p>
+          {keepError && <p className="mt-3 text-xs text-red-600">{keepError}</p>}
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Button loading={keepingSchedule} onClick={keepSchedule}>
+              Keep My Schedule
+            </Button>
+            <Button variant="outline" disabled={keepingSchedule} onClick={() => setRenewalDecision("change")}>
+              No, Change It
+            </Button>
+          </div>
+        </Card>
+      </div>
     );
   }
 
@@ -301,11 +399,11 @@ export default function ScheduleSetupClient({
           </>
         )}
 
-        {scheduleMode === "change" && (
+        {(scheduleMode === "change" || scheduleMode === "renewal") && (
           <div className="mt-6">
             <p className="mb-3 text-xs font-bold uppercase tracking-wide text-black/40">Trainer Preference</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {COACH_PREFERENCE_OPTIONS.map((p) => (
+              {(scheduleMode === "renewal" ? RENEWAL_COACH_PREFERENCE_OPTIONS : COACH_PREFERENCE_OPTIONS).map((p) => (
                 <button
                   key={p.key}
                   type="button"
@@ -322,6 +420,29 @@ export default function ScheduleSetupClient({
                 </button>
               ))}
             </div>
+
+            {scheduleMode === "renewal" && coachPreference === "new" && (
+              <div className="mt-4">
+                <p className="mb-3 text-xs font-bold uppercase tracking-wide text-black/40">Trainer Gender</p>
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                  {GENDER_PREFERENCE_OPTIONS.map((g) => (
+                    <button
+                      key={g.key || "none"}
+                      type="button"
+                      onClick={() => {
+                        setGenderPreference(g.key);
+                        resetResult();
+                      }}
+                      className={`rounded-xl border-2 py-2.5 text-xs font-bold ${
+                        genderPreference === g.key ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10 hover:border-black/25"
+                      }`}
+                    >
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -371,7 +492,7 @@ export default function ScheduleSetupClient({
               {result.newCoach && <> — matched with <span className="font-bold">{result.newCoach.name}</span></>}
             </p>
             <Button className="mt-4" onClick={confirm} loading={confirming}>
-              {scheduleMode === "change" ? "Save New Schedule" : "Confirm This Schedule"}
+              {scheduleMode !== "setup" ? "Save New Schedule" : "Confirm This Schedule"}
             </Button>
           </div>
         )}

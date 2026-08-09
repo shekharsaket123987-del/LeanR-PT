@@ -2,6 +2,12 @@ import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { logTimelineEvent } from "./timeline.service";
 
+/** Shared by the renewal reminder (client-portal nudge to renew) and the
+ * purchase-gate relaxation below, so the two always agree on when "running
+ * low" starts -- "Renew Now" from the reminder must never hit the
+ * already-have-a-plan rejection just below. */
+export const SESSIONS_LOW_THRESHOLD = 5;
+
 /** Client-initiated purchase (post stub-payment) -- distinct from
  * subscriptions.service.ts's purchaseSubscription(), which is the
  * admin-driven "buy on the client's behalf" path. Uses supabaseAdmin because
@@ -17,12 +23,29 @@ export async function purchaseMyPlan(accessToken: string, packageId: string) {
 
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("subscriptions")
-    .select("id")
+    .select("id, status")
     .eq("client_id", client.id)
     .in("status", ["active", "awaiting_activation"])
     .maybeSingle();
   if (existingError) throw existingError;
-  if (existing) throw new Error("You already have an active or pending plan.");
+
+  if (existing) {
+    // A pending (not-yet-activated) plan always blocks a second purchase --
+    // only an ACTIVE plan can be superseded, and only once it's running low,
+    // so "Renew Now" from the low-sessions reminder actually works instead
+    // of hitting this same rejection.
+    let isRenewable = false;
+    if (existing.status === "active") {
+      const { data: usage, error: usageError } = await supabaseAdmin
+        .from("subscription_usage_view")
+        .select("sessions_remaining")
+        .eq("subscription_id", existing.id)
+        .maybeSingle();
+      if (usageError) throw usageError;
+      isRenewable = ((usage as any)?.sessions_remaining ?? Infinity) <= SESSIONS_LOW_THRESHOLD;
+    }
+    if (!isRenewable) throw new Error("You already have an active or pending plan.");
+  }
 
   const { data: pkg, error: pkgError } = await supabaseAdmin.from("package_tiers").select("name, sessions_count").eq("id", packageId).eq("is_active", true).single();
   if (pkgError || !pkg) throw pkgError ?? new Error("Package not found");
@@ -73,6 +96,25 @@ export async function activateMyPlan(accessToken: string, subscriptionId: string
     .single();
   if (error) throw error;
 
+  // Renewal: retire whichever OLD subscription this one is superseding (the
+  // purchase gate above only ever allows a second purchase while exactly one
+  // other active plan exists) so it stops being picked up anywhere that
+  // filters on status = 'active' (getSubscriptionsForClient, listClients,
+  // Renewal Opportunities). A genuinely first-time purchase has no such row,
+  // so this is a no-op for it.
+  const { data: oldSub, error: oldSubError } = await supabaseAdmin
+    .from("subscriptions")
+    .select("id")
+    .eq("client_id", sub.client_id)
+    .eq("status", "active")
+    .neq("id", subscriptionId)
+    .maybeSingle();
+  if (oldSubError) throw oldSubError;
+  if (oldSub) {
+    const { error: retireError } = await supabaseAdmin.from("subscriptions").update({ status: "inactive" }).eq("id", oldSub.id);
+    if (retireError) throw retireError;
+  }
+
   await logTimelineEvent(sub.client_id, "plan_activated", "Plan activated", {
     description: `Start date: ${startDate}`,
     actorId: ctx.userId,
@@ -80,6 +122,58 @@ export async function activateMyPlan(accessToken: string, subscriptionId: string
   });
 
   return data;
+}
+
+/** Derives which (if either) renewal-only journey step the client's latest
+ * ACTIVE subscription still needs, without ever touching a genuinely
+ * first-time client (who has no older subscription at all, so this returns
+ * null immediately). Both checks are pure existence queries against data
+ * that's already written elsewhere -- no new columns anywhere:
+ * - "renewal_checkin": no progress_logs entry since this plan activated yet
+ *   (the measurement-continuity check-in hasn't happened).
+ * - "renewal_scheduling": no recurring_slots row is billed against this
+ *   subscription yet (covers both the "keep as-is" repoint and a fresh
+ *   pattern choice) -- checked instead of the generic "any active slot"
+ *   test the normal slot_selection stage uses, since the OLD slots (still
+ *   pointing at the now-retired subscription) would otherwise satisfy that
+ *   generic test and skip this step entirely. */
+export async function checkRenewalStage(
+  accessToken: string,
+  input: { clientId: string; subscriptionId: string; activatedAt: string | null }
+): Promise<"renewal_checkin" | "renewal_scheduling" | null> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["client"]);
+
+  const { data: olderSubs, error: olderError } = await ctx.client
+    .from("subscriptions")
+    .select("id")
+    .eq("client_id", input.clientId)
+    .neq("id", input.subscriptionId)
+    .limit(1);
+  if (olderError) throw olderError;
+  if (!olderSubs || olderSubs.length === 0) return null;
+
+  if (input.activatedAt) {
+    const { data: logs, error: logsError } = await ctx.client
+      .from("progress_logs")
+      .select("id")
+      .eq("client_id", input.clientId)
+      .gte("logged_at", input.activatedAt)
+      .limit(1);
+    if (logsError) throw logsError;
+    if (!logs || logs.length === 0) return "renewal_checkin";
+  }
+
+  const { data: slots, error: slotsError } = await ctx.client
+    .from("recurring_slots")
+    .select("id")
+    .eq("client_id", input.clientId)
+    .eq("subscription_id", input.subscriptionId)
+    .limit(1);
+  if (slotsError) throw slotsError;
+  if (!slots || slots.length === 0) return "renewal_scheduling";
+
+  return null;
 }
 
 /** The client's current subscription, whatever state it's in -- used by the

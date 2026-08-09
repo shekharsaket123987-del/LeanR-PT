@@ -43,7 +43,19 @@ export interface ProgressLogInput {
 /** Admin logs on a client's behalf (clientId required) or a client logs
  * their own (clientId ignored, forced to self) -- mirrors the pattern
  * already used for escalations.service.ts::createEscalation. */
-export async function createProgressLog(accessToken: string, clientId: string, input: ProgressLogInput) {
+export async function createProgressLog(
+  accessToken: string,
+  clientId: string,
+  input: ProgressLogInput,
+  options?: {
+    /** The renewal check-in needs a fresh baseline tied to the new plan's
+     * activation date, not the calendar week -- it must never be blocked by
+     * a regular weekly log the client happened to submit just before
+     * renewing. Only client-portal.actions.ts's renewal check-in path sets
+     * this; the normal weekly self-service flow is unaffected. */
+    skipWeeklyLimit?: boolean;
+  }
+) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["admin", "client"]);
 
@@ -55,17 +67,19 @@ export async function createProgressLog(accessToken: string, clientId: string, i
 
     // Once-per-week rule applies to client self-service only -- admin's
     // "Log Measurement" stays unrestricted for backfill/correction.
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const { data: recent, error: recentError } = await ctx.client
-      .from("progress_logs")
-      .select("id")
-      .eq("client_id", targetClientId)
-      .gte("logged_at", weekAgo.toISOString())
-      .limit(1)
-      .maybeSingle();
-    if (recentError) throw recentError;
-    if (recent) throw new Error("You've already submitted a measurement update this week -- next update available in a few days.");
+    if (!options?.skipWeeklyLimit) {
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const { data: recent, error: recentError } = await ctx.client
+        .from("progress_logs")
+        .select("id")
+        .eq("client_id", targetClientId)
+        .gte("logged_at", weekAgo.toISOString())
+        .limit(1)
+        .maybeSingle();
+      if (recentError) throw recentError;
+      if (recent) throw new Error("You've already submitted a measurement update this week -- next update available in a few days.");
+    }
   }
 
   const { data, error } = await ctx.client

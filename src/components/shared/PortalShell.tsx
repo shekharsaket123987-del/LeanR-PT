@@ -31,6 +31,7 @@ import {
   Receipt,
   CalendarSearch,
   MessagesSquare,
+  RefreshCcw,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import Badge from "../ui/Badge";
@@ -55,6 +56,7 @@ const NAV: Record<Role, { label: string; href: string; icon: any }[]> = {
     { label: "Dashboard", href: "/coach/dashboard", icon: LayoutDashboard },
     { label: "Schedule", href: "/coach/schedule", icon: CalendarDays },
     { label: "Clients", href: "/coach/clients", icon: Users },
+    { label: "Renewal Opportunities", href: "/coach/renewals", icon: RefreshCcw },
     { label: "My Chats", href: "/coach/chats", icon: MessagesSquare },
     { label: "Search", href: "/coach/search", icon: Search },
     { label: "Escalations", href: "/coach/escalations", icon: AlertTriangle },
@@ -67,6 +69,7 @@ const NAV: Record<Role, { label: string; href: string; icon: any }[]> = {
     { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
     { label: "Search", href: "/admin/search", icon: Search },
     { label: "Clients", href: "/admin/clients", icon: Users },
+    { label: "Renewal Opportunities", href: "/admin/renewals", icon: RefreshCcw },
     { label: "Coaches", href: "/admin/coaches", icon: UserCog },
     { label: "Sessions", href: "/admin/sessions", icon: CalendarDays },
     { label: "Sales", href: "/admin/sales", icon: Receipt },

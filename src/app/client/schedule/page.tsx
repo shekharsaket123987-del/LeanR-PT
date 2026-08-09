@@ -18,7 +18,24 @@ export default async function SchedulePage() {
   const [journeyResult, result] = await Promise.all([getMyJourneyStateAction(), getScheduleSetupOptionsAction()]);
 
   if (!isFailure(journeyResult)) {
-    const { stage, demoSession } = journeyResult.data;
+    const { stage, demoSession, subscriptionId } = journeyResult.data;
+
+    if (stage === "renewal_scheduling" && subscriptionId) {
+      if (isFailure(result)) {
+        return (
+          <div className="mx-auto max-w-2xl">
+            <PageHeader title="Set Up Your Renewed Schedule" description="Keep your same slot, or pick a new one." />
+            <EmptyState icon={AlertTriangle} title="Can't set up your schedule right now" description={result.error.message} />
+          </div>
+        );
+      }
+      return (
+        <div className="mx-auto max-w-2xl">
+          <PageHeader title="Set Up Your Renewed Schedule" description="Keep your same slot, or pick a new one." />
+          <ScheduleSetupClient options={result.data} scheduleMode="renewal" renewalSubscriptionId={subscriptionId} />
+        </div>
+      );
+    }
 
     if (stage === "demo_booked" && demoSession) {
       return (
