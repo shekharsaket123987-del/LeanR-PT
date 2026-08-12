@@ -145,3 +145,40 @@ export async function countEscalationsForCoach(coachId: string): Promise<number>
   if (error) throw error;
   return count ?? 0;
 }
+
+/** Backs the sidebar's unresolved-escalations badge, one per portal.
+ * "Unresolved" is open or in_progress -- anything not yet resolved -- which
+ * matches the Active tab filter the coach/admin escalations list pages
+ * already use, so the badge count and what "Active" shows never disagree. */
+export async function countUnresolvedEscalationsForClient(accessToken: string, clientId: string): Promise<number> {
+  const ctx = await getCallerContext(accessToken);
+  const { count, error } = await ctx.client
+    .from("escalations")
+    .select("id", { count: "exact", head: true })
+    .eq("client_id", clientId)
+    .neq("status", "resolved");
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function countUnresolvedEscalationsForCoach(accessToken: string, coachId: string): Promise<number> {
+  const ctx = await getCallerContext(accessToken);
+  const { count, error } = await ctx.client
+    .from("escalations")
+    .select("id", { count: "exact", head: true })
+    .eq("coach_id", coachId)
+    .neq("status", "resolved");
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function countUnresolvedEscalationsForAdmin(accessToken: string): Promise<number> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+  const { count, error } = await supabaseAdmin
+    .from("escalations")
+    .select("id", { count: "exact", head: true })
+    .neq("status", "resolved");
+  if (error) throw error;
+  return count ?? 0;
+}

@@ -120,6 +120,7 @@ export interface DemoSessionSummary {
   coachPhoto: string;
   slotStart: string;
   status: "upcoming" | "completed" | "missed";
+  qualityRating: number | null;
 }
 
 /** The client journey state machine's only signal of "has this client ever
@@ -138,7 +139,7 @@ export async function getMyLatestDemoSession(accessToken: string): Promise<DemoS
 
   const { data, error: bookingsError } = await ctx.client
     .from("bookings")
-    .select("id, scheduled_start, status, coach:coach_profiles(id, profile:profiles(full_name, photo_url))")
+    .select("id, scheduled_start, status, quality_rating, coach:coach_profiles(id, profile:profiles(full_name, photo_url))")
     .eq("client_id", client.id)
     .eq("session_type", "assessment")
     .in("status", ["upcoming", "completed", "missed"])
@@ -156,5 +157,6 @@ export async function getMyLatestDemoSession(accessToken: string): Promise<DemoS
     coachPhoto: coach?.profile?.photo_url ?? FALLBACK_PHOTO(data.id),
     slotStart: data.scheduled_start,
     status: data.status as "upcoming" | "completed" | "missed",
+    qualityRating: (data as any).quality_rating ?? null,
   };
 }

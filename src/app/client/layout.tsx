@@ -7,6 +7,7 @@ import { getMyMeasurementStatusAction } from "@/lib/actions/client-progress.acti
 import { getMyJourneyStateAction } from "@/lib/actions/client-journey.actions";
 import { hasAnyChatAction, getMyUnreadChatCountAsClientAction } from "@/lib/actions/chat.actions";
 import { getSessionsLowStatusAction } from "@/lib/actions/renewals.actions";
+import { getMyUnresolvedConcernsCountAction } from "@/lib/actions/client-concerns.actions";
 import { isFailure } from "@/lib/actions/action-result";
 
 export default async function ClientPortalLayout({ children }: { children: React.ReactNode }) {
@@ -22,18 +23,20 @@ export default async function ClientPortalLayout({ children }: { children: React
   // must not block rendering, so this defaults to "not stale" rather than
   // throwing: worst case a page briefly renders without the gate, not a
   // portal-wide crash.
-  const [statusResult, journeyResult, chatResult, sessionsLowResult, unreadResult] = await Promise.all([
+  const [statusResult, journeyResult, chatResult, sessionsLowResult, unreadResult, concernsResult] = await Promise.all([
     getMyMeasurementStatusAction(),
     getMyJourneyStateAction(),
     hasAnyChatAction(),
     getSessionsLowStatusAction(),
     getMyUnreadChatCountAsClientAction(),
+    getMyUnresolvedConcernsCountAction(),
   ]);
   const measurementsStale = !isFailure(statusResult) && statusResult.data.isStale;
   const hasActivePlan = !isFailure(journeyResult) && journeyResult.data.subscriptionId != null;
   const hasAnyChat = !isFailure(chatResult) && chatResult.data;
   const sessionsLow = !isFailure(sessionsLowResult) ? sessionsLowResult.data : { isLow: false, sessionsRemaining: 0 };
   const chatUnreadCount = !isFailure(unreadResult) ? unreadResult.data : 0;
+  const escalationBadgeCount = !isFailure(concernsResult) ? concernsResult.data : 0;
 
   return (
     <PortalShell
@@ -42,6 +45,7 @@ export default async function ClientPortalLayout({ children }: { children: React
       hideBookSessionNav={hasActivePlan}
       showChatNav={hasAnyChat}
       chatUnreadCount={chatUnreadCount}
+      escalationBadgeCount={escalationBadgeCount}
     >
       {children}
       <MeasurementGateModal initiallyStale={measurementsStale} />

@@ -77,12 +77,14 @@ export async function activateMyPlan(accessToken: string, subscriptionId: string
   if (subError || !sub) throw subError ?? new Error("Subscription not found");
   if (sub.activated_at) throw new Error("This plan has already been activated.");
 
-  // Business "today" is IST, same convention as the rest of scheduling --
-  // compare calendar dates (not instants) so activating "today" itself is
-  // never mistakenly rejected regardless of what time it currently is.
+  // Business "today" is IST, same convention as the rest of scheduling.
+  // Same-day is disallowed here too, matching earliestBookableDateIST's
+  // rule for demo/regular session booking -- a plan activated today would
+  // need a same-day first session, which the scheduling side already
+  // refuses to offer.
   const todayIST = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-  if (startDate < todayIST) {
-    throw new Error("Start date can't be in the past -- pick today or a future date.");
+  if (startDate <= todayIST) {
+    throw new Error("Start date must be at least tomorrow -- same-day start isn't available.");
   }
 
   const { data: client, error: clientError } = await ctx.client.from("client_profiles").select("id").eq("profile_id", ctx.userId).single();

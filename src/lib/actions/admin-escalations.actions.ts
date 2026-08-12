@@ -8,6 +8,7 @@ import {
   markEscalationInProgress,
   listEscalationsForClient,
   listAllEscalations,
+  countUnresolvedEscalationsForAdmin,
 } from "@/lib/services/escalations.service";
 import { listClients } from "@/lib/services/clients.service";
 
@@ -81,6 +82,13 @@ export async function listAllEscalationsAction(): Promise<ActionResult<AdminGlob
         packageName: client?.activeSubscription?.package?.name ?? null,
       };
     });
+  });
+}
+
+export async function getUnresolvedEscalationsCountAction(): Promise<ActionResult<number>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    return countUnresolvedEscalationsForAdmin(token);
   });
 }
 

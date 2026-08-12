@@ -99,6 +99,7 @@ export default function PortalShell({
   hideBookSessionNav,
   showChatNav,
   chatUnreadCount,
+  escalationBadgeCount,
 }: {
   role: Role;
   identity?: { name: string; photo: string; sub: string };
@@ -116,6 +117,12 @@ export default function PortalShell({
    * as a small badge on "My Chats." Only refreshes on navigation/server
    * round-trips, not live. */
   chatUnreadCount?: number;
+  /** Count of not-yet-resolved escalations (open or in_progress) -- shown as
+   * a red badge on "My Concerns" (client) / "Escalations" (coach, admin).
+   * Each role's layout computes this scoped to what that role can see (their
+   * own concerns, their clients', or platform-wide), so the same prop name
+   * lands on whichever one nav item actually exists for that role. */
+  escalationBadgeCount?: number;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -194,6 +201,13 @@ export default function PortalShell({
                       chatUnreadCount ? (
                         <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
                           {chatUnreadCount}
+                        </span>
+                      ) : null
+                    ) : null}
+                    {item.href === "/client/concerns" || item.href === "/coach/escalations" || item.href === "/admin/escalations" ? (
+                      escalationBadgeCount ? (
+                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
+                          {escalationBadgeCount}
                         </span>
                       ) : null
                     ) : null}

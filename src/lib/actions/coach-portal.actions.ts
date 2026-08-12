@@ -13,7 +13,7 @@ import {
   requestLeave,
   RequestLeaveInput,
 } from "@/lib/services/availability.service";
-import { listEscalationsForCoach } from "@/lib/services/escalations.service";
+import { listEscalationsForCoach, countUnresolvedEscalationsForCoach } from "@/lib/services/escalations.service";
 import { getMyCoachPerformance, CoachPerformance } from "@/lib/services/coachPerformance.service";
 import { listMyShadowAssignments } from "@/lib/services/coachChange.service";
 import { getOnboardingForClient } from "@/lib/services/onboarding.service";
@@ -803,6 +803,14 @@ export async function getCoachEscalationsAction(): Promise<ActionResult<CoachEsc
         resolvedAt: r.resolved_at,
       };
     });
+  });
+}
+
+export async function getMyUnresolvedEscalationsCountAction(): Promise<ActionResult<number>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const coachProfile: any = await getMyCoachProfile(token);
+    return countUnresolvedEscalationsForCoach(token, coachProfile.id);
   });
 }
 

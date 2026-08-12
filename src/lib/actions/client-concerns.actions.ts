@@ -2,7 +2,7 @@
 
 import { getAccessToken } from "@/lib/supabase/server-client";
 import { ActionResult, runAction } from "./action-result";
-import { createEscalation, listEscalationsForClient } from "@/lib/services/escalations.service";
+import { createEscalation, listEscalationsForClient, countUnresolvedEscalationsForClient } from "@/lib/services/escalations.service";
 import { getMyClientProfile, getMyCurrentCoachId } from "@/lib/services/clients.service";
 
 async function requireToken(): Promise<string> {
@@ -37,6 +37,14 @@ export async function listMyConcernsAction(): Promise<ActionResult<MyConcernView
       createdAt: r.created_at,
       resolvedAt: r.resolved_at,
     }));
+  });
+}
+
+export async function getMyUnresolvedConcernsCountAction(): Promise<ActionResult<number>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const client: any = await getMyClientProfile(token);
+    return countUnresolvedEscalationsForClient(token, client.id);
   });
 }
 

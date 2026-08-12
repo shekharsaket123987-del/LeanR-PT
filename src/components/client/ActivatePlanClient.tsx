@@ -7,13 +7,15 @@ import Button from "@/components/ui/Button";
 import { activatePlanAction } from "@/lib/actions/client-journey.actions";
 import { isFailure } from "@/lib/actions/action-result";
 
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+function tomorrowISO(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
 export default function ActivatePlanClient({ subscriptionId, packageName }: { subscriptionId: string; packageName: string | null }) {
   const router = useRouter();
-  const [startDate, setStartDate] = useState(todayISO());
+  const [startDate, setStartDate] = useState(tomorrowISO());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -38,7 +40,7 @@ export default function ActivatePlanClient({ subscriptionId, packageName }: { su
       </p>
       <div className="mt-5">
         <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Start Date</label>
-        <input type="date" value={startDate} min={todayISO()} onChange={(e) => setStartDate(e.target.value)} className="w-full max-w-xs rounded-xl border border-black/15 p-3 text-sm" />
+        <input type="date" value={startDate} min={tomorrowISO()} onChange={(e) => setStartDate(e.target.value)} className="w-full max-w-xs rounded-xl border border-black/15 p-3 text-sm" />
       </div>
       {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
       <Button className="mt-6" loading={busy} onClick={activate}>
