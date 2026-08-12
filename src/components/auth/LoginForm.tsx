@@ -39,11 +39,25 @@ export default function LoginForm({
     setError("");
     setLoading(true);
 
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password });
 
     if (authError) {
       setLoading(false);
       setError(authError.message);
+      return;
+    }
+
+    // Auth succeeding doesn't mean this account belongs on THIS portal --
+    // middleware.ts silently redirects a wrong-role session back to this
+    // same login page, which (without this check) left the button stuck on
+    // "Signing in..." forever with no explanation, since setLoading(false)
+    // only ran on the auth-error branch above. Checking the role here lets
+    // us sign back out and surface a real error instead of a silent bounce.
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", authData.user.id).single();
+    if (profile?.role !== role) {
+      await supabase.auth.signOut();
+      setLoading(false);
+      setError(`This account isn't registered as ${role === "admin" ? "an" : "a"} ${role}. Log in with the correct account, or use the right portal.`);
       return;
     }
 
