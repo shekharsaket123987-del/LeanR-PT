@@ -33,7 +33,14 @@ export default function CoachPendingTasksGateModal({ initialPendingTasks }: { in
   const extra = tasks.length - listed.length;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    // Insets carve out the nav chrome (mobile top bar's ~56px, PortalShell.tsx;
+    // the lg:w-72 sidebar on desktop) rather than covering the full viewport
+    // like the client portal's hard-blocking gates do -- z-index alone can't
+    // get this right since the sidebar sits at different stacking layers on
+    // mobile vs. desktop. This is a soft nudge (see comment above -- nothing
+    // else is gated on clearing it), so it must never trap the coach behind
+    // an unreachable hamburger button or an unusable sidebar.
+    <div className="fixed left-0 right-0 top-14 bottom-0 z-30 flex items-center justify-center p-4 lg:left-72 lg:top-0">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
       <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border-2 border-red-200 bg-white p-6 shadow-2xl animate-slide-up">
         <div className="mb-1 flex items-center gap-2.5">
