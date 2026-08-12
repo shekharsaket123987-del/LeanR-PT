@@ -77,7 +77,7 @@ export function TaskRow({
   return (
     <div
       className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
-        task.overdue ? "border-red-300 bg-red-50" : "border-black/[0.06]"
+        task.overdue || task.notesOverdue ? "border-red-300 bg-red-50" : "border-black/[0.06]"
       }`}
     >
       <div className="flex items-center gap-3">
@@ -98,6 +98,7 @@ export function TaskRow({
             {task.packageName ?? "No active plan"} · {formatTime(task.scheduledStart)}
           </p>
           {task.overdue && <p className="mt-0.5 text-xs font-bold text-red-600">Attendance overdue — mark it now</p>}
+          {task.notesOverdue && <p className="mt-0.5 text-xs font-bold text-red-600">Session notes overdue — add them now</p>}
         </div>
       </div>
 

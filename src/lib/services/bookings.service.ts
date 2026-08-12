@@ -262,6 +262,32 @@ export async function sweepOverdueAttendance(accessToken: string) {
   }
 }
 
+/** Same "notify exactly once" sweep as sweepOverdueAttendance() above, for
+ * the other half of the post-session workflow: attendance was marked
+ * present/late but notes were never submitted. Kept separate rather than
+ * merged into the attendance sweep since the two conditions are mutually
+ * exclusive (markAttendance() clears attendance_overdue the moment
+ * attendance is marked at all) and need different coach-facing copy. */
+export async function sweepOverdueNotes(accessToken: string) {
+  const ctx = await getCallerContext(accessToken);
+  const { data: newlyOverdue, error } = await ctx.client.rpc("flag_overdue_notes");
+  if (error) throw error;
+  if (!newlyOverdue || (newlyOverdue as string[]).length === 0) return;
+
+  const { data: bookings } = await supabaseAdmin
+    .from("bookings")
+    .select("id, scheduled_start, coach:coach_profiles(profile_id), client:client_profiles(profile:profiles(full_name))")
+    .in("id", newlyOverdue as string[]);
+
+  for (const b of (bookings as any[]) ?? []) {
+    if (!b.coach?.profile_id) continue;
+    await createFromTemplate("notes_overdue", b.coach.profile_id, {
+      client_name: b.client?.profile?.full_name ?? "a client",
+      session_time: new Date(b.scheduled_start).toLocaleString(),
+    });
+  }
+}
+
 /** Convenience wrapper for immediate booking (hold then confirm back-to-back)
  * — used when the UI doesn't need a separate "reviewing your pick" step. */
 export async function createBooking(

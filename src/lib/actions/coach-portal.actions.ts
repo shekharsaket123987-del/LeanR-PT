@@ -35,6 +35,7 @@ import {
   markSessionJoined,
   submitSessionNotes,
   sweepOverdueAttendance,
+  sweepOverdueNotes,
 } from "@/lib/services/bookings.service";
 
 async function requireToken(): Promise<string> {
@@ -198,6 +199,12 @@ export interface CoachTodayTaskView extends CoachRosterBase {
   attendanceStatus: "present" | "absent" | "late" | null;
   notesSubmitted: boolean;
   overdue: boolean;
+  /** True once flag_overdue_notes() has flagged this booking: attendance was
+   * marked present/late but notes still weren't submitted 2+ hours after the
+   * session ended. Distinct from `overdue` (which is attendance-only, and by
+   * construction never true at the same time as this -- see
+   * bookings.service.ts::sweepOverdueNotes). */
+  notesOverdue: boolean;
   /** Host-privilege Zoom link, created lazily the first time a session
    * still needing attendance is loaded here. Null if Zoom isn't configured
    * yet (ensureZoomMeetingForBooking's error is swallowed, not thrown, so a
@@ -229,7 +236,7 @@ async function tryEnsureZoomStartUrl(token: string, bookingId: string): Promise<
 export async function getCoachTodayTasksAction(): Promise<ActionResult<CoachTodayTaskView[]>> {
   return runAction(async () => {
     const token = await requireToken();
-    await sweepOverdueAttendance(token);
+    await Promise.all([sweepOverdueAttendance(token), sweepOverdueNotes(token)]);
 
     const [bookings, clients, isShadowSession] = await Promise.all([
       listMyBookingsAsCoach(token),
@@ -265,6 +272,7 @@ export async function getCoachTodayTasksAction(): Promise<ActionResult<CoachToda
       attendanceStatus: attendanceByBooking.get(b.id) ?? null,
       notesSubmitted: notesSubmittedSet.has(b.id),
       overdue: b.attendance_overdue ?? false,
+      notesOverdue: b.notes_overdue ?? false,
       zoomStartUrl: zoomStartUrlByBooking.get(b.id) ?? null,
     }));
   });
@@ -320,6 +328,8 @@ export async function getCoachUpcoming3DaysAction(): Promise<ActionResult<CoachU
 export async function getCoachPendingTasksAction(): Promise<ActionResult<CoachTodayTaskView[]>> {
   return runAction(async () => {
     const token = await requireToken();
+    await Promise.all([sweepOverdueAttendance(token), sweepOverdueNotes(token)]);
+
     const [bookings, clients, isShadowSession] = await Promise.all([
       listMyBookingsAsCoach(token),
       listMyClients(token),
@@ -344,6 +354,7 @@ export async function getCoachPendingTasksAction(): Promise<ActionResult<CoachTo
       attendanceStatus: attendanceByBooking.get(b.id) ?? null,
       notesSubmitted: notesSubmittedSet.has(b.id),
       overdue: b.attendance_overdue ?? false,
+      notesOverdue: b.notes_overdue ?? false,
       // These sessions are already in the past -- there's nothing to join.
       zoomStartUrl: null,
     }));
