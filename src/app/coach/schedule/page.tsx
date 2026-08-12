@@ -2,11 +2,11 @@ import { AlertTriangle } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import CoachScheduleClient from "@/components/coach/CoachScheduleClient";
-import { getCoachScheduleAction } from "@/lib/actions/coach-portal.actions";
+import { getCoachScheduleAction, getCoachTodayTasksAction } from "@/lib/actions/coach-portal.actions";
 import { isFailure } from "@/lib/actions/action-result";
 
 export default async function CoachSchedulePage() {
-  const result = await getCoachScheduleAction();
+  const [result, todayTasksResult] = await Promise.all([getCoachScheduleAction(), getCoachTodayTasksAction()]);
 
   if (isFailure(result)) {
     return (
@@ -17,5 +17,5 @@ export default async function CoachSchedulePage() {
     );
   }
 
-  return <CoachScheduleClient sessions={result.data} />;
+  return <CoachScheduleClient sessions={result.data} initialTodayTasks={isFailure(todayTasksResult) ? [] : todayTasksResult.data} />;
 }

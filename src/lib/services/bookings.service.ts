@@ -523,10 +523,36 @@ export async function rateBooking(
   return data;
 }
 
+/** Records that the coach actually opened this session (clicked Join,
+ * whether that led to the real Zoom meeting or -- when Zoom isn't configured
+ * -- the in-app session page). Idempotent: a second call is a silent no-op
+ * rather than an error, since the UI can't always tell whether a prior click
+ * already recorded it. This is the "joined by coach" half of the gate
+ * markAttendance() enforces below. */
+export async function markSessionJoined(accessToken: string, bookingId: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["coach"]);
+
+  const { error } = await ctx.client
+    .from("bookings")
+    .update({ coach_joined_at: new Date().toISOString() })
+    .eq("id", bookingId)
+    .eq("status", "upcoming")
+    .is("coach_joined_at", null);
+  if (error) throw error;
+}
+
 /** Step 1 of the coach's session workflow (PRD §6): attendance must be
  * marked before notes can be submitted. Present leaves the booking
  * "upcoming" so submitSessionNotes() can still gate on it below; Absent
- * closes the booking out immediately as a client no-show, no notes phase. */
+ * closes the booking out immediately as a client no-show, no notes phase.
+ *
+ * Gated on "session completed AND joined by coach" for TODAY's sessions --
+ * the exact real-time workflow Today's Tasks/the session page walk the coach
+ * through. Backlog bookings from a PREVIOUS day (Pending Tasks) skip the
+ * join requirement: by the time they're overdue by a full day, there was
+ * never a live join moment to capture, and hard-requiring one would leave
+ * those bookings permanently stuck with no way to resolve them. */
 export async function markAttendance(
   accessToken: string,
   bookingId: string,
@@ -538,11 +564,20 @@ export async function markAttendance(
 
   const { data: booking, error: bookingError } = await ctx.client
     .from("bookings")
-    .select("id, client_id, coach_id, scheduled_start")
+    .select("id, client_id, coach_id, scheduled_start, duration_minutes, coach_joined_at")
     .eq("id", bookingId)
     .eq("status", "upcoming")
     .single();
   if (bookingError || !booking) throw bookingError ?? new Error("Booking not found, or not upcoming");
+
+  const sessionEnd = new Date(booking.scheduled_start).getTime() + booking.duration_minutes * 60_000;
+  if (Date.now() < sessionEnd) {
+    throw new Error("Attendance can only be marked after the session has ended.");
+  }
+  const isToday = new Date(booking.scheduled_start).toDateString() === new Date().toDateString();
+  if (isToday && !booking.coach_joined_at) {
+    throw new Error("Join the session before marking attendance.");
+  }
 
   const now = new Date().toISOString();
   const { error: attendanceError } = await ctx.client.from("attendance").upsert(

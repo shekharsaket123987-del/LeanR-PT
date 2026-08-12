@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { CheckCircle2, ClipboardEdit, Clock, ShieldCheck, Video, XCircle } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import JoinCountdown, { useJoinCountdown } from "@/components/shared/JoinCountdown";
-import { CoachTodayTaskView, markAttendanceAction } from "@/lib/actions/coach-portal.actions";
+import { CoachTodayTaskView, markAttendanceAction, markSessionJoinedAction } from "@/lib/actions/coach-portal.actions";
 import { isFailure } from "@/lib/actions/action-result";
 import { formatTime } from "@/lib/utils";
 
@@ -30,9 +31,36 @@ export function TaskRow({
   task: CoachTodayTaskView;
   onMarked: (bookingId: string, status: "present" | "absent" | "late") => void;
 }) {
+  const router = useRouter();
   const { canJoin, isPast } = useJoinCountdown(task.scheduledStart, task.durationMinutes);
+  const [joined, setJoined] = useState(task.coachJoinedAt != null);
+  const [joining, setJoining] = useState(false);
   const [marking, setMarking] = useState<"present" | "absent" | "late" | null>(null);
   const [error, setError] = useState("");
+
+  // The real attendance gate is enforced server-side (bookings.service.ts::
+  // markAttendance) -- this mirrors it just to keep the buttons from being
+  // clickable before the call would succeed anyway.
+  const canMarkAttendance = isPast && joined;
+
+  async function handleJoin() {
+    setJoining(true);
+    setError("");
+    const result = await markSessionJoinedAction(task.bookingId);
+    setJoining(false);
+    if (isFailure(result)) {
+      setError(result.error.message);
+      return;
+    }
+    setJoined(true);
+    // Once the session's own time has passed there's no live meeting left to
+    // open -- go straight to the session page to mark attendance instead.
+    if (!isPast && task.zoomStartUrl) {
+      window.open(task.zoomStartUrl, "_blank", "noopener,noreferrer");
+    } else {
+      router.push(`/coach/session/${task.bookingId}`);
+    }
+  }
 
   async function mark(status: "present" | "absent" | "late") {
     setMarking(status);
@@ -76,28 +104,40 @@ export function TaskRow({
       <div className="flex flex-wrap items-center gap-2">
         {!task.attendanceStatus ? (
           <>
-            {!isPast && (
+            {!joined && (
               <>
-                <JoinCountdown scheduledStart={task.scheduledStart} durationMinutes={task.durationMinutes} />
-                <Button
-                  href={task.zoomStartUrl ?? `/coach/session/${task.bookingId}`}
-                  target={task.zoomStartUrl ? "_blank" : undefined}
-                  size="sm"
-                  disabled={!canJoin}
-                >
+                {!isPast && <JoinCountdown scheduledStart={task.scheduledStart} durationMinutes={task.durationMinutes} />}
+                <Button size="sm" loading={joining} disabled={!isPast && !canJoin} onClick={handleJoin}>
                   <Video className="h-3.5 w-3.5" /> Join
                 </Button>
               </>
             )}
-            <Button size="sm" variant="outline" loading={marking === "present"} onClick={() => mark("present")}>
+            <Button
+              size="sm"
+              variant="outline"
+              loading={marking === "present"}
+              disabled={!canMarkAttendance}
+              onClick={() => mark("present")}
+            >
               <CheckCircle2 className="h-3.5 w-3.5" /> Present
             </Button>
-            <Button size="sm" variant="outline" loading={marking === "late"} onClick={() => mark("late")}>
+            <Button size="sm" variant="outline" loading={marking === "late"} disabled={!canMarkAttendance} onClick={() => mark("late")}>
               <Clock className="h-3.5 w-3.5" /> Late
             </Button>
-            <Button size="sm" variant="destructive-outline" loading={marking === "absent"} onClick={() => mark("absent")}>
+            <Button
+              size="sm"
+              variant="destructive-outline"
+              loading={marking === "absent"}
+              disabled={!canMarkAttendance}
+              onClick={() => mark("absent")}
+            >
               <XCircle className="h-3.5 w-3.5" /> Absent
             </Button>
+            {!canMarkAttendance && (
+              <p className="w-full text-xs text-black/40">
+                {!isPast ? "Present/Absent unlock once the session ends." : "Join the session first to mark attendance."}
+              </p>
+            )}
           </>
         ) : (task.attendanceStatus === "present" || task.attendanceStatus === "late") && !task.notesSubmitted ? (
           <>

@@ -77,6 +77,7 @@ export async function getAdminDashboard(accessToken: string): Promise<AdminDashb
     { count: activeCoachesCount },
     { data: activeCoachRatings, error: ratingsError },
     { count: completedLast30Days },
+    renewalOpportunities,
   ] = await Promise.all([
     ctx.client.from("client_profiles").select("id", { count: "exact", head: true }),
     ctx.client.from("client_profiles").select("id", { count: "exact", head: true }).eq("status", "active"),
@@ -105,6 +106,7 @@ export async function getAdminDashboard(accessToken: string): Promise<AdminDashb
       .select("id", { count: "exact", head: true })
       .eq("status", "completed")
       .gte("scheduled_start", new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()),
+    listRenewalOpportunities(accessToken),
   ]);
   if (utilError) throw utilError;
   if (revenueError) throw revenueError;
@@ -114,7 +116,6 @@ export async function getAdminDashboard(accessToken: string): Promise<AdminDashb
   if (durationError) throw durationError;
   if (ratingsError) throw ratingsError;
 
-  const renewalOpportunities = await listRenewalOpportunities(accessToken);
   const renewalOpportunityCount = renewalOpportunities.length;
   const renewalRatePct =
     renewalOpportunityCount > 0

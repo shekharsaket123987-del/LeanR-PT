@@ -32,6 +32,7 @@ import {
   listWorkoutNotesForBookings,
   listWorkoutNotesForClient,
   markAttendance,
+  markSessionJoined,
   submitSessionNotes,
   sweepOverdueAttendance,
 } from "@/lib/services/bookings.service";
@@ -151,6 +152,9 @@ interface CoachRosterBase {
    * covering as a shadow coach (§4.2.7's optional, low-priority badge; cheap
    * once shadow_coach_assignments already exists). */
   isShadowSession: boolean;
+  /** Set the moment the coach clicks Join -- the "joined by coach" half of
+   * the attendance gate (bookings.service.ts::markAttendance). Null until then. */
+  coachJoinedAt: string | null;
 }
 
 /** Active shadow_coach_assignments for the caller, as a (clientId, dateStr) ->
@@ -186,6 +190,7 @@ function toCoachRosterBase(
     scheduledStart: booking.scheduled_start,
     durationMinutes: booking.duration_minutes,
     isShadowSession: isShadowSession(clientId, booking.scheduled_start),
+    coachJoinedAt: booking.coach_joined_at ?? null,
   };
 }
 
@@ -625,12 +630,15 @@ export interface CoachSessionDetail {
   status: "upcoming" | "completed" | "cancelled" | "missed";
   type: "assessment" | "regular";
   date: string;
+  durationMinutes: number;
   amountPaid: number | null;
   client: { id: string; name: string; photo: string; goals: string[]; medicalNotes: string | null; equipment: string[] } | null;
   previousNotes: { date: string; notes: string | null }[];
   attendanceStatus: "present" | "absent" | "late" | null;
   notes: SessionNotesView | null;
   zoomStartUrl: string | null;
+  /** Set once the coach clicks Join -- see CoachRosterBase.coachJoinedAt. */
+  coachJoinedAt: string | null;
 }
 
 export async function getCoachSessionDetailAction(bookingId: string): Promise<ActionResult<CoachSessionDetail>> {
@@ -671,11 +679,13 @@ export async function getCoachSessionDetailAction(bookingId: string): Promise<Ac
       status: booking.status,
       type: booking.session_type,
       date: booking.scheduled_start,
+      durationMinutes: booking.duration_minutes,
       amountPaid: booking.amount_paid ?? null,
       client: clientDetail,
       previousNotes,
       attendanceStatus: attendance?.status ?? null,
       zoomStartUrl,
+      coachJoinedAt: booking.coach_joined_at ?? null,
       notes: notesRow
         ? {
             summary: notesRow.notes,
@@ -687,6 +697,14 @@ export async function getCoachSessionDetailAction(bookingId: string): Promise<Ac
           }
         : null,
     };
+  });
+}
+
+export async function markSessionJoinedAction(bookingId: string): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    await markSessionJoined(token, bookingId);
+    return null;
   });
 }
 

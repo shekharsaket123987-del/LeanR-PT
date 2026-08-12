@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
@@ -30,23 +31,23 @@ async function getServerSupabase() {
  * themselves, keeping the service layer transport-agnostic). Null if there's
  * no session — shouldn't happen inside a portal route, since middleware.ts
  * guards all of them, but callers should still handle it. */
-export async function getAccessToken(): Promise<string | null> {
+export const getAccessToken = cache(async (): Promise<string | null> => {
   const supabase = await getServerSupabase();
   const {
     data: { session },
   } = await supabase.auth.getSession();
   return session?.access_token ?? null;
-}
+});
 
 /** Same session lookup as getAccessToken, but also surfaces the signed-in
  * user's id/email — needed by actions that display account info (email
  * lives on auth.users, not on the profiles table `lib/services` queries
  * operate against). */
-export async function getSessionUser(): Promise<{ token: string; id: string; email: string | null } | null> {
+export const getSessionUser = cache(async (): Promise<{ token: string; id: string; email: string | null } | null> => {
   const supabase = await getServerSupabase();
   const {
     data: { session },
   } = await supabase.auth.getSession();
   if (!session) return null;
   return { token: session.access_token, id: session.user.id, email: session.user.email ?? null };
-}
+});

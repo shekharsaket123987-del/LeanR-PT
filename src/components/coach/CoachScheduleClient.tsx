@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { CalendarDays, Video } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import Card from "@/components/ui/Card";
-import Button from "@/components/ui/Button";
 import Badge, { AssessmentBadge, SessionStatusBadge } from "@/components/ui/Badge";
 import Modal from "@/components/ui/Modal";
-import { CoachSessionView } from "@/lib/actions/coach-portal.actions";
-import { formatDate, formatTime, hoursUntil } from "@/lib/utils";
+import CoachTodayTasksClient from "@/components/coach/CoachTodayTasksClient";
+import { CoachSessionView, CoachTodayTaskView } from "@/lib/actions/coach-portal.actions";
+import { formatDate, formatTime } from "@/lib/utils";
 
 function startOfWeek(d: Date) {
   const date = new Date(d);
@@ -19,8 +19,14 @@ function startOfWeek(d: Date) {
   return date;
 }
 
-export default function CoachScheduleClient({ sessions }: { sessions: CoachSessionView[] }) {
-  const [view, setView] = useState<"day" | "week">("week");
+export default function CoachScheduleClient({
+  sessions,
+  initialTodayTasks,
+}: {
+  sessions: CoachSessionView[];
+  initialTodayTasks: CoachTodayTaskView[];
+}) {
+  const [view, setView] = useState<"day" | "week">("day");
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
   const weekStart = startOfWeek(new Date());
@@ -29,10 +35,6 @@ export default function CoachScheduleClient({ sessions }: { sessions: CoachSessi
     d.setDate(d.getDate() + i);
     return d;
   });
-
-  const todaySessions = sessions
-    .filter((s) => new Date(s.date).toDateString() === new Date().toDateString())
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -57,33 +59,7 @@ export default function CoachScheduleClient({ sessions }: { sessions: CoachSessi
         }
       />
 
-      {view === "day" && (
-        <div className="space-y-3">
-          {todaySessions.length === 0 && (
-            <Card className="p-10 text-center text-sm text-black/40">No sessions scheduled for today.</Card>
-          )}
-          {todaySessions.map((s) => {
-            const canJoin = hoursUntil(s.date) <= 1 / 6 && hoursUntil(s.date) > -(s.durationMinutes / 60);
-            return (
-              <Card key={s.id} className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
-                <div className="w-20 shrink-0 text-sm font-bold">{formatTime(s.date)}</div>
-                <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl">
-                  {s.client && <Image src={s.client.photo} alt={s.client.name} fill className="object-cover" />}
-                </div>
-                <div className="flex-1">
-                  <div className="mb-1 flex items-center gap-2">
-                    {s.type === "assessment" ? <AssessmentBadge amountPaid={s.amountPaid} /> : <Badge variant="gray">Regular</Badge>}
-                  </div>
-                  <p className="text-sm font-bold">{s.client?.name}</p>
-                </div>
-                <Button href={`/coach/session/${s.id}`} disabled={!canJoin}>
-                  <Video className="h-4 w-4" /> Join
-                </Button>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+      {view === "day" && <CoachTodayTasksClient initialTasks={initialTodayTasks} />}
 
       {view === "week" && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-7">

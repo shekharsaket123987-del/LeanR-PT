@@ -9,7 +9,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { AssessmentBadge } from "@/components/ui/Badge";
 import TagEditor from "@/components/ui/TagEditor";
-import { CoachSessionDetail, markAttendanceAction, submitSessionNotesAction } from "@/lib/actions/coach-portal.actions";
+import { CoachSessionDetail, markAttendanceAction, markSessionJoinedAction, submitSessionNotesAction } from "@/lib/actions/coach-portal.actions";
 import { isFailure } from "@/lib/actions/action-result";
 import { formatDate } from "@/lib/utils";
 
@@ -27,6 +27,10 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
   const [markingAttendance, setMarkingAttendance] = useState<"present" | "absent" | "late" | null>(null);
   const [absentRemark, setAbsentRemark] = useState("");
   const [attendanceError, setAttendanceError] = useState("");
+  const [joined, setJoined] = useState(session.coachJoinedAt != null);
+  const [joining, setJoining] = useState(false);
+  const sessionEnded = Date.now() >= new Date(session.date).getTime() + session.durationMinutes * 60_000;
+  const canMarkAttendance = joined && sessionEnded;
 
   const [summary, setSummary] = useState(session.notes?.summary ?? "");
   const [exercisesPerformed, setExercisesPerformed] = useState(session.notes?.exercisesPerformed ?? "");
@@ -38,6 +42,19 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
   const [submitError, setSubmitError] = useState("");
   const [completed, setCompleted] = useState(session.status === "completed");
   const [missed, setMissed] = useState(session.status === "missed");
+
+  async function handleJoin() {
+    setJoining(true);
+    setAttendanceError("");
+    const result = await markSessionJoinedAction(session.id);
+    setJoining(false);
+    if (isFailure(result)) {
+      setAttendanceError(result.error.message);
+      return;
+    }
+    setJoined(true);
+    if (session.zoomStartUrl) window.open(session.zoomStartUrl, "_blank", "noopener,noreferrer");
+  }
 
   async function markPresent() {
     setMarkingAttendance("present");
@@ -115,32 +132,70 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-yellow/15">
                 <Video className="h-6 w-6" />
               </div>
-              <p className="mt-3 text-sm font-bold">{session.zoomStartUrl ? "Ready to start this session" : "Zoom link not ready yet"}</p>
-              <p className="mt-1 text-xs text-black/45">
-                {session.zoomStartUrl
-                  ? "Opens Zoom in a new tab, on your account, as the meeting host."
-                  : "This can happen if Zoom isn't configured yet, or the session has already passed."}
-              </p>
-              <div className="mt-4">
-                <Button href={session.zoomStartUrl ?? "#"} target="_blank" disabled={!session.zoomStartUrl}>
-                  <Video className="h-4 w-4" /> Join Zoom Meeting
-                </Button>
-              </div>
+              {joined ? (
+                <>
+                  <p className="mt-3 text-sm font-bold">Session joined</p>
+                  <p className="mt-1 text-xs text-black/45">
+                    {sessionEnded ? "Mark attendance below." : "Attendance unlocks once the session's scheduled time ends."}
+                  </p>
+                  {session.zoomStartUrl && !sessionEnded && (
+                    <div className="mt-4">
+                      <Button variant="outline" href={session.zoomStartUrl} target="_blank">
+                        <Video className="h-4 w-4" /> Reopen Zoom
+                      </Button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="mt-3 text-sm font-bold">{session.zoomStartUrl ? "Ready to start this session" : "Start this session"}</p>
+                  <p className="mt-1 text-xs text-black/45">
+                    {session.zoomStartUrl
+                      ? "Opens Zoom in a new tab, on your account, as the meeting host."
+                      : "Zoom isn't configured yet -- this marks the session as started so you can log attendance once it ends."}
+                  </p>
+                  <div className="mt-4">
+                    <Button onClick={handleJoin} loading={joining}>
+                      <Video className="h-4 w-4" /> Join Zoom Meeting
+                    </Button>
+                  </div>
+                </>
+              )}
             </Card>
           )}
 
           {!completed && !missed && attendance !== "present" && attendance !== "late" && (
             <Card className="mt-6 p-6">
               <p className="mb-1 text-sm font-bold">Attendance</p>
-              <p className="mb-4 text-xs text-black/45">Mark attendance before you can start session notes. Marking Absent closes this session immediately.</p>
+              <p className="mb-4 text-xs text-black/45">
+                {canMarkAttendance
+                  ? "Mark attendance before you can start session notes. Marking Absent closes this session immediately."
+                  : !joined
+                    ? "Join the session first -- attendance can't be marked until you have."
+                    : "Attendance unlocks once the session's scheduled time has ended."}
+              </p>
               <div className="flex flex-wrap gap-3">
-                <Button onClick={markPresent} loading={markingAttendance === "present"} disabled={markingAttendance !== null && markingAttendance !== "present"}>
+                <Button
+                  onClick={markPresent}
+                  loading={markingAttendance === "present"}
+                  disabled={!canMarkAttendance || (markingAttendance !== null && markingAttendance !== "present")}
+                >
                   <UserCheck className="h-4 w-4" /> Present
                 </Button>
-                <Button variant="outline" onClick={markLate} loading={markingAttendance === "late"} disabled={markingAttendance !== null && markingAttendance !== "late"}>
+                <Button
+                  variant="outline"
+                  onClick={markLate}
+                  loading={markingAttendance === "late"}
+                  disabled={!canMarkAttendance || (markingAttendance !== null && markingAttendance !== "late")}
+                >
                   <Clock className="h-4 w-4" /> Late
                 </Button>
-                <Button variant="destructive-outline" onClick={markAbsent} loading={markingAttendance === "absent"} disabled={markingAttendance !== null && markingAttendance !== "absent"}>
+                <Button
+                  variant="destructive-outline"
+                  onClick={markAbsent}
+                  loading={markingAttendance === "absent"}
+                  disabled={!canMarkAttendance || (markingAttendance !== null && markingAttendance !== "absent")}
+                >
                   <UserX className="h-4 w-4" /> Absent
                 </Button>
               </div>
