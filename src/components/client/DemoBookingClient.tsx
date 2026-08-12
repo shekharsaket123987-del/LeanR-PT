@@ -10,8 +10,13 @@ import { bookDemoSessionAction, DemoBookingResult } from "@/lib/actions/client-j
 import { isFailure } from "@/lib/actions/action-result";
 import { formatDate, formatTime } from "@/lib/utils";
 
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+/** Same-day demo booking isn't offered -- earliest selectable date is
+ * always tomorrow (also enforced server-side in demoBooking.service.ts::
+ * findDemoSlots, this is just the UI-level default/floor). */
+function earliestDateISO(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
 /** The client picks a date/time preference only -- never a coach. The
@@ -19,7 +24,7 @@ function todayISO(): string {
  * utilization ranking) and confirms immediately, free, no payment step. */
 export default function DemoBookingClient({ measurementsStale }: { measurementsStale: boolean }) {
   const router = useRouter();
-  const [date, setDate] = useState(todayISO());
+  const [date, setDate] = useState(earliestDateISO());
   const [preferredTime, setPreferredTime] = useState("");
   const [genderPreference, setGenderPreference] = useState<"" | "male" | "female" | "other">("");
   const [booking, setBooking] = useState(false);
@@ -91,7 +96,7 @@ export default function DemoBookingClient({ measurementsStale }: { measurementsS
           <input
             type="date"
             value={date}
-            min={todayISO()}
+            min={earliestDateISO()}
             onChange={(e) => setDate(e.target.value)}
             className="w-full rounded-xl border border-black/15 p-3 text-sm"
           />

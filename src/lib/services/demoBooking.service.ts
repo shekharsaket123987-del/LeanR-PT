@@ -1,6 +1,6 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
-import { getBookingWindow, hourlyGrid, istWallClockToInstant } from "./scheduling.service";
+import { earliestBookableDateIST, getBookingWindow, hourlyGrid, istWallClockToInstant } from "./scheduling.service";
 import { createBooking } from "./bookings.service";
 
 export interface DemoSlotOption {
@@ -25,6 +25,12 @@ export async function findDemoSlots(
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["client"]);
   const durationMinutes = input.durationMinutes ?? 60;
+
+  // Same-day demo booking isn't offered -- earliest selectable date is
+  // always tomorrow (IST), same rule as regular session booking.
+  if (input.date < earliestBookableDateIST()) {
+    throw new Error("Same-day booking isn't available -- please choose a date starting tomorrow.");
+  }
 
   // Uses supabaseAdmin deliberately, same rationale as coaches.service.ts's
   // getCoachPublicInfo(): this client has no relationship (booking/recurring

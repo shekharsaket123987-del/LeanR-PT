@@ -38,6 +38,20 @@ export function istDateString(iso: string): string {
   return new Date(istMs).toISOString().slice(0, 10);
 }
 
+/** Earliest calendar date (IST) any NEW booking -- demo or regular session --
+ * may be scheduled on. Same-day booking is disallowed platform-wide
+ * regardless of time-of-day (a slot 5 hours from now today is still not
+ * bookable, only slots from tomorrow onward are), so this is a flat
+ * "tomorrow" rather than a time-remaining check. Used by both
+ * getBookingOptionsAction (regular sessions) and findDemoSlots (demos) as
+ * the floor for their date range. */
+export function earliestBookableDateIST(): string {
+  const todayIST = istDateString(new Date().toISOString());
+  const d = new Date(`${todayIST}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 /** Only whole-hour slots exist platform-wide (5am, 6am, ... up to the last
  * hour before close) — no half-hour or odd-aligned start times. Bounds are
  * admin-configurable via system_settings (booking_window_start_hour/end_hour)

@@ -5,6 +5,7 @@ import { ActionResult, fail, ok, runAction } from "./action-result";
 import { getMyClientProfile, getMyCurrentCoachId } from "@/lib/services/clients.service";
 import { getCoach, listCoaches } from "@/lib/services/coaches.service";
 import {
+  earliestBookableDateIST,
   findSubstituteCoachCandidates,
   getBookingWindow,
   getClientBusyDates,
@@ -254,12 +255,14 @@ export async function getBookingOptionsAction(): Promise<ActionResult<BookingOpt
     const sessionType: "assessment" | "regular" = isFirstSession ? "assessment" : "regular";
     const durationMinutes = isFirstSession ? 60 : 45;
 
-    const from = new Date();
-    const to = new Date(from.getTime() + 14 * 24 * 60 * 60 * 1000);
+    // Same-day booking is never offered -- the earliest selectable slot is
+    // always tomorrow (IST), regardless of how many hours are left today.
+    const fromDateStr = earliestBookableDateIST();
+    const to = new Date(`${fromDateStr}T00:00:00Z`);
+    to.setUTCDate(to.getUTCDate() + 14);
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
-    const rawSlots = await getOpenSlots(token, coachId, fmt(from), fmt(to), durationMinutes);
-    const now = Date.now();
-    const slots = rawSlots.filter((s) => new Date(s.start).getTime() > now).slice(0, 20);
+    const rawSlots = await getOpenSlots(token, coachId, fromDateStr, fmt(to), durationMinutes);
+    const slots = rawSlots.slice(0, 20);
 
     return { coach, isFirstSession, sessionType, durationMinutes, slots };
   });
