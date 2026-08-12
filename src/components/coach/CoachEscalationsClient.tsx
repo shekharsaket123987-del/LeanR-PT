@@ -59,7 +59,8 @@ export default function CoachEscalationsClient({ escalations }: { escalations: C
                 <span className="font-mono text-[11px] font-bold text-black/40">{e.clientCode || `#${e.id.slice(0, 8).toUpperCase()}`}</span>
                 <Badge variant="gray">{categoryLabel(e.category)}</Badge>
                 <Badge variant={badge.variant}>{badge.label}</Badge>
-                <span className="text-xs text-black/40">{formatDate(e.createdAt)}</span>
+                <span className="text-xs text-black/40">Raised {formatDate(e.createdAt)}</span>
+                {e.resolvedAt && <span className="text-xs text-black/40">· Resolved {formatDate(e.resolvedAt)}</span>}
               </div>
               <p className="text-sm font-bold">
                 {e.clientName}

@@ -52,11 +52,68 @@ export async function createEscalation(
   return data;
 }
 
+/** Every status change (in_progress, resolved) requires the admin to have
+ * already confirmed a phone call with the client -- reflects the business
+ * rule that an escalation can't be worked without first talking to the
+ * client, not just enforced as a UI hint. */
+async function requireCalledClient(escalationId: string) {
+  const { data, error } = await supabaseAdmin.from("escalations").select("called_client_at").eq("id", escalationId).single();
+  if (error) throw error;
+  if (!data.called_client_at) {
+    throw new Error("Call the client and discuss the issue before updating this escalation.");
+  }
+}
+
+/** First step of the resolution workflow -- records that the admin has
+ * called and discussed the issue with the client. Nothing else on the
+ * escalation (issue type, fault, status) can be changed until this is set;
+ * see requireCalledClient(). */
+export async function confirmCalledClient(accessToken: string, escalationId: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+  const { data, error } = await supabaseAdmin
+    .from("escalations")
+    .update({ called_client_at: new Date().toISOString(), called_by: ctx.userId })
+    .eq("id", escalationId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/** Admin's own classification/summary of the case -- distinct from the
+ * client's original category/reason/description, which stay untouched as
+ * the client's original report. Saveable repeatedly while a case is being
+ * worked, independent of the final status change. */
+export async function updateEscalationDetails(
+  accessToken: string,
+  escalationId: string,
+  input: { issueType?: string; fault?: string; adminSummary?: string }
+) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+  await requireCalledClient(escalationId);
+
+  const { data, error } = await supabaseAdmin
+    .from("escalations")
+    .update({
+      admin_issue_type: input.issueType ?? null,
+      fault: input.fault ?? null,
+      admin_summary: input.adminSummary ?? null,
+    })
+    .eq("id", escalationId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 /** Only admin can update/close a ticket, per business rule -- coaches can
  * see escalations linked to their clients (read-only) but not change status. */
 export async function markEscalationInProgress(accessToken: string, escalationId: string) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["admin"]);
+  await requireCalledClient(escalationId);
   const { data, error } = await supabaseAdmin.from("escalations").update({ status: "in_progress" }).eq("id", escalationId).select().single();
   if (error) throw error;
   return data;
@@ -65,6 +122,7 @@ export async function markEscalationInProgress(accessToken: string, escalationId
 export async function resolveEscalation(accessToken: string, escalationId: string, resolutionNotes?: string) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["admin"]);
+  await requireCalledClient(escalationId);
 
   const { data, error } = await supabaseAdmin
     .from("escalations")
@@ -80,6 +138,49 @@ export async function resolveEscalation(accessToken: string, escalationId: strin
     metadata: { escalationId },
   });
 
+  return data;
+}
+
+/** Progress-notes trail -- for cases that take days and coordination across
+ * teams to close. Client-visible (escalation_notes_select_own_client RLS),
+ * so this doubles as the "what did admin do about it" update the client
+ * sees, separate from resolution_notes which is only the final closing
+ * summary. */
+export async function addEscalationNote(accessToken: string, escalationId: string, note: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+  await requireCalledClient(escalationId);
+
+  const { data, error } = await supabaseAdmin
+    .from("escalation_notes")
+    .insert({ escalation_id: escalationId, author_id: ctx.userId, note })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function listEscalationNotes(accessToken: string, escalationId: string) {
+  const ctx = await getCallerContext(accessToken);
+  const { data, error } = await ctx.client
+    .from("escalation_notes")
+    .select("*, author:profiles(full_name)")
+    .eq("escalation_id", escalationId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+/** Batch fetch for the client concerns list -- one query for all of the
+ * client's escalations' notes rather than N+1 per concern card. */
+export async function listEscalationNotesForClient(accessToken: string, clientId: string) {
+  const ctx = await getCallerContext(accessToken);
+  const { data, error } = await ctx.client
+    .from("escalation_notes")
+    .select("*, escalation:escalations!inner(client_id)")
+    .eq("escalation.client_id", clientId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
   return data;
 }
 

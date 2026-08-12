@@ -61,9 +61,21 @@ export default function MyConcernsClient({ concerns }: { concerns: MyConcernView
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <Badge variant="gray">{categoryLabel(c.category)}</Badge>
                 <Badge variant={badge.variant}>{badge.label}</Badge>
-                <span className="text-xs text-black/40">{formatDate(c.createdAt)}</span>
+                <span className="text-xs text-black/40">Raised {formatDate(c.createdAt)}</span>
+                {c.resolvedAt && <span className="text-xs text-black/40">· Resolved {formatDate(c.resolvedAt)}</span>}
               </div>
               {c.description && <p className="text-sm text-black/65">{c.description}</p>}
+              {c.notes.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-black/40">Updates from LEANR</p>
+                  {c.notes.map((n, i) => (
+                    <div key={i} className="rounded-lg bg-black/[0.03] p-3">
+                      <p className="text-xs text-black/70">{n.note}</p>
+                      <p className="mt-1 text-[11px] text-black/40">{formatDate(n.createdAt)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
               {c.status === "resolved" && c.resolutionNotes && (
                 <p className="mt-2 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800">
                   <span className="font-bold">Resolution: </span>

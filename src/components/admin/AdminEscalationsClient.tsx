@@ -1,15 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, Clock3, MessageCircleWarning } from "lucide-react";
+import { ChevronRight, MessageCircleWarning } from "lucide-react";
 import Card from "@/components/ui/Card";
-import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
-import { AdminGlobalEscalationView, markEscalationInProgressAction, resolveEscalationAction } from "@/lib/actions/admin-escalations.actions";
-import { isFailure } from "@/lib/actions/action-result";
+import { AdminGlobalEscalationView } from "@/lib/actions/admin-escalations.actions";
 import { CONCERN_CATEGORIES } from "@/lib/constants/concern-categories";
 import { formatDate } from "@/lib/utils";
 
@@ -26,30 +23,9 @@ function categoryLabel(value: string | null) {
 type Tab = "active" | "resolved";
 
 export default function AdminEscalationsClient({ escalations }: { escalations: AdminGlobalEscalationView[] }) {
-  const router = useRouter();
   const [tab, setTab] = useState<Tab>("active");
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState("");
 
   const filtered = escalations.filter((e) => (tab === "resolved" ? e.status === "resolved" : e.status !== "resolved"));
-
-  async function markInProgress(id: string) {
-    setBusyId(id);
-    setError("");
-    const result = await markEscalationInProgressAction(id);
-    setBusyId(null);
-    if (isFailure(result)) return setError(result.error.message);
-    router.refresh();
-  }
-
-  async function resolve(id: string) {
-    setBusyId(id);
-    setError("");
-    const result = await resolveEscalationAction(id);
-    setBusyId(null);
-    if (isFailure(result)) return setError(result.error.message);
-    router.refresh();
-  }
 
   return (
     <div>
@@ -67,8 +43,6 @@ export default function AdminEscalationsClient({ escalations }: { escalations: A
         ))}
       </div>
 
-      {error && <p className="mb-3 text-xs text-red-600">{error}</p>}
-
       {filtered.length === 0 && (
         <EmptyState
           icon={MessageCircleWarning}
@@ -81,38 +55,34 @@ export default function AdminEscalationsClient({ escalations }: { escalations: A
         {filtered.map((e) => {
           const badge = STATUS_BADGE[e.status] ?? STATUS_BADGE.open;
           return (
-            <Card key={e.id} className="p-5">
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <span className="font-mono text-[11px] font-bold text-black/40">{e.clientCode || `#${e.id.slice(0, 8).toUpperCase()}`}</span>
-                <Badge variant="gray">{categoryLabel(e.category)}</Badge>
-                <Badge variant={badge.variant}>{badge.label}</Badge>
-                <span className="text-xs text-black/40">{formatDate(e.createdAt)}</span>
-              </div>
-              <Link href={`/admin/clients/${e.clientId}`} className="text-sm font-bold hover:underline">
-                {e.clientName}
-              </Link>
-              {e.packageName && <span className="ml-1.5 text-xs font-normal text-black/40">· {e.packageName}</span>}
-              <p className="mt-1 text-sm text-black/65">{e.reason}</p>
-              {e.description && <p className="mt-1 text-xs text-black/50">{e.description}</p>}
-              {e.status === "resolved" && e.resolutionNotes && (
-                <p className="mt-2 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800">
-                  <span className="font-bold">Resolution: </span>
-                  {e.resolutionNotes}
-                </p>
-              )}
-              {e.status !== "resolved" && (
-                <div className="mt-3 flex gap-2">
-                  {e.status === "open" && (
-                    <Button size="sm" variant="outline" loading={busyId === e.id} onClick={() => markInProgress(e.id)}>
-                      <Clock3 className="h-3.5 w-3.5" /> Mark In Progress
-                    </Button>
-                  )}
-                  <Button size="sm" loading={busyId === e.id} onClick={() => resolve(e.id)}>
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Mark Resolved
-                  </Button>
+            <Link key={e.id} href={`/admin/escalations/${e.id}`} className="block">
+              <Card className="p-5 transition-shadow hover:shadow-card">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-[11px] font-bold text-black/40">{e.clientCode || `#${e.id.slice(0, 8).toUpperCase()}`}</span>
+                  <Badge variant="gray">{categoryLabel(e.category)}</Badge>
+                  <Badge variant={badge.variant}>{badge.label}</Badge>
+                  <span className="text-xs text-black/40">Raised {formatDate(e.createdAt)}</span>
+                  {e.resolvedAt && <span className="text-xs text-black/40">· Resolved {formatDate(e.resolvedAt)}</span>}
                 </div>
-              )}
-            </Card>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold">
+                      {e.clientName}
+                      {e.packageName && <span className="ml-1.5 font-normal text-black/40">· {e.packageName}</span>}
+                    </p>
+                    <p className="mt-1 text-sm text-black/65">{e.reason}</p>
+                    {e.description && <p className="mt-1 text-xs text-black/50">{e.description}</p>}
+                    {e.status === "resolved" && e.resolutionNotes && (
+                      <p className="mt-2 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800">
+                        <span className="font-bold">Resolution: </span>
+                        {e.resolutionNotes}
+                      </p>
+                    )}
+                  </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-black/30" />
+                </div>
+              </Card>
+            </Link>
           );
         })}
       </div>

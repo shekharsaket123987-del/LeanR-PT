@@ -9,6 +9,11 @@ import {
   listEscalationsForClient,
   listAllEscalations,
   countUnresolvedEscalationsForAdmin,
+  getEscalation,
+  confirmCalledClient,
+  updateEscalationDetails,
+  addEscalationNote,
+  listEscalationNotes,
 } from "@/lib/services/escalations.service";
 import { listClients } from "@/lib/services/clients.service";
 
@@ -82,6 +87,89 @@ export async function listAllEscalationsAction(): Promise<ActionResult<AdminGlob
         packageName: client?.activeSubscription?.package?.name ?? null,
       };
     });
+  });
+}
+
+export interface EscalationNoteView {
+  id: string;
+  authorName: string;
+  note: string;
+  createdAt: string;
+}
+
+export interface AdminEscalationDetailView extends AdminGlobalEscalationView {
+  coachId: string | null;
+  coachName: string | null;
+  issueType: string | null;
+  fault: string | null;
+  adminSummary: string | null;
+  calledClientAt: string | null;
+  notes: EscalationNoteView[];
+}
+
+/** Powers the admin escalation detail page -- the client's original report,
+ * everything admin has filled in so far, and the full progress-notes
+ * trail, in one fetch. */
+export async function getEscalationDetailAction(escalationId: string): Promise<ActionResult<AdminEscalationDetailView>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const [row, notes]: [any, any[]] = await Promise.all([getEscalation(token, escalationId), listEscalationNotes(token, escalationId)]);
+    if (!row) throw new Error("Escalation not found");
+
+    return {
+      id: row.id,
+      reason: row.reason,
+      description: row.description,
+      status: row.status,
+      category: row.category,
+      raisedByAdmin: row.raised_by === null,
+      resolutionNotes: row.resolution_notes,
+      createdAt: row.created_at,
+      resolvedAt: row.resolved_at,
+      clientId: row.client_id,
+      clientCode: row.client?.client_code ?? "",
+      clientName: row.client?.profile?.full_name ?? "Client",
+      packageName: null,
+      coachId: row.coach?.id ?? row.coach_id,
+      coachName: row.coach?.profile?.full_name ?? null,
+      issueType: row.admin_issue_type,
+      fault: row.fault,
+      adminSummary: row.admin_summary,
+      calledClientAt: row.called_client_at,
+      notes: notes.map((n) => ({
+        id: n.id,
+        authorName: n.author?.full_name ?? "Admin",
+        note: n.note,
+        createdAt: n.created_at,
+      })),
+    };
+  });
+}
+
+export async function confirmCalledClientAction(escalationId: string): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    await confirmCalledClient(token, escalationId);
+    return null;
+  });
+}
+
+export async function updateEscalationDetailsAction(
+  escalationId: string,
+  input: { issueType?: string; fault?: string; adminSummary?: string }
+): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    await updateEscalationDetails(token, escalationId, input);
+    return null;
+  });
+}
+
+export async function addEscalationNoteAction(escalationId: string, note: string): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    await addEscalationNote(token, escalationId, note);
+    return null;
   });
 }
 
