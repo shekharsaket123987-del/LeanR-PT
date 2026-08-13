@@ -32,6 +32,7 @@ import {
   rateBooking,
   rescheduleBooking,
 } from "@/lib/services/bookings.service";
+import { listMyShadowAssignmentsAsClient } from "@/lib/services/coachChange.service";
 
 /** Swallows Zoom errors (most commonly: not configured yet) so a missing
  * Zoom setup never breaks the dashboard -- Join is additive on top of a
@@ -71,6 +72,25 @@ export interface SessionView {
    * call sites (session list, recentCompleted) have no use for a join link,
    * so this stays null there rather than paying for a Zoom call per row. */
   zoomJoinUrl: string | null;
+  /** True when `coach` on this specific session is a temporary shadow
+   * covering for the client's usual coach (an active shadow_coach_assignments
+   * row matching this session's coach and date) -- without this a shadow
+   * coach's name on a booking looks like a silent permanent coach change. */
+  isShadowCoach: boolean;
+  /** The regular/primary coach being covered, only set when isShadowCoach. */
+  primaryCoachName: string | null;
+}
+
+interface ShadowAssignmentLite {
+  shadowCoachId: string;
+  startsOn: string;
+  endsOn: string;
+  primaryCoachName: string;
+}
+
+function findShadowCoverage(coachId: string | undefined, sessionDateIST: string, assignments: ShadowAssignmentLite[]): ShadowAssignmentLite | null {
+  if (!coachId) return null;
+  return assignments.find((a) => a.shadowCoachId === coachId && sessionDateIST >= a.startsOn && sessionDateIST <= a.endsOn) ?? null;
 }
 
 const FALLBACK_PHOTO = (seed: string) => `https://i.pravatar.cc/300?u=${seed}`;
@@ -86,7 +106,8 @@ function toCoachView(raw: any): CoachView | null {
   };
 }
 
-function toSessionView(row: any, notesByBooking: Map<string, string>): SessionView {
+function toSessionView(row: any, notesByBooking: Map<string, string>, shadowAssignments: ShadowAssignmentLite[] = []): SessionView {
+  const shadowMatch = row.coach ? findShadowCoverage(row.coach.id, istDateString(row.scheduled_start), shadowAssignments) : null;
   return {
     id: row.id,
     coach: row.coach
@@ -110,7 +131,19 @@ function toSessionView(row: any, notesByBooking: Map<string, string>): SessionVi
     originalDate: row.original_scheduled_start ?? null,
     amountPaid: row.amount_paid ?? null,
     zoomJoinUrl: null,
+    isShadowCoach: !!shadowMatch,
+    primaryCoachName: shadowMatch?.primaryCoachName ?? null,
   };
+}
+
+async function loadMyShadowAssignments(token: string): Promise<ShadowAssignmentLite[]> {
+  const rows = await listMyShadowAssignmentsAsClient(token);
+  return (rows as any[]).map((r) => ({
+    shadowCoachId: r.shadow_coach_id,
+    startsOn: r.starts_on,
+    endsOn: r.ends_on,
+    primaryCoachName: r.primary_coach?.profile?.full_name ?? "your usual coach",
+  }));
 }
 
 async function requireToken(): Promise<string> {
@@ -160,8 +193,11 @@ export async function getClientDashboardAction(): Promise<ActionResult<ClientDas
   return runAction(async () => {
     const token = await requireToken();
     const client = await getMyClientProfile(token);
-    const bookings = await listMyBookingsAsClient(token);
-    const notes = await listMyWorkoutNotes(token);
+    const [bookings, notes, shadowAssignments] = await Promise.all([
+      listMyBookingsAsClient(token),
+      listMyWorkoutNotes(token),
+      loadMyShadowAssignments(token),
+    ]);
     const notesByBooking = new Map(notes.map((n: any) => [n.booking_id, n.notes as string]));
 
     const upcoming = bookings.filter((b: any) => b.status === "upcoming").sort((a: any, b: any) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime());
@@ -169,7 +205,7 @@ export async function getClientDashboardAction(): Promise<ActionResult<ClientDas
 
     let nextSession: SessionView | null = null;
     if (upcoming[0]) {
-      nextSession = toSessionView(upcoming[0], notesByBooking);
+      nextSession = toSessionView(upcoming[0], notesByBooking, shadowAssignments);
       // Enrich with fuller coach display data than the booking list embed carries.
       if (nextSession.coach) {
         const fullCoach = toCoachView(await getCoach(token, nextSession.coach.id));
@@ -197,7 +233,7 @@ export async function getClientDashboardAction(): Promise<ActionResult<ClientDas
       recentCompleted: completed
         .sort((a: any, b: any) => new Date(b.scheduled_start).getTime() - new Date(a.scheduled_start).getTime())
         .slice(0, 3)
-        .map((b: any) => toSessionView(b, notesByBooking)),
+        .map((b: any) => toSessionView(b, notesByBooking, shadowAssignments)),
     };
   });
 }
@@ -205,9 +241,13 @@ export async function getClientDashboardAction(): Promise<ActionResult<ClientDas
 export async function getClientSessionsAction(): Promise<ActionResult<SessionView[]>> {
   return runAction(async () => {
     const token = await requireToken();
-    const [bookings, notes] = await Promise.all([listMyBookingsAsClient(token), listMyWorkoutNotes(token)]);
+    const [bookings, notes, shadowAssignments] = await Promise.all([
+      listMyBookingsAsClient(token),
+      listMyWorkoutNotes(token),
+      loadMyShadowAssignments(token),
+    ]);
     const notesByBooking = new Map(notes.map((n: any) => [n.booking_id, n.notes as string]));
-    return (bookings as any[]).map((b) => toSessionView(b, notesByBooking));
+    return (bookings as any[]).map((b) => toSessionView(b, notesByBooking, shadowAssignments));
   });
 }
 

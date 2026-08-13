@@ -4,6 +4,7 @@ import { holdSlot, confirmHold, getClientBusyDates, istDateString } from "./sche
 import { logTimelineEvent, listClientTimeline } from "./timeline.service";
 import { createFromTemplate, notifyAdmins } from "./notifications.service";
 import { createZoomMeeting, deleteZoomMeeting } from "./zoom.service";
+import { ensureConversationForCoachAssignment } from "./chat.service";
 
 /** Monday 00:00 UTC of the week containing `d` — same convention as
  * computeStreakWeeks() in client-portal.actions.ts, duplicated here rather
@@ -311,6 +312,14 @@ export async function createBooking(
     sessionType: input.sessionType,
     amountPaid: input.amountPaid,
   });
+
+  // Safety net alongside createRecurringSlots' own call: guarantees a client
+  // sees "My Chats" as soon as ANY session with a coach is booked, not just
+  // when a recurring pattern is set up -- covers ad-hoc/one-off bookings and
+  // backfills any coach assignment that (like manually-seeded data) never
+  // went through createRecurringSlots in the first place. No-ops if the
+  // client has no subscription yet or already has this exact conversation.
+  await ensureConversationForCoachAssignment(input.clientId, input.coachId);
 
   if (!input.recurringSlotId) {
     await logTimelineEvent(input.clientId, "manual_session_added", "Session added", {

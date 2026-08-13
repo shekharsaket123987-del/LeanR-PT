@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { CalendarX2, RotateCcw, XCircle, CalendarClock } from "lucide-react";
+import { CalendarX2, RotateCcw, XCircle, CalendarClock, Users, X } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -13,6 +13,7 @@ import FeedbackModal from "@/components/client/FeedbackModal";
 import RescheduleModal from "@/components/client/RescheduleModal";
 import { formatDate, formatTime, hoursUntil } from "@/lib/utils";
 import { SchedulingRules, SessionView, cancelSessionAction, rateSessionAction } from "@/lib/actions/client-portal.actions";
+import { ShadowCoachNoticeView, markNotificationReadAction } from "@/lib/actions/client-notifications.actions";
 import { isFailure } from "@/lib/actions/action-result";
 
 type Tab = "upcoming" | "completed" | "cancelled" | "missed" | "rescheduled";
@@ -24,7 +25,15 @@ const tabs: { key: Tab; label: string }[] = [
   { key: "rescheduled", label: "Rescheduled" },
 ];
 
-export default function MySessionsClient({ initialSessions, rules: initialRules }: { initialSessions: SessionView[]; rules: SchedulingRules }) {
+export default function MySessionsClient({
+  initialSessions,
+  rules: initialRules,
+  initialShadowNotice,
+}: {
+  initialSessions: SessionView[];
+  rules: SchedulingRules;
+  initialShadowNotice: ShadowCoachNoticeView | null;
+}) {
   const [sessions, setSessions] = useState(initialSessions);
   const [rules, setRules] = useState(initialRules);
   const [tab, setTab] = useState<Tab>("upcoming");
@@ -33,6 +42,17 @@ export default function MySessionsClient({ initialSessions, rules: initialRules 
   const [cancelError, setCancelError] = useState("");
   const [feedbackFor, setFeedbackFor] = useState<string | null>(null);
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
+  const [shadowNotice, setShadowNotice] = useState(initialShadowNotice);
+  const [acknowledging, setAcknowledging] = useState(false);
+
+  async function handleAcknowledgeShadowNotice() {
+    if (!shadowNotice) return;
+    setAcknowledging(true);
+    const result = await markNotificationReadAction(shadowNotice.id);
+    setAcknowledging(false);
+    if (isFailure(result)) return;
+    setShadowNotice(null);
+  }
 
   const filtered = sessions
     .filter((s) => (tab === "rescheduled" ? s.wasRescheduled : s.status === tab))
@@ -66,6 +86,20 @@ export default function MySessionsClient({ initialSessions, rules: initialRules 
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader title="My Sessions" description="Everything you've booked, past and upcoming." />
+
+      {shadowNotice && (
+        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-brand-yellow/40 bg-brand-yellow/10 p-4 shadow-card">
+          <Users className="mt-0.5 h-5 w-5 shrink-0 text-black/70" />
+          <div className="flex-1">
+            <p className="text-sm font-bold">Temporary coach assigned</p>
+            <p className="mt-0.5 text-xs text-black/60">{shadowNotice.message}</p>
+          </div>
+          <Button variant="outline" size="sm" loading={acknowledging} disabled={acknowledging} onClick={handleAcknowledgeShadowNotice}>
+            <X className="h-3.5 w-3.5" />
+            Acknowledge
+          </Button>
+        </div>
+      )}
 
       <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl bg-black/5 p-1">
         {tabs.map((t) => (
@@ -117,8 +151,12 @@ export default function MySessionsClient({ initialSessions, rules: initialRules 
                   <div className="mb-1.5 flex flex-wrap items-center gap-2">
                     {s.type === "assessment" ? <AssessmentBadge amountPaid={s.amountPaid} /> : <Badge variant="gray">Regular</Badge>}
                     <SessionStatusBadge status={s.status} />
+                    {s.isShadowCoach && <Badge variant="yellow">Shadow Coach</Badge>}
                   </div>
                   <p className="text-sm font-bold">{s.coach?.name}</p>
+                  {s.isShadowCoach && (
+                    <p className="text-[11px] text-black/45">Covering for {s.primaryCoachName} while they're away</p>
+                  )}
                   <p className="flex items-center gap-1.5 text-xs text-black/45">
                     <CalendarClock className="h-3.5 w-3.5" />
                     {formatDate(s.date)} · {formatTime(s.date)}

@@ -307,6 +307,26 @@ export async function listMyShadowAssignments(accessToken: string) {
   return data;
 }
 
+/** Shadow assignments where the caller is the CLIENT being covered -- backs
+ * the "shadow coach assigned" per-session badge on My Sessions (a shadow
+ * coach's name alone on a booking looks like a permanent coach change
+ * unless the client can see it's temporary cover for their usual coach).
+ * RLS (shadow_select_participant) already scopes this to the caller. */
+export async function listMyShadowAssignmentsAsClient(accessToken: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["client"]);
+  const { data: client, error: clientError } = await ctx.client.from("client_profiles").select("id").eq("profile_id", ctx.userId).single();
+  if (clientError || !client) throw clientError ?? new Error("Client profile not found");
+
+  const { data, error } = await ctx.client
+    .from("shadow_coach_assignments")
+    .select("id, shadow_coach_id, primary_coach:coach_profiles!primary_coach_id(profile:profiles(full_name)), starts_on, ends_on, status")
+    .eq("client_id", client.id)
+    .eq("status", "active");
+  if (error) throw error;
+  return data;
+}
+
 /** Platform-wide shadow assignments -- backs the Admin scheduling view's
  * "Shadow Sessions" group (unlike listMyShadowAssignments, not scoped to
  * the caller). */
