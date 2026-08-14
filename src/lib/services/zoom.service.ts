@@ -5,13 +5,15 @@
  * needs their own Zoom login, just a start link).
  *
  * Requires three env vars, from a Server-to-Server OAuth app created in the
- * Zoom App Marketplace (https://marketplace.zoom.us -> Develop -> Build App
+ * Zoom App Marketplace (https://marketplace.zoom.us -> Developer -> Build App
  * -> Server-to-Server OAuth):
  *   ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET
  * Plus the email of a licensed Zoom user under that account to host
  * meetings as:
  *   ZOOM_HOST_EMAIL
- * Grant the app the meeting:write:admin / meeting:read:admin scopes. */
+ * Grant the app the meeting read + write scopes (labelled meeting:write:admin
+ * / meeting:read:admin or meeting:write:meeting:admin / meeting:read:meeting:admin
+ * depending on account age), then activate it. */
 
 interface ZoomMeeting {
   id: string;

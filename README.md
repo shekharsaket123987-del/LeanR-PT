@@ -61,12 +61,12 @@ ZOOM_HOST_EMAIL=
 ```
 
 To get the Zoom values: in the [Zoom App Marketplace](https://marketplace.zoom.us),
-go to **Develop → Build App → Server-to-Server OAuth**, create an app, and grant it
-the `meeting:write:admin` and `meeting:read:admin` scopes. `ZOOM_ACCOUNT_ID`,
-`ZOOM_CLIENT_ID`, and `ZOOM_CLIENT_SECRET` come from that app's credentials page.
-`ZOOM_HOST_EMAIL` is the email of any licensed Zoom user on that account — every
-meeting is created under this one account (not per-coach), since coaches only ever
-need a start link, not their own Zoom login.
+go to **Developer → Build App → Server-to-Server OAuth**, create an app, and grant it
+the meeting read + write scopes. `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`, and
+`ZOOM_CLIENT_SECRET` come from that app's credentials page. `ZOOM_HOST_EMAIL` is the
+email of any licensed Zoom user on that account — every meeting is created under
+this one account (not per-coach), since coaches only ever need a start link, not
+their own Zoom login.
 
 Optional — enables real payment (Razorpay) for package purchases and demo/assessment
 session fees. Without these set, "Purchase Plan" / "Select" buttons will fail with a
