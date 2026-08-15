@@ -89,7 +89,10 @@ export async function submitOnboarding(accessToken: string, input: OnboardingInp
     if (progressError) throw progressError;
   }
 
-  await logTimelineEvent(client.id, "plan_activated", "Initial assessment completed", { actorId: ctx.userId });
+  await logTimelineEvent(client.id, "onboarding_completed", "Onboarding Completed", {
+    description: "Client submitted their onboarding assessment.",
+    actorId: ctx.userId,
+  });
 
   return data;
 }

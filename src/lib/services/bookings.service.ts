@@ -636,10 +636,10 @@ export async function markAttendance(
       .eq("id", booking.id);
     if (updateError) throw updateError;
 
-    await logTimelineEvent(booking.client_id, "session_missed", "Client absent", {
-      description: remark,
+    await logTimelineEvent(booking.client_id, "session_missed", "Session Done", {
+      description: `${remark ? `${remark} — ` : ""}Session with Coach ${ctx.fullName ?? "Coach"} — Attendance: Absent.`,
       actorId: ctx.userId,
-      metadata: { bookingId },
+      metadata: { bookingId, coachName: ctx.fullName ?? null, attendanceStatus: "absent" },
     });
   } else {
     // Late counts as attended, same as present -- covers both here rather
@@ -652,9 +652,9 @@ export async function markAttendance(
       "attendance_marked_present",
       status === "late" ? "Attendance marked present (late)" : "Attendance marked present",
       {
-        description: remark,
+        description: `${remark ? `${remark} — ` : ""}Session with Coach ${ctx.fullName ?? "Coach"} — Attendance: ${status === "late" ? "Present (Late)" : "Present"}.`,
         actorId: ctx.userId,
-        metadata: { bookingId },
+        metadata: { bookingId, coachName: ctx.fullName ?? null, attendanceStatus: status },
       }
     );
   }
@@ -719,8 +719,13 @@ export async function submitSessionNotes(
   const { error: completeError } = await ctx.client.from("bookings").update({ status: "completed" }).eq("id", booking.id);
   if (completeError) throw completeError;
 
-  await logTimelineEvent(booking.client_id, "coach_notes_uploaded", "Coach notes added", { actorId: ctx.userId, metadata: { bookingId } });
-  await logTimelineEvent(booking.client_id, "session_completed", "Session completed", { actorId: ctx.userId, metadata: { bookingId } });
+  const attendanceStatusLabel = attendance.status === "late" ? "Present (Late)" : "Present";
+  await logTimelineEvent(booking.client_id, "coach_notes_uploaded", "Session Note Updated", { actorId: ctx.userId, metadata: { bookingId } });
+  await logTimelineEvent(booking.client_id, "session_completed", "Session Done", {
+    description: `Session with Coach ${ctx.fullName ?? "Coach"} — Attendance: ${attendanceStatusLabel}.`,
+    actorId: ctx.userId,
+    metadata: { bookingId, coachName: ctx.fullName ?? null, attendanceStatus: attendance.status },
+  });
 
   return booking;
 }
