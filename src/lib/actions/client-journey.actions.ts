@@ -2,7 +2,7 @@
 
 import { getAccessToken } from "@/lib/supabase/server-client";
 import { ActionResult, runAction } from "./action-result";
-import { getMyLatestSubscription, activateMyPlan, purchaseMyPlan, checkRenewalStage } from "@/lib/services/planPurchase.service";
+import { getMyLatestSubscription, activateMyPlan, checkRenewalStage } from "@/lib/services/planPurchase.service";
 import { getMyOnboarding, submitOnboarding, OnboardingInput } from "@/lib/services/onboarding.service";
 import { getMyActiveRecurringSlots } from "@/lib/services/scheduling.service";
 import { listPackages } from "@/lib/services/packages.service";
@@ -117,21 +117,6 @@ export async function listMarketingPlansAction(): Promise<ActionResult<Marketing
         features: p.features ?? [],
         highlighted: p.highlighted ?? false,
       }));
-  });
-}
-
-/** Temporary stand-in for the Razorpay checkout flow (payments.actions.ts /
- * useRazorpayCheckout) -- creates the subscription directly with no payment
- * step, same end state (status "awaiting_activation") that
- * verifyAndFulfillPayment reaches after a real payment. Swap
- * PlansMarketingClient back to the Razorpay flow when that's ready to go
- * live; nothing else in the journey (activate -> onboarding -> slot
- * selection) needs to change either way. */
-export async function purchaseMyPlanDirectAction(packageId: string): Promise<ActionResult<{ subscriptionId: string }>> {
-  return runAction(async () => {
-    const token = await requireToken();
-    const sub: any = await purchaseMyPlan(token, packageId);
-    return { subscriptionId: sub.id };
   });
 }
 

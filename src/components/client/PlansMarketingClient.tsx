@@ -17,7 +17,9 @@ import {
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
-import { MarketingPlan, purchaseMyPlanDirectAction } from "@/lib/actions/client-journey.actions";
+import { MarketingPlan } from "@/lib/actions/client-journey.actions";
+import { createPackagePurchaseOrderAction } from "@/lib/actions/payments.actions";
+import { useRazorpayCheckout } from "@/components/shared/useRazorpayCheckout";
 import { isFailure } from "@/lib/actions/action-result";
 
 const WHY_LEANR = [
@@ -33,24 +35,41 @@ const WHY_LEANR = [
 
 export default function PlansMarketingClient({ plans }: { plans: MarketingPlan[] }) {
   const router = useRouter();
+  const { openCheckout } = useRazorpayCheckout();
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [purchasedPlan, setPurchasedPlan] = useState<MarketingPlan | null>(null);
 
-  // Razorpay integration lands later -- purchaseMyPlanDirectAction creates
-  // the subscription with no payment step for now (see its doc comment).
-  // Redirect happens only after the client dismisses the congratulations
-  // modal (continueToActivation), not immediately on purchase success.
+  // Creates the Razorpay order server-side, then opens Checkout for the
+  // client to actually pay. The congratulations modal (and the subscription
+  // itself) only appears once verifyPaymentAction confirms the signature
+  // server-side inside useRazorpayCheckout's handler -- never on the
+  // client's say-so. Redirect happens only after the client dismisses that
+  // modal (continueToActivation), not immediately on payment success.
   async function purchase(plan: MarketingPlan) {
     setPurchasingId(plan.id);
     setError("");
-    const result = await purchaseMyPlanDirectAction(plan.id);
-    setPurchasingId(null);
-    if (isFailure(result)) {
-      setError(result.error.message);
+    const orderResult = await createPackagePurchaseOrderAction(plan.id);
+    if (isFailure(orderResult)) {
+      setPurchasingId(null);
+      setError(orderResult.error.message);
       return;
     }
-    setPurchasedPlan(plan);
+    openCheckout(
+      orderResult.data,
+      { name: "LEANR", description: plan.name },
+      {
+        onSuccess: () => {
+          setPurchasingId(null);
+          setPurchasedPlan(plan);
+        },
+        onError: (message) => {
+          setPurchasingId(null);
+          setError(message);
+        },
+        onDismiss: () => setPurchasingId(null),
+      }
+    );
   }
 
   function continueToActivation() {
