@@ -5,6 +5,7 @@ import { logTimelineEvent, listClientTimeline } from "./timeline.service";
 import { createFromTemplate, notifyAdmins } from "./notifications.service";
 import { createZoomMeeting, deleteZoomMeeting } from "./zoom.service";
 import { ensureConversationForCoachAssignment } from "./chat.service";
+import { resolveSessionNotifyContext, notifyClient, notifyCoach, formatSessionTime } from "./sessionNotifications.service";
 
 /** Monday 00:00 UTC of the week containing `d` — same convention as
  * computeStreakWeeks() in client-portal.actions.ts, duplicated here rather
@@ -328,6 +329,16 @@ export async function createBooking(
     });
   }
 
+  const notifyCtx = await resolveSessionNotifyContext(input.clientId, input.coachId);
+  const sessionTime = formatSessionTime(input.slotStart);
+  if (input.sessionType === "assessment") {
+    await notifyClient(notifyCtx, "demo_booked_client", { coach_name: notifyCtx.coachName ?? "your coach", session_time: sessionTime }, "demo_booked");
+    await notifyCoach(notifyCtx, "demo_booked_coach", { client_name: notifyCtx.clientName, session_time: sessionTime });
+  } else {
+    await notifyClient(notifyCtx, "session_booked_client", { coach_name: notifyCtx.coachName ?? "your coach", session_time: sessionTime }, "session_booked");
+    await notifyCoach(notifyCtx, "session_booked_coach", { client_name: notifyCtx.clientName, session_time: sessionTime });
+  }
+
   return bookingId;
 }
 
@@ -445,40 +456,29 @@ export async function rescheduleBooking(accessToken: string, bookingId: string, 
   // Notifications go to whichever coach the session actually ends up with --
   // the substitute, when one was assigned, not the original.
   const targetCoachId = newCoachId ?? (booking as any).coach_id;
+  const notifyCtx = await resolveSessionNotifyContext((booking as any).client_id, targetCoachId);
+  const oldTime = formatSessionTime((booking as any).scheduled_start);
+  const newTime = formatSessionTime(newStart);
+
+  // Client always hears about their own session moving, regardless of who
+  // triggered it -- previously nobody told the client at all.
+  await notifyClient(
+    notifyCtx,
+    "session_rescheduled_client",
+    { coach_name: notifyCtx.coachName ?? "your coach", old_session_time: oldTime, new_session_time: newTime },
+    "session_rescheduled"
+  );
 
   // Only notify the coach when Admin is the one moving the session -- a
   // client rescheduling their own booking doesn't need a "schedule changed
   // by Admin" alert about their own action.
   if (ctx.role === "admin") {
-    const { data: coach } = await supabaseAdmin
-      .from("coach_profiles")
-      .select("profile_id")
-      .eq("id", targetCoachId)
-      .maybeSingle();
-    if (coach) {
-      await createFromTemplate("admin_changed_schedule", coach.profile_id, {
-        client_name: clientName,
-        session_time: new Date(newStart).toLocaleString(),
-      });
-    }
+    await notifyCoach(notifyCtx, "admin_changed_schedule", { client_name: clientName, session_time: newTime });
   }
 
   // Client-initiated reschedule notifies the coach and Admin.
   if (ctx.role === "client") {
-    const { data: coach } = await supabaseAdmin
-      .from("coach_profiles")
-      .select("profile_id")
-      .eq("id", targetCoachId)
-      .maybeSingle();
-    const oldTime = new Date((booking as any).scheduled_start).toLocaleString();
-    const newTime = new Date(newStart).toLocaleString();
-    if (coach) {
-      await createFromTemplate("session_rescheduled_by_client", coach.profile_id, {
-        client_name: clientName,
-        old_time: oldTime,
-        new_time: newTime,
-      });
-    }
+    await notifyCoach(notifyCtx, "session_rescheduled_by_client", { client_name: clientName, old_time: oldTime, new_time: newTime });
     await notifyAdmins("admin_alert", {
       alert_message: `${clientName} rescheduled their session from ${oldTime} to ${newTime}.`,
     });
@@ -663,6 +663,17 @@ export async function markAttendance(
   // been marked at all, regardless of present/absent.
   const { error: clearOverdueError } = await ctx.client.from("bookings").update({ attendance_overdue: false }).eq("id", booking.id);
   if (clearOverdueError) throw clearOverdueError;
+
+  const notifyCtx = await resolveSessionNotifyContext(booking.client_id, booking.coach_id);
+  const sessionTime = formatSessionTime(booking.scheduled_start);
+  const vars = { coach_name: notifyCtx.coachName ?? "your coach", client_name: notifyCtx.clientName, session_time: sessionTime };
+  if (status === "absent") {
+    await notifyClient(notifyCtx, "attendance_absent_client", vars, "attendance_absent");
+    await notifyCoach(notifyCtx, "attendance_absent_coach", vars);
+  } else {
+    await notifyClient(notifyCtx, "attendance_present_client", vars, "attendance_present");
+    await notifyCoach(notifyCtx, "attendance_present_coach", vars);
+  }
 
   return booking;
 }

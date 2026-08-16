@@ -59,6 +59,20 @@ export async function getMyProfileAction(): Promise<ActionResult<ClientProfileVi
   });
 }
 
+/** Narrow write for the post-signup phone completion gate (PhoneGateModal)
+ * -- Google OAuth never collects a phone number (see GoogleAuthButton.tsx),
+ * so a client can land in the portal with profiles.phone still null even
+ * though it's now mandatory at signup. Deliberately doesn't reuse
+ * updateMyProfileAction, which also requires goals/equipment/medicalNotes
+ * that have nothing to do with this one-field completion step. */
+export async function setMyPhoneAction(phone: string): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const session = await requireSession();
+    await updateMyProfile(session.token, { phone });
+    return null;
+  });
+}
+
 export async function updateMyProfileAction(input: {
   fullName: string;
   phone: string;

@@ -2,6 +2,7 @@ import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { logTimelineEvent } from "./timeline.service";
 import { ensureConversationForCoachAssignment } from "./chat.service";
+import { resolveSessionNotifyContext, notifyClient, notifyCoach } from "./sessionNotifications.service";
 import { DAY_GROUPS, PAIRS_MWF, PAIRS_TTS } from "@/lib/constants/scheduling";
 
 export interface OpenSlot {
@@ -1229,18 +1230,28 @@ export async function changeMyRecurringSchedule(
   // A subscriptionId only ever comes from the renewal-scheduling flow (a
   // regular mid-plan schedule change never passes one) -- log it distinctly
   // so the timeline reflects the renewal, not a plain reschedule.
+  const scheduleSummary = `${input.days.join(",")} at ${input.timeOfDay}`;
   if (input.subscriptionId) {
     await logTimelineEvent(client.id, "plan_renewed", "Plan renewed", {
-      description: `${input.days.join(",")} at ${input.timeOfDay}`,
+      description: scheduleSummary,
       actorId: ctx.userId,
       metadata: { subscriptionId: input.subscriptionId, coachId: input.coachId },
     });
   } else {
     await logTimelineEvent(client.id, "session_rescheduled", "Recurring schedule changed", {
-      description: `${input.days.join(",")} at ${input.timeOfDay}`,
+      description: scheduleSummary,
       actorId: ctx.userId,
     });
   }
+
+  const notifyCtx = await resolveSessionNotifyContext(client.id, input.coachId);
+  await notifyClient(
+    notifyCtx,
+    "schedule_changed_client",
+    { coach_name: notifyCtx.coachName ?? "your coach", schedule_summary: scheduleSummary },
+    "schedule_changed"
+  );
+  await notifyCoach(notifyCtx, "schedule_changed_coach", { client_name: notifyCtx.clientName, schedule_summary: scheduleSummary });
 
   return { createdSlotIds };
 }

@@ -1,8 +1,8 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { logTimelineEvent } from "./timeline.service";
-import { createFromTemplate } from "./notifications.service";
 import { getLatestMeasurementDatesForClients } from "./progressLogs.service";
 import { ensureConversationForCoachAssignment } from "./chat.service";
+import { resolveSessionNotifyContext, notifyClient, notifyCoach } from "./sessionNotifications.service";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 
 /** Admin roster view — merges each client's active subscription (package
@@ -310,14 +310,18 @@ export async function reassignClientCoach(
   await logTimelineEvent(clientId, "coach_changed", "Coach changed", { actorId: ctx.userId, metadata: { fromCoachId, toCoachId } });
   await ensureConversationForCoachAssignment(clientId, toCoachId);
 
-  const [{ data: client }, { data: fromCoach }, { data: toCoach }] = await Promise.all([
-    supabaseAdmin.from("client_profiles").select("profile:profiles(full_name)").eq("id", clientId).maybeSingle(),
-    supabaseAdmin.from("coach_profiles").select("profile_id").eq("id", fromCoachId).maybeSingle(),
-    supabaseAdmin.from("coach_profiles").select("profile_id").eq("id", toCoachId).maybeSingle(),
+  // Two separate contexts -- one per coach -- since notifyCoach() addresses
+  // a single coach at a time and the old/new coach need different template
+  // keys anyway (losing vs. gaining the client).
+  const [newCoachCtx, oldCoachCtx] = await Promise.all([
+    resolveSessionNotifyContext(clientId, toCoachId),
+    resolveSessionNotifyContext(clientId, fromCoachId),
   ]);
-  const clientName = (client as any)?.profile?.full_name ?? "Client";
-  if (fromCoach) await createFromTemplate("client_transferred", fromCoach.profile_id, { client_name: clientName });
-  if (toCoach) await createFromTemplate("new_client_assigned", toCoach.profile_id, { client_name: clientName });
+  const clientName = newCoachCtx.clientName;
+
+  await notifyClient(newCoachCtx, "coach_changed_client", { coach_name: newCoachCtx.coachName ?? "your new coach" });
+  await notifyCoach(oldCoachCtx, "client_transferred", { client_name: clientName });
+  await notifyCoach(newCoachCtx, "new_client_assigned", { client_name: clientName });
 }
 
 /** Admin/coach-facing equivalent of getMyCurrentCoachId, parameterized by
