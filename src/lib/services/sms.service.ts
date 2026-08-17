@@ -79,3 +79,64 @@ export async function sendSms(event: SmsTemplateEvent, to: string, variables: Re
     return false;
   }
 }
+
+/** MSG91's dedicated OTP API (control.msg91.com/api/v5/otp*) -- deliberately
+ * separate from sendSms()'s Flow API above. OTP messages fall under a
+ * different, MSG91-managed DLT category than free-text transactional SMS,
+ * so unlike sendSms() this does NOT need a per-event DLT template you
+ * register yourself -- MSG91 owns the OTP template and code
+ * generation/expiry/retry-limits on their side. Only requires
+ * MSG91_AUTH_KEY (same key sendSms() uses).
+ *
+ * Used for phone-number verification at signup (SignupForm.tsx) and the
+ * Google-signup phone completion gate (PhoneGateModal.tsx) -- proving the
+ * client actually controls the number before it's saved to profiles.phone,
+ * same reasoning as the email OTP step. */
+
+async function msg91OtpRequest(path: string, params: Record<string, string>): Promise<{ ok: boolean; body: any }> {
+  const authKey = process.env.MSG91_AUTH_KEY;
+  if (!authKey) {
+    console.warn("[sms.service] MSG91_AUTH_KEY not set -- phone OTP will be skipped.");
+    return { ok: false, body: null };
+  }
+  const res = await fetch(`https://control.msg91.com${path}?${new URLSearchParams(params).toString()}`, {
+    method: "POST",
+    headers: { authkey: authKey },
+  });
+  const text = await res.text();
+  let body: any = null;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    body = text;
+  }
+  return { ok: res.ok, body };
+}
+
+export async function sendPhoneOtp(phone: string): Promise<boolean> {
+  try {
+    const { ok, body } = await msg91OtpRequest("/api/v5/otp", { mobile: normalizeMobile(phone), otp_length: "6", otp_expiry: "10" });
+    if (!ok || body?.type !== "success") {
+      console.warn(`[sms.service] MSG91 failed to send phone OTP to ${phone}:`, body);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn(`[sms.service] Failed to send phone OTP to ${phone}:`, err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+export async function verifyPhoneOtp(phone: string, otp: string): Promise<boolean> {
+  try {
+    const { ok, body } = await msg91OtpRequest("/api/v5/otp/verify", { mobile: normalizeMobile(phone), otp: otp.trim() });
+    if (!ok || body?.type !== "success") {
+      console.warn(`[sms.service] MSG91 phone OTP verification failed for ${phone}:`, body);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn(`[sms.service] Failed to verify phone OTP for ${phone}:`, err instanceof Error ? err.message : err);
+    return false;
+  }
+}

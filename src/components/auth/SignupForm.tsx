@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Mail, Lock, User, Phone, ArrowRight, ShieldCheck } from "lucide-react";
+import { Mail, Lock, User, Phone, ArrowRight, ShieldCheck, MessageSquareText } from "lucide-react";
 import Button from "../ui/Button";
 import GoogleAuthButton from "./GoogleAuthButton";
 import { supabase } from "@/lib/supabase";
+import { sendPhoneOtpAction, verifyPhoneOtpAction } from "@/lib/actions/phone-otp.actions";
+import { setMyPhoneAction } from "@/lib/actions/client-profile.actions";
+import { isFailure } from "@/lib/actions/action-result";
 
 const PHONE_PATTERN = /^\+?[0-9]{10,15}$/;
 
@@ -22,26 +25,40 @@ function normalizePhone(raw: string) {
  *
  * Email + phone are mandatory here (not just for paying clients -- this is
  * the same form a demo-only prospect goes through too, since
- * demoBooking.service.ts requires an existing client account). A manually
- * typed email is unverified until proven otherwise, so this now runs
- * Supabase's own signup-OTP flow (signUp -> verifyOtp) instead of trusting
- * the address at face value -- Google sign-in skips this since Google has
- * already verified that address. Requires "Confirm email" turned on in the
- * Supabase dashboard's Auth settings, and the "Confirm signup" email
- * template edited to surface {{ .Token }}; without both, signUp() below
- * returns a session immediately and this component's OTP step never shows.
- */
+ * demoBooking.service.ts requires an existing client account), and BOTH are
+ * OTP-verified before being trusted -- one manually typed value proven, the
+ * other not, defeats the point. Email verification is Supabase's own
+ * signup-OTP flow (signUp -> verifyOtp); phone verification is MSG91's OTP
+ * API (sms.service.ts), run as its own step right after, so phone is
+ * deliberately NOT passed through signUp()'s metadata -- it only ever
+ * lands in profiles.phone via setMyPhoneAction, after that number is
+ * actually confirmed. Google sign-in skips email verification (Google
+ * already verified that address) but still needs phone verification -- see
+ * PhoneGateModal.tsx, which runs the same phone-OTP step for that path.
+ *
+ * Email OTP requires "Confirm email" turned on in the Supabase dashboard's
+ * Auth settings, and the "Confirm signup" email template edited to surface
+ * {{ .Token }} (remove/downplay the default {{ .ConfirmationURL }} link --
+ * clicking it confirms the account via a completely different path than
+ * this component's verifyOtp() call, so if both are present a user who
+ * clicks the link instead of typing the code never lands back in this OTP
+ * screen at all). Without that dashboard change, signUp() returns a
+ * session immediately and the email-otp step never shows. Phone OTP
+ * requires MSG91_AUTH_KEY in env -- no DLT template needed for this part,
+ * see sms.service.ts's sendPhoneOtp/verifyPhoneOtp doc comment. */
 export default function SignupForm() {
   const router = useRouter();
-  const [step, setStep] = useState<"form" | "otp">("form");
+  const [step, setStep] = useState<"form" | "email-otp" | "phone-otp">("form");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [otp, setOtp] = useState("");
+  const [emailOtp, setEmailOtp] = useState("");
+  const [phoneOtp, setPhoneOtp] = useState("");
   const [resendCooldown, setResendCooldown] = useState(false);
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -51,8 +68,7 @@ export default function SignupForm() {
       setError("Password must be at least 8 characters.");
       return;
     }
-    const normalizedPhone = normalizePhone(phone);
-    if (!PHONE_PATTERN.test(normalizedPhone)) {
+    if (!PHONE_PATTERN.test(normalizePhone(phone))) {
       setError("Enter a valid mobile number (10-15 digits).");
       return;
     }
@@ -61,47 +77,41 @@ export default function SignupForm() {
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { role: "client", full_name: fullName, phone: normalizedPhone } },
+      options: { data: { role: "client", full_name: fullName } },
     });
+    setLoading(false);
 
     if (signUpError) {
-      setLoading(false);
       setError(signUpError.message);
       return;
     }
 
-    if (data.session) {
-      // "Confirm email" is off in the Supabase project -- signed in
-      // immediately, no OTP round-trip possible. See the component doc
-      // comment above for what to turn on to enable it.
-      router.push("/client/plans");
-      return;
-    }
-
-    setLoading(false);
-    setStep("otp");
+    // Either "Confirm email" is off (session already exists) or the code
+    // was already verified some other way -- either way, email's settled,
+    // move straight to phone verification.
+    setStep(data.session ? "phone-otp" : "email-otp");
   }
 
-  async function handleVerifyOtp(e: React.FormEvent) {
+  async function handleVerifyEmailOtp(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (otp.trim().length < 6) {
+    if (emailOtp.trim().length < 6) {
       setError("Enter the 6-digit code from your email.");
       return;
     }
 
     setLoading(true);
-    const { error: verifyError } = await supabase.auth.verifyOtp({ email, token: otp.trim(), type: "signup" });
+    const { error: verifyError } = await supabase.auth.verifyOtp({ email, token: emailOtp.trim(), type: "signup" });
     setLoading(false);
 
     if (verifyError) {
       setError(verifyError.message);
       return;
     }
-    router.push("/client/plans");
+    setStep("phone-otp");
   }
 
-  async function handleResend() {
+  async function handleResendEmailOtp() {
     if (resendCooldown) return;
     setError("");
     const { error: resendError } = await supabase.auth.resend({ type: "signup", email });
@@ -113,7 +123,54 @@ export default function SignupForm() {
     setTimeout(() => setResendCooldown(false), 30_000);
   }
 
-  if (step === "otp") {
+  // Fires once, the moment this step becomes active (covers both paths
+  // into it: straight from the form, or after email verification).
+  useEffect(() => {
+    if (step !== "phone-otp" || phoneOtpSent) return;
+    setPhoneOtpSent(true);
+    sendPhoneOtpAction(normalizePhone(phone)).then((result) => {
+      if (isFailure(result)) setError(result.error.message);
+    });
+  }, [step, phoneOtpSent, phone]);
+
+  async function handleVerifyPhoneOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (phoneOtp.trim().length < 4) {
+      setError("Enter the code from the text message.");
+      return;
+    }
+
+    setLoading(true);
+    const verifyResult = await verifyPhoneOtpAction(normalizePhone(phone), phoneOtp.trim());
+    if (isFailure(verifyResult)) {
+      setLoading(false);
+      setError(verifyResult.error.message);
+      return;
+    }
+
+    const saveResult = await setMyPhoneAction(normalizePhone(phone));
+    setLoading(false);
+    if (isFailure(saveResult)) {
+      setError(saveResult.error.message);
+      return;
+    }
+    router.push("/client/plans");
+  }
+
+  async function handleResendPhoneOtp() {
+    if (resendCooldown) return;
+    setError("");
+    const result = await sendPhoneOtpAction(normalizePhone(phone));
+    if (isFailure(result)) {
+      setError(result.error.message);
+      return;
+    }
+    setResendCooldown(true);
+    setTimeout(() => setResendCooldown(false), 30_000);
+  }
+
+  if (step === "email-otp") {
     return (
       <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-white/5 p-6 text-center">
         <ShieldCheck className="mx-auto mb-3 h-8 w-8 text-brand-yellow" />
@@ -121,15 +178,15 @@ export default function SignupForm() {
         <p className="mt-1.5 text-xs text-white/50">
           We&apos;ve sent a 6-digit code to <span className="text-white/80">{email}</span>. Enter it below to confirm your account.
         </p>
-        <form onSubmit={handleVerifyOtp} className="mt-5 text-left">
+        <form onSubmit={handleVerifyEmailOtp} className="mt-5 text-left">
           <input
             type="text"
             inputMode="numeric"
             autoFocus
             maxLength={6}
             placeholder="000000"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+            value={emailOtp}
+            onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, ""))}
             className="w-full rounded-xl border border-white/15 bg-white/5 py-3 text-center text-lg font-bold tracking-[0.4em] text-white placeholder:text-white/25 focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
           />
           {error && (
@@ -145,11 +202,54 @@ export default function SignupForm() {
           </Button>
           <button
             type="button"
-            onClick={handleResend}
+            onClick={handleResendEmailOtp}
             disabled={resendCooldown}
             className="mt-3 w-full text-center text-xs font-semibold text-brand-yellow hover:underline disabled:cursor-not-allowed disabled:text-white/30 disabled:no-underline"
           >
             {resendCooldown ? "Code resent -- check your inbox" : "Didn't get it? Resend code"}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  if (step === "phone-otp") {
+    return (
+      <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-white/5 p-6 text-center">
+        <MessageSquareText className="mx-auto mb-3 h-8 w-8 text-brand-yellow" />
+        <p className="text-sm font-bold text-white">Verify your mobile number</p>
+        <p className="mt-1.5 text-xs text-white/50">
+          We&apos;ve texted a code to <span className="text-white/80">{phone}</span>. Enter it below to finish setting up your account.
+        </p>
+        <form onSubmit={handleVerifyPhoneOtp} className="mt-5 text-left">
+          <input
+            type="text"
+            inputMode="numeric"
+            autoFocus
+            maxLength={6}
+            placeholder="000000"
+            value={phoneOtp}
+            onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, ""))}
+            className="w-full rounded-xl border border-white/15 bg-white/5 py-3 text-center text-lg font-bold tracking-[0.4em] text-white placeholder:text-white/25 focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+          />
+          {error && (
+            <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</p>
+          )}
+          <Button type="submit" size="lg" className="mt-4 w-full" loading={loading} disabled={loading}>
+            {!loading && (
+              <>
+                Verify & Finish <ArrowRight className="h-4 w-4" />
+              </>
+            )}
+            {loading && "Verifying..."}
+          </Button>
+          <button
+            type="button"
+            onClick={handleResendPhoneOtp}
+            disabled={resendCooldown}
+            className="mt-3 w-full text-center text-xs font-semibold text-brand-yellow hover:underline disabled:cursor-not-allowed disabled:text-white/30 disabled:no-underline"
+          >
+            {resendCooldown ? "Code resent -- check your phone" : "Didn't get it? Resend code"}
           </button>
         </form>
       </div>
@@ -208,7 +308,7 @@ export default function SignupForm() {
             className="w-full rounded-xl border border-white/15 bg-white/5 py-3 pl-10 pr-4 text-sm text-white placeholder:text-white/25 focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
           />
         </div>
-        <p className="mt-1.5 text-[11px] text-white/35">We&apos;ll text you session updates here -- required for every account.</p>
+        <p className="mt-1.5 text-[11px] text-white/35">We&apos;ll text you a code to verify this, then session updates -- required for every account.</p>
       </div>
       <div className="mb-6">
         <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-white/50">Password</label>
