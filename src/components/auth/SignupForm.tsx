@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Mail, Lock, User, Phone, ArrowRight, ShieldCheck, MessageSquareText } from "lucide-react";
+import { Mail, Lock, User, Phone, ArrowRight, ShieldCheck, MessageSquareText, Eye, EyeOff } from "lucide-react";
 import Button from "../ui/Button";
 import GoogleAuthButton from "./GoogleAuthButton";
 import { supabase } from "@/lib/supabase";
@@ -55,6 +55,7 @@ export default function SignupForm() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [emailOtp, setEmailOtp] = useState("");
   const [phoneOtp, setPhoneOtp] = useState("");
   const [resendCooldown, setResendCooldown] = useState(false);
@@ -95,8 +96,8 @@ export default function SignupForm() {
   async function handleVerifyEmailOtp(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (emailOtp.trim().length < 6) {
-      setError("Enter the 6-digit code from your email.");
+    if (emailOtp.trim().length < 4) {
+      setError("Enter the code from your email.");
       return;
     }
 
@@ -176,15 +177,15 @@ export default function SignupForm() {
         <ShieldCheck className="mx-auto mb-3 h-8 w-8 text-brand-yellow" />
         <p className="text-sm font-bold text-white">Verify your email</p>
         <p className="mt-1.5 text-xs text-white/50">
-          We&apos;ve sent a 6-digit code to <span className="text-white/80">{email}</span>. Enter it below to confirm your account.
+          We&apos;ve sent a verification code to <span className="text-white/80">{email}</span>. Enter it below to confirm your account.
         </p>
         <form onSubmit={handleVerifyEmailOtp} className="mt-5 text-left">
           <input
             type="text"
             inputMode="numeric"
             autoFocus
-            maxLength={6}
-            placeholder="000000"
+            maxLength={10}
+            placeholder="Enter code"
             value={emailOtp}
             onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, ""))}
             className="w-full rounded-xl border border-white/15 bg-white/5 py-3 text-center text-lg font-bold tracking-[0.4em] text-white placeholder:text-white/25 focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
@@ -315,14 +316,22 @@ export default function SignupForm() {
         <div className="relative">
           <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
           <input
-            type="password"
+            type={showPassword ? "text" : "password"}
             required
             minLength={8}
             placeholder="At least 8 characters"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-xl border border-white/15 bg-white/5 py-3 pl-10 pr-4 text-sm text-white placeholder:text-white/25 focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+            className="w-full rounded-xl border border-white/15 bg-white/5 py-3 pl-10 pr-10 text-sm text-white placeholder:text-white/25 focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
           />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
         </div>
       </div>
       {error && (
