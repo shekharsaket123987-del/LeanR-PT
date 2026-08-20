@@ -1,7 +1,7 @@
 import { getCallerContext, requireRole, CallerContext } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { createRazorpayOrder, verifyRazorpaySignature, getRazorpayKeyId } from "./razorpay.service";
-import { purchaseMyPlan } from "./planPurchase.service";
+import { purchaseMyPlan, purchaseMyPlanForClient } from "./planPurchase.service";
 import { confirmDemoBooking } from "./demoBooking.service";
 import { DEMO_SESSION_FEE } from "@/lib/constants/pricing";
 
@@ -150,5 +150,67 @@ export async function verifyAndFulfillPayment(
     throw new Error(
       `Your payment was received, but we couldn't finish setting things up automatically (${(err as Error).message}). Your payment is safe -- contact support with reference ${orderId} to resolve this.`
     );
+  }
+}
+
+/** Reconciliation path for src/app/api/webhooks/razorpay/route.ts (QA audit
+ * finding C4). verifyAndFulfillPayment above is the PRIMARY fulfillment
+ * path and fires the moment checkout's client-side handler runs -- in the
+ * overwhelming majority of cases this function will find the payment
+ * already `paid` and do nothing. It exists for the case that path can't
+ * cover: the browser tab closes, crashes, or loses network after Razorpay
+ * has actually captured the money but before the client-side callback
+ * fires, leaving the local `payments` row stuck at `status='created'`
+ * forever with no other code path that would ever revisit it. Unlike the
+ * user-initiated path, there's no access token here -- Razorpay calls this
+ * server-to-server -- so fulfillment runs directly against the client id
+ * already stored on the `payments` row (written at order-creation time,
+ * before any money moved), using the same admin-privileged writes the rest
+ * of this file already relies on. Caller (the webhook route) is
+ * responsible for verifying the webhook signature BEFORE calling this --
+ * this function trusts orderId/paymentId once invoked, same trust boundary
+ * verifyAndFulfillPayment has once verifyRazorpaySignature has passed. */
+export async function fulfillPaymentByWebhook(orderId: string, paymentId: string): Promise<void> {
+  const { data: payment, error: paymentError } = await supabaseAdmin.from("payments").select("*").eq("razorpay_order_id", orderId).maybeSingle();
+  if (paymentError) throw paymentError;
+  if (!payment) {
+    console.error(`Razorpay webhook: no local payment row for order ${orderId} (payment ${paymentId})`);
+    return;
+  }
+
+  // Already fulfilled by the client-side callback (the common case), or in
+  // a terminal state a blind retry shouldn't silently override -- 'failed'
+  // and 'paid_unfulfilled' both need a human, not an automatic re-attempt.
+  if (payment.status !== "created") return;
+
+  try {
+    if (payment.purpose === "package_purchase") {
+      const sub = await purchaseMyPlanForClient(payment.client_id, payment.package_id, null);
+      await supabaseAdmin
+        .from("payments")
+        .update({ status: "paid", paid_at: new Date().toISOString(), razorpay_payment_id: paymentId, subscription_id: sub.id })
+        .eq("id", payment.id);
+      return;
+    }
+
+    // demo_session: dormant/unreachable from any current UI (see
+    // demoBooking.service.ts's confirmDemoBooking comment -- the live demo
+    // flow is free and never goes through Razorpay). Fulfilling it here
+    // would need a real client access token (confirmDemoBooking calls
+    // getCallerContext), which this server-to-server call doesn't have.
+    // Rather than build and risk a fulfillment path for code nothing
+    // reaches today, mark it for manual follow-up like any other fulfillment
+    // failure -- consistent with, not a regression from, today's behavior.
+    await supabaseAdmin
+      .from("payments")
+      .update({ status: "paid_unfulfilled", paid_at: new Date().toISOString(), razorpay_payment_id: paymentId })
+      .eq("id", payment.id);
+    console.error(`Razorpay webhook: demo_session payment ${payment.id} captured but has no automatic fulfillment path -- needs manual review.`);
+  } catch (err) {
+    await supabaseAdmin
+      .from("payments")
+      .update({ status: "paid_unfulfilled", paid_at: new Date().toISOString(), razorpay_payment_id: paymentId })
+      .eq("id", payment.id);
+    console.error(`Razorpay webhook: payment ${payment.id} captured but fulfillment failed:`, err);
   }
 }

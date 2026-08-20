@@ -75,12 +75,22 @@ clear "Razorpay isn't configured yet" error rather than silently charging nothin
 ```
 RAZORPAY_KEY_ID=
 RAZORPAY_KEY_SECRET=
+RAZORPAY_WEBHOOK_SECRET=
 ```
 
-Get these from the [Razorpay Dashboard](https://dashboard.razorpay.com) → **Settings
-→ API Keys**. Start in **Test Mode** (test keys, test card numbers, no real money
-moves) and only switch to the Live Mode key pair once you're ready to accept real
+Get the key id/secret from the [Razorpay Dashboard](https://dashboard.razorpay.com) →
+**Settings → API Keys**. Start in **Test Mode** (test keys, test card numbers, no real
+money moves) and only switch to the Live Mode key pair once you're ready to accept real
 payments — nothing else in the code changes, it's purely which key pair is set here.
+
+`RAZORPAY_WEBHOOK_SECRET` is separate from the API key secret: under **Settings →
+Webhooks**, add a webhook pointing at `https://<your-domain>/api/webhooks/razorpay`,
+subscribe to the `payment.captured` event, and copy the secret Razorpay generates for
+it into this variable. This closes the gap where a payment is captured by Razorpay but
+the browser never gets to report success back (tab closed, crash, lost network) — the
+app's primary confirmation still happens client-side for a fast UI response, but this
+webhook is what reconciles the rare case that path misses, instead of silently leaving
+a captured payment unfulfilled.
 
 Set these in Netlify/Vercel's project environment variable settings for
 production, or in a local `.env.local` for development.

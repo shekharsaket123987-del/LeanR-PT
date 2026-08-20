@@ -14,17 +14,19 @@ export const SESSIONS_LOW_THRESHOLD = 5;
  * subscriptions RLS is admin-only-write by design (see 0012's comment);
  * the "is this client actually allowed to buy this" check (no existing
  * active/awaiting plan) lives here in application code instead. */
-export async function purchaseMyPlan(accessToken: string, packageId: string) {
-  const ctx = await getCallerContext(accessToken);
-  requireRole(ctx, ["client"]);
-
-  const { data: client, error: clientError } = await ctx.client.from("client_profiles").select("id").eq("profile_id", ctx.userId).single();
-  if (clientError || !client) throw clientError ?? new Error("Client profile not found");
-
+/** Core purchase logic, keyed off an already-resolved client_profiles.id
+ * rather than a user access token -- shared by the normal client-initiated
+ * path (purchaseMyPlan, below) and the Razorpay webhook reconciliation path
+ * (payments.service.ts::fulfillPaymentByWebhook), which has no user session
+ * to derive a caller context from (Razorpay calls the webhook server-to-
+ * server) but already knows the paying client's id from the `payments` row
+ * created at checkout time. actorId is the acting user's profile id for the
+ * timeline log -- null for the system/webhook path. */
+export async function purchaseMyPlanForClient(clientId: string, packageId: string, actorId: string | null) {
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("subscriptions")
     .select("id, status")
-    .eq("client_id", client.id)
+    .eq("client_id", clientId)
     .in("status", ["active", "awaiting_activation"])
     .maybeSingle();
   if (existingError) throw existingError;
@@ -52,18 +54,28 @@ export async function purchaseMyPlan(accessToken: string, packageId: string) {
 
   const { data, error } = await supabaseAdmin
     .from("subscriptions")
-    .insert({ client_id: client.id, package_id: packageId, sessions_total: pkg.sessions_count, status: "awaiting_activation" })
+    .insert({ client_id: clientId, package_id: packageId, sessions_total: pkg.sessions_count, status: "awaiting_activation" })
     .select()
     .single();
   if (error) throw error;
 
-  await logTimelineEvent(client.id, "plan_purchased", `Purchased ${pkg.name}`, {
+  await logTimelineEvent(clientId, "plan_purchased", `Purchased ${pkg.name}`, {
     description: `${pkg.sessions_count} sessions -- awaiting activation`,
-    actorId: ctx.userId,
+    actorId,
     metadata: { subscriptionId: data.id, packageId },
   });
 
   return data;
+}
+
+export async function purchaseMyPlan(accessToken: string, packageId: string) {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["client"]);
+
+  const { data: client, error: clientError } = await ctx.client.from("client_profiles").select("id").eq("profile_id", ctx.userId).single();
+  if (clientError || !client) throw clientError ?? new Error("Client profile not found");
+
+  return purchaseMyPlanForClient(client.id, packageId, ctx.userId);
 }
 
 /** One-time activation: the client picks their start date. Locked after
