@@ -28,12 +28,12 @@ export default function CoachUpcomingClient({ sessions }: { sessions: CoachUpcom
                 <ShieldCheck className="h-3 w-3" /> Shadow
               </Badge>
             )}
-            <p className="truncate text-xs text-black/45">
+            <p className="truncate text-xs text-white/45">
               {s.clientCode && `${s.clientCode} · `}
               {s.packageName ?? "No active plan"}
             </p>
           </div>
-          <p className="shrink-0 text-right text-xs font-semibold text-black/60">
+          <p className="shrink-0 text-right text-xs font-semibold text-white/60">
             {formatDate(s.scheduledStart)}
             <br />
             {formatTime(s.scheduledStart)}

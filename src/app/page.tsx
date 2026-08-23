@@ -1,3 +1,4 @@
+import SmoothScrollProvider from "@/components/providers/SmoothScrollProvider";
 import Navbar from "@/components/landing/Navbar";
 import Hero from "@/components/landing/Hero";
 import TrustBar from "@/components/landing/TrustBar";
@@ -35,15 +36,17 @@ export default async function LandingPage() {
   }));
 
   return (
-    <div className="min-h-screen bg-white">
-      <Navbar />
-      <Hero />
-      <TrustBar />
-      <TrainerCarousel coaches={coaches} />
-      <HowItWorks />
-      <PricingSection packages={packages} />
-      <Testimonials />
-      <Footer />
-    </div>
+    <SmoothScrollProvider>
+      <div className="relative z-10 min-h-screen">
+        <Navbar />
+        <Hero />
+        <TrustBar />
+        <TrainerCarousel coaches={coaches} />
+        <HowItWorks />
+        <PricingSection packages={packages} />
+        <Testimonials />
+        <Footer />
+      </div>
+    </SmoothScrollProvider>
   );
 }

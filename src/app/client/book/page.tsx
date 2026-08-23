@@ -24,12 +24,12 @@ export default async function BookSessionPage() {
         <div className="mx-auto max-w-3xl">
           <PageHeader title="Book a Session" description="A few quick steps and you're on the calendar." />
           <Card className="flex flex-col items-center gap-3 p-8 text-center">
-            <CalendarClock className="h-8 w-8 text-black/25" />
+            <CalendarClock className="h-8 w-8 text-white/25" />
             <p className="text-sm font-bold">Your Demo Session Is Already Booked</p>
-            <p className="max-w-sm text-sm text-black/50">
+            <p className="max-w-sm text-sm text-white/50">
               {demoSession.coachName} · {formatDate(demoSession.slotStart)} · {formatTime(demoSession.slotStart)}
             </p>
-            <p className="max-w-sm text-sm text-black/50">Choose a plan to unlock booking ongoing sessions.</p>
+            <p className="max-w-sm text-sm text-white/50">Choose a plan to unlock booking ongoing sessions.</p>
             <Button href="/client/plans" className="mt-2">
               Choose Your Plan
             </Button>
@@ -43,9 +43,9 @@ export default async function BookSessionPage() {
         <div className="mx-auto max-w-3xl">
           <PageHeader title="Book a Session" description="A few quick steps and you're on the calendar." />
           <Card className="flex flex-col items-center gap-3 p-8 text-center">
-            <Ban className="h-8 w-8 text-black/25" />
+            <Ban className="h-8 w-8 text-white/25" />
             <p className="text-sm font-bold">No Subscription Found</p>
-            <p className="max-w-sm text-sm text-black/50">
+            <p className="max-w-sm text-sm text-white/50">
               {stage === "demo_completed"
                 ? "Choose a plan to start booking ongoing sessions with your coach."
                 : "Book a free demo session, or choose a plan to get started."}

@@ -62,12 +62,12 @@ export default function PlansMarketingClient({ plans }: { plans: MarketingPlan[]
 
   return (
     <>
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-4 text-sm text-red-400">{error}</p>}
 
       <Card className="mb-8 flex flex-col items-center gap-4 p-6 text-center sm:flex-row sm:justify-between sm:text-left">
         <div>
           <p className="text-sm font-bold">Not sure yet?</p>
-          <p className="mt-1 text-xs text-black/50">Try a free demo session with a coach before committing to a plan.</p>
+          <p className="mt-1 text-xs text-white/50">Try a free demo session with a coach before committing to a plan.</p>
         </div>
         <Button variant="outline" onClick={() => router.push("/client/demo-booking")}>
           Book Free Demo Session
@@ -81,16 +81,16 @@ export default function PlansMarketingClient({ plans }: { plans: MarketingPlan[]
             <Card key={p.id} className={`flex flex-col p-6 ${p.highlighted ? "border-2 border-brand-yellow" : ""}`}>
               {p.highlighted && <Badge variant="yellow" className="mb-3 w-fit">Most Popular</Badge>}
               <p className="text-display text-xl font-bold italic">{p.name}</p>
-              <p className="mt-1 text-sm text-black/50">{p.sessions} Live Personal Training Sessions</p>
+              <p className="mt-1 text-sm text-white/50">{p.sessions} Live Personal Training Sessions</p>
               <div className="mt-4 flex items-baseline gap-2">
                 <span className="text-display text-3xl font-bold italic">₹{p.price.toLocaleString("en-IN")}</span>
-                {p.originalPrice && <span className="text-sm text-black/40 line-through">₹{p.originalPrice.toLocaleString("en-IN")}</span>}
+                {p.originalPrice && <span className="text-sm text-white/40 line-through">₹{p.originalPrice.toLocaleString("en-IN")}</span>}
               </div>
-              {savings > 0 && <p className="mt-1 text-xs font-bold text-emerald-600">Save ₹{savings.toLocaleString("en-IN")}</p>}
+              {savings > 0 && <p className="mt-1 text-xs font-bold text-emerald-400">Save ₹{savings.toLocaleString("en-IN")}</p>}
               {p.features.length > 0 && (
                 <ul className="mt-4 flex-1 space-y-1.5">
                   {p.features.map((f) => (
-                    <li key={f} className="text-xs text-black/60">
+                    <li key={f} className="text-xs text-white/60">
                       • {f}
                     </li>
                   ))}
@@ -102,7 +102,7 @@ export default function PlansMarketingClient({ plans }: { plans: MarketingPlan[]
             </Card>
           );
         })}
-        {plans.length === 0 && <p className="text-sm text-black/45">No active plans available right now.</p>}
+        {plans.length === 0 && <p className="text-sm text-white/45">No active plans available right now.</p>}
       </div>
 
       <div className="mt-14">
@@ -111,10 +111,10 @@ export default function PlansMarketingClient({ plans }: { plans: MarketingPlan[]
           {WHY_LEANR.map((item) => (
             <Card key={item.title} className="p-5">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-yellow/15">
-                <item.icon className="h-5 w-5 text-black/70" />
+                <item.icon className="h-5 w-5 text-brand-yellow" />
               </div>
               <p className="text-sm font-bold">{item.title}</p>
-              <p className="mt-1 text-xs text-black/50">{item.description}</p>
+              <p className="mt-1 text-xs text-white/50">{item.description}</p>
             </Card>
           ))}
         </div>

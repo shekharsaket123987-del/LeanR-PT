@@ -10,7 +10,7 @@ export default async function AdminNotificationsPage() {
     <div className="mx-auto max-w-3xl">
       <PageHeader title="Notifications" description="System alerts: unresolved shadow coverage, leave requests, escalations, and more." />
       {isFailure(result) ? (
-        <p className="text-sm text-red-600">{result.error.message}</p>
+        <p className="text-sm text-red-400">{result.error.message}</p>
       ) : (
         <NotificationsClient initialNotifications={result.data} />
       )}

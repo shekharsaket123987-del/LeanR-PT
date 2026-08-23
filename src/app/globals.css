@@ -2,16 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --bg: #060606;
+  --bg-elevated: #0c0c0c;
+  --bg-soft: #111111;
+  --yellow: #f5d90a;
+  --yellow-bright: #ffe94d;
+  --yellow-dim: #b8a400;
+  --yellow-glow: #f5d90a59;
+  --white: #f6f6f4;
+  --muted: #9a9a95;
+  --muted-2: #6f6f6b;
+  --glass-hairline: #ffffff17;
+  --glass-hairline-strong: #ffffff29;
+}
+
 html {
   scroll-behavior: smooth;
 }
 
 body {
-  @apply bg-[#FAFAFA] text-[#111111] font-body;
+  @apply bg-surface text-white font-body;
+  -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: #F5E400;
+  background: #F5D90A;
   color: #000;
 }
 
@@ -23,16 +39,140 @@ body {
   scrollbar-width: none;
 }
 
+/* Anton (display font) only ships a single black weight and has no italic
+   cut -- browsers fake both, which looks broken. The rest of the app still
+   pairs `text-display` with Tailwind's `italic`/`font-bold` utilities, so
+   this unlayered rule (it beats @tailwind's layered utilities regardless of
+   source order) neutralizes those without a mass find/replace. */
 .text-display {
   font-family: var(--font-display);
+  font-style: normal;
+  font-weight: 400;
   letter-spacing: -0.01em;
+  text-transform: uppercase;
 }
 
 @layer utilities {
   .brand-gradient-text {
-    background: linear-gradient(90deg, #F5E400 0%, #FFE600 100%);
+    background: linear-gradient(90deg, #F5D90A 0%, #FFE94D 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+  }
+
+  /* Glass surfaces, matching the reference design system exactly (including
+     backdrop-filter blur -- true glassmorphism, not just translucent color). */
+  .glass {
+    background: linear-gradient(155deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid var(--glass-hairline);
+    box-shadow:
+      rgba(255, 255, 255, 0.08) 0px 1px inset,
+      rgba(0, 0, 0, 0.2) 0px 0px 0px 1px,
+      rgba(0, 0, 0, 0.7) 0px 20px 60px -20px;
+  }
+  .glass-faint {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px) saturate(120%);
+    -webkit-backdrop-filter: blur(12px) saturate(120%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .glass-strong {
+    border: 1px solid var(--glass-hairline-strong);
+    background: linear-gradient(155deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    box-shadow:
+      rgba(255, 255, 255, 0.12) 0px 1px inset,
+      rgba(0, 0, 0, 0.25) 0px 0px 0px 1px,
+      rgba(0, 0, 0, 0.8) 0px 25px 70px -20px;
+  }
+  .glass-yellow {
+    background: linear-gradient(155deg, rgba(245, 217, 10, 0.22), rgba(245, 217, 10, 0.06));
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid rgba(245, 217, 10, 0.4);
+    box-shadow: rgba(255, 255, 255, 0.25) 0px 1px inset, 0 0 40px -8px var(--yellow-glow);
+  }
+  .glow-yellow {
+    box-shadow: 0 0 60px -10px var(--yellow-glow);
+  }
+  /* glass-strong + glow-yellow combined into one rule -- stacking both
+     classes on one element would leave two competing box-shadow/border
+     declarations that resolve by generation order (not className order)
+     since this project's `cn()` is plain clsx with no tailwind-merge. */
+  .glass-accent {
+    border: 1px solid rgba(245, 217, 10, 0.3);
+    background: linear-gradient(155deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    box-shadow:
+      rgba(255, 255, 255, 0.12) 0px 1px inset,
+      0 0 60px -10px var(--yellow-glow);
+  }
+
+  .text-glow {
+    text-shadow: 0 0 30px var(--yellow-glow);
+  }
+  .italic-skew {
+    display: inline-block;
+    font-style: italic;
+    transform: skewX(-6deg);
+  }
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+  .container-px {
+    padding-left: clamp(1.25rem, 5vw, 6rem);
+    padding-right: clamp(1.25rem, 5vw, 6rem);
+  }
+  .mask-fade-b {
+    mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+  }
+
+  .noise {
+    position: relative;
+  }
+  .noise::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0.035;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxNjAnIGhlaWdodD0nMTYwJz48ZmlsdGVyIGlkPSduJz48ZmVUdXJidWxlbmNlIHR5cGU9J2ZyYWN0YWxOb2lzZScgYmFzZUZyZXF1ZW5jeT0nMC45JyBudW1PY3RhdmVzPScyJyBzdGl0Y2hUaWxlcz0nc3RpdGNoJy8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9JzEwMCUnIGhlaWdodD0nMTAwJScgZmlsdGVyPSd1cmwoI24pJy8+PC9zdmc+");
+  }
+
+  @keyframes float-slow {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-18px) rotate(1.5deg); }
+  }
+  .animate-float-slow {
+    animation: float-slow 7s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+  }
+  @keyframes float-slower {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-28px) rotate(-2deg); }
+  }
+  .animate-float-slower {
+    animation: float-slower 10s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+  }
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+  .animate-pulse-glow {
+    animation: pulse-glow 2.4s ease-in-out infinite;
+  }
+  @keyframes marquee {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  .animate-marquee {
+    animation: marquee 28s linear infinite;
   }
 }

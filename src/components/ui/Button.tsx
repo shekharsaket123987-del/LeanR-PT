@@ -1,9 +1,17 @@
+"use client";
+
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { ButtonHTMLAttributes } from "react";
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+type NativeButtonProps = Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "onDrag" | "onDragStart" | "onDragEnd" | "onAnimationStart" | "onAnimationEnd" | "onAnimationIteration"
+>;
+
+interface ButtonProps extends NativeButtonProps {
   variant?: "primary" | "secondary" | "outline" | "ghost" | "destructive" | "destructive-outline";
   size?: "sm" | "md" | "lg";
   href?: string;
@@ -12,12 +20,19 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants: Record<string, string> = {
-  primary: "bg-brand-yellow text-black hover:bg-brand-yellow2 shadow-soft",
-  secondary: "bg-black text-white hover:bg-brand-charcoal2",
-  outline: "bg-transparent border border-black/15 text-black hover:border-black/40",
-  ghost: "bg-transparent text-black hover:bg-black/5",
-  destructive: "bg-red-600 text-white hover:bg-red-700",
-  "destructive-outline": "bg-transparent border border-red-300 text-red-600 hover:bg-red-50",
+  primary:
+    "bg-brand-yellow text-black shadow-[0_0_40px_-8px_rgba(245,217,10,0.6)] hover:shadow-[0_0_55px_-6px_rgba(245,217,10,0.85)] hover:bg-brand-yellow2",
+  secondary: "glass-strong text-white hover:border-white/30",
+  outline: "bg-transparent border border-white/15 text-white hover:border-white/40",
+  ghost: "bg-transparent text-white/70 hover:bg-white/5 hover:text-white",
+  destructive: "bg-red-500/90 text-white hover:bg-red-500",
+  "destructive-outline": "bg-transparent border border-red-500/30 text-red-400 hover:bg-red-500/10",
+};
+
+const motionProps = {
+  whileHover: { scale: 1.035, y: -2 },
+  whileTap: { scale: 0.97 },
+  transition: { type: "spring", stiffness: 400, damping: 22 } as const,
 };
 
 const sizes: Record<string, string> = {
@@ -38,7 +53,7 @@ export default function Button({
   ...props
 }: ButtonProps) {
   const classes = cn(
-    "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap",
+    "inline-flex items-center justify-center gap-2 rounded-full font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap",
     variants[variant],
     sizes[size],
     className
@@ -55,16 +70,18 @@ export default function Button({
       );
     }
     return (
-      <Link href={href} target={target} rel={target === "_blank" ? "noopener noreferrer" : undefined} className={classes}>
-        {children}
+      <Link href={href} target={target} rel={target === "_blank" ? "noopener noreferrer" : undefined} className="inline-block">
+        <motion.span {...motionProps} className={classes}>
+          {children}
+        </motion.span>
       </Link>
     );
   }
 
   return (
-    <button className={classes} disabled={disabled || loading} {...props}>
+    <motion.button {...motionProps} className={classes} disabled={disabled || loading} {...props}>
       {loading && <Loader2 className="h-4 w-4 animate-spin" />}
       {children}
-    </button>
+    </motion.button>
   );
 }

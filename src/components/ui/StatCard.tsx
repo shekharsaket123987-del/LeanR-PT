@@ -21,14 +21,14 @@ export default function StatCard({
     <Card dark={accent} className="p-5">
       <div className="flex items-start justify-between">
         <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", accent ? "bg-brand-yellow" : "bg-brand-yellow/15")}>
-          <Icon className={cn("h-5 w-5", accent ? "text-black" : "text-black/70")} strokeWidth={2} />
+          <Icon className={cn("h-5 w-5", accent ? "text-black" : "text-brand-yellow")} strokeWidth={2} />
         </div>
         {change && (
-          <span className={cn("text-xs font-bold", positive ? "text-emerald-500" : "text-red-500")}>{change}</span>
+          <span className={cn("text-xs font-bold", positive ? "text-emerald-400" : "text-red-400")}>{change}</span>
         )}
       </div>
-      <p className={cn("mt-4 text-display text-3xl font-bold italic leading-none", accent && "text-white")}>{value}</p>
-      <p className={cn("mt-1.5 text-sm font-medium", accent ? "text-white/60" : "text-black/50")}>{label}</p>
+      <p className="mt-4 text-display text-3xl leading-none text-white">{value}</p>
+      <p className="mt-1.5 text-sm font-medium text-white/50">{label}</p>
     </Card>
   );
 }

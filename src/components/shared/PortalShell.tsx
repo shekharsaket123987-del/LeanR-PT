@@ -107,15 +107,15 @@ export default function PortalShell({
   }
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA]">
+    <div className="min-h-screen bg-surface">
       {/* Mobile top bar */}
-      <div className="sticky top-0 z-40 flex items-center justify-between border-b border-black/[0.06] bg-white px-4 py-3 lg:hidden">
+      <div className="sticky top-0 z-40 flex items-center justify-between border-b border-white/[0.06] bg-surface-elevated px-4 py-3 lg:hidden">
         <Link href="/" className="flex items-center gap-1">
-          <span className="text-display text-xl font-bold italic tracking-tight">
-            LEAN<span className="text-brand-yellow" style={{ WebkitTextStroke: "1px black" }}>R</span>
+          <span className="text-display text-xl tracking-tight text-white">
+            LEAN<span className="text-brand-yellow">R</span>
           </span>
         </Link>
-        <button onClick={() => setMobileOpen(true)} className="rounded-lg p-2 hover:bg-black/5">
+        <button onClick={() => setMobileOpen(true)} className="rounded-lg p-2 text-white/70 hover:bg-white/10">
           <Menu className="h-5 w-5" />
         </button>
       </div>
@@ -123,19 +123,19 @@ export default function PortalShell({
       <div className="flex">
         {/* Sidebar */}
         <aside
-          className={`fixed inset-y-0 left-0 z-50 w-72 transform border-r border-black/[0.06] bg-white transition-transform duration-200 lg:sticky lg:top-0 lg:z-0 lg:h-screen lg:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-50 w-72 transform border-r border-white/[0.06] bg-surface-elevated transition-transform duration-200 lg:sticky lg:top-0 lg:z-0 lg:h-screen lg:translate-x-0 ${
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
           <div className="flex h-full flex-col">
             <div className="flex items-center justify-between px-6 py-6">
               <Link href="/" className="flex items-center gap-1.5">
-                <span className="text-display text-2xl font-bold italic tracking-tight text-black">
+                <span className="text-display text-2xl tracking-tight text-white">
                   LEANR
                 </span>
                 <span className="h-1.5 w-1.5 rounded-full bg-brand-yellow" />
               </Link>
-              <button onClick={() => setMobileOpen(false)} className="rounded-lg p-1.5 hover:bg-black/5 lg:hidden">
+              <button onClick={() => setMobileOpen(false)} className="rounded-lg p-1.5 text-white/70 hover:bg-white/10 lg:hidden">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -156,28 +156,28 @@ export default function PortalShell({
                     href={item.href}
                     onClick={() => setMobileOpen(false)}
                     className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors ${
-                      active ? "bg-black text-white" : "text-black/60 hover:bg-black/5 hover:text-black"
+                      active ? "bg-brand-yellow text-black shadow-glow" : "text-white/55 hover:bg-white/5 hover:text-white"
                     }`}
                   >
-                    <Icon className={`h-4.5 w-4.5 ${active ? "text-brand-yellow" : ""}`} style={{ height: 18, width: 18 }} />
+                    <Icon className={active ? "text-black" : "text-white/40"} style={{ height: 18, width: 18 }} />
                     {item.label}
                   </Link>
                 );
               })}
             </nav>
 
-            <div className="border-t border-black/[0.06] p-4">
+            <div className="border-t border-white/[0.06] p-4">
               <div className="flex items-center gap-3 rounded-xl px-2 py-2">
                 <Avatar src={resolvedIdentity.photo} alt={resolvedIdentity.name} size={38} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold">{resolvedIdentity.name}</p>
-                  <p className="truncate text-xs text-black/45">{resolvedIdentity.sub}</p>
+                  <p className="truncate text-sm font-bold text-white">{resolvedIdentity.name}</p>
+                  <p className="truncate text-xs text-white/45">{resolvedIdentity.sub}</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={handleLogout}
-                className="mt-1 flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-black/50 hover:bg-black/5 hover:text-red-600"
+                className="mt-1 flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white/50 hover:bg-white/5 hover:text-red-400"
               >
                 <LogOut style={{ height: 18, width: 18 }} />
                 Log out
@@ -187,7 +187,7 @@ export default function PortalShell({
         </aside>
 
         {mobileOpen && (
-          <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={() => setMobileOpen(false)} />
+          <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden" onClick={() => setMobileOpen(false)} />
         )}
 
         {/* Main content */}

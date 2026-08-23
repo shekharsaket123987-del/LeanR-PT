@@ -86,20 +86,20 @@ export default async function CoachDashboardPage() {
       <div className="mt-8">
         <h2 className="text-display mb-4 text-xl font-bold italic">Cancelled Sessions</h2>
         {cancelled.length === 0 ? (
-          <p className="text-sm text-black/45">No cancelled sessions.</p>
+          <p className="text-sm text-white/45">No cancelled sessions.</p>
         ) : (
           <div className="space-y-3">
             {cancelled.map((c) => (
               <Card key={c.id} className="p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-bold">{c.clientName}</p>
-                  <span className="font-mono text-[11px] text-black/40">{c.clientCode}</span>
+                  <span className="font-mono text-[11px] text-white/40">{c.clientCode}</span>
                   <Badge variant="red">Cancelled by {c.cancelledByRole === "admin" ? "Admin" : c.cancelledByRole === "coach" ? "Coach" : "Client"}</Badge>
                 </div>
-                <p className="mt-1.5 text-xs text-black/50">
+                <p className="mt-1.5 text-xs text-white/50">
                   Session: {formatDate(c.sessionDate)} · {formatTime(c.sessionDate)} — cancelled {formatDate(c.cancelledAt)} · {formatTime(c.cancelledAt)}
                 </p>
-                {c.reason && <p className="mt-1.5 text-xs text-black/60">Reason: {c.reason}</p>}
+                {c.reason && <p className="mt-1.5 text-xs text-white/60">Reason: {c.reason}</p>}
               </Card>
             ))}
           </div>
@@ -109,19 +109,19 @@ export default async function CoachDashboardPage() {
       <div className="mt-8">
         <h2 className="text-display mb-4 text-xl font-bold italic">Rescheduled Sessions</h2>
         {rescheduled.length === 0 ? (
-          <p className="text-sm text-black/45">No rescheduled sessions.</p>
+          <p className="text-sm text-white/45">No rescheduled sessions.</p>
         ) : (
           <div className="space-y-3">
             {rescheduled.map((r) => (
               <Card key={r.id} className="p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-bold">{r.clientName}</p>
-                  <span className="font-mono text-[11px] text-black/40">{r.clientCode}</span>
+                  <span className="font-mono text-[11px] text-white/40">{r.clientCode}</span>
                   <Badge variant="outline-yellow">
                     <RotateCcw className="h-3 w-3" /> Rescheduled
                   </Badge>
                 </div>
-                <p className="mt-1.5 text-xs text-black/50">
+                <p className="mt-1.5 text-xs text-white/50">
                   {formatDate(r.originalDate)} · {formatTime(r.originalDate)} → {formatDate(r.newDate)} · {formatTime(r.newDate)}
                 </p>
               </Card>
@@ -133,7 +133,7 @@ export default async function CoachDashboardPage() {
       <div className="mt-8">
         <h2 className="text-display mb-4 text-xl font-bold italic">Your Clients</h2>
         {data.recentClients.length === 0 ? (
-          <p className="text-sm text-black/45">No clients assigned yet.</p>
+          <p className="text-sm text-white/45">No clients assigned yet.</p>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {data.recentClients.map((c) => (

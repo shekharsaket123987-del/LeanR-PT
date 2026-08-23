@@ -4,6 +4,15 @@ export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
 }
 
+export function smoothScrollTo(target: string, offset = -90) {
+  if (typeof window === "undefined") return;
+  if (window.__lenis) {
+    window.__lenis.scrollTo(target, { offset, duration: 1.2 });
+    return;
+  }
+  document.querySelector(target)?.scrollIntoView({ behavior: "smooth" });
+}
+
 export function initials(name: string) {
   return name
     .split(" ")

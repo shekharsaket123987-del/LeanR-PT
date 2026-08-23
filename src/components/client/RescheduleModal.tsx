@@ -61,19 +61,19 @@ export default function RescheduleModal({
     <Modal open={open} onClose={onClose} title="Reschedule Session" maxWidth="max-w-xl">
       {loading && (
         <div className="flex items-center justify-center py-10">
-          <Loader2 className="h-5 w-5 animate-spin text-black/40" />
+          <Loader2 className="h-5 w-5 animate-spin text-white/40" />
         </div>
       )}
 
-      {!loading && loadError && <p className="text-sm text-red-600">{loadError}</p>}
+      {!loading && loadError && <p className="text-sm text-red-400">{loadError}</p>}
 
       {!loading && options && (
         <>
-          <p className="mb-4 text-xs text-black/45">
+          <p className="mb-4 text-xs text-white/45">
             Showing {options.coach.name.split(" ")[0]}&apos;s open slots for the rest of this week ·{" "}
-            <span className="font-bold text-black/60">{options.reschedulesRemaining} of 2 reschedules left this week</span>
+            <span className="font-bold text-white/60">{options.reschedulesRemaining} of 2 reschedules left this week</span>
           </p>
-          <p className="mb-4 rounded-lg bg-black/[0.03] p-3 text-xs text-black/50">
+          <p className="mb-4 rounded-lg bg-white/[0.04] p-3 text-xs text-white/50">
             Sessions can be rescheduled up to 2 times per week, and must be moved at least {options.cutoffHours} hour
             {options.cutoffHours === 1 ? "" : "s"} before the original start time.
           </p>
@@ -88,12 +88,12 @@ export default function RescheduleModal({
                 key={slot.start}
                 onClick={() => setSelectedSlot(slot)}
                 className={`rounded-xl border-2 p-4 text-left transition-colors ${
-                  selectedSlot?.start === slot.start ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10 hover:border-black/25"
+                  selectedSlot?.start === slot.start ? "border-brand-yellow bg-brand-yellow/10" : "border-white/10 hover:border-white/25"
                 }`}
               >
-                <CalendarDays className="mb-2 h-5 w-5 text-black/60" />
+                <CalendarDays className="mb-2 h-5 w-5 text-white/60" />
                 <p className="text-sm font-bold">{formatDate(slot.start)}</p>
-                <p className="text-xs text-black/45">
+                <p className="text-xs text-white/45">
                   {formatTime(slot.start)} · {options.durationMinutes} min
                 </p>
               </button>
@@ -101,12 +101,12 @@ export default function RescheduleModal({
           </div>
 
           {selectedSlot && (
-            <p className="mt-4 text-xs text-black/50">
+            <p className="mt-4 text-xs text-white/50">
               This will move your session to {formatDate(selectedSlot.start)} · {formatTime(selectedSlot.start)}, using{" "}
               {options.reschedulesUsedThisWeek + 1} of your 2 reschedules for this week.
             </p>
           )}
-          {submitError && <p className="mt-4 text-xs text-red-600">{submitError}</p>}
+          {submitError && <p className="mt-4 text-xs text-red-400">{submitError}</p>}
 
           <div className="mt-6 flex justify-end gap-3">
             <Button variant="outline" onClick={onClose} disabled={submitting}>

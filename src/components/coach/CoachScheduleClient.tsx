@@ -38,16 +38,16 @@ export default function CoachScheduleClient({ sessions }: { sessions: CoachSessi
         title="Schedule"
         description="Your upcoming bookings, day by day."
         action={
-          <div className="flex gap-1 rounded-xl bg-black/5 p-1">
+          <div className="flex gap-1 rounded-xl bg-white/5 p-1">
             <button
               onClick={() => setView("day")}
-              className={`rounded-lg px-4 py-2 text-sm font-bold ${view === "day" ? "bg-white shadow-card" : "text-black/50"}`}
+              className={`rounded-lg px-4 py-2 text-sm font-bold ${view === "day" ? "bg-white/10 text-white" : "text-white/50"}`}
             >
               Day
             </button>
             <button
               onClick={() => setView("week")}
-              className={`rounded-lg px-4 py-2 text-sm font-bold ${view === "week" ? "bg-white shadow-card" : "text-black/50"}`}
+              className={`rounded-lg px-4 py-2 text-sm font-bold ${view === "week" ? "bg-white/10 text-white" : "text-white/50"}`}
             >
               Week
             </button>
@@ -58,7 +58,7 @@ export default function CoachScheduleClient({ sessions }: { sessions: CoachSessi
       {view === "day" && (
         <div className="space-y-3">
           {todaySessions.length === 0 && (
-            <Card className="p-10 text-center text-sm text-black/40">No sessions scheduled for today.</Card>
+            <Card className="p-10 text-center text-sm text-white/40">No sessions scheduled for today.</Card>
           )}
           {todaySessions.map((s) => {
             const canJoin = hoursUntil(s.date) <= 1 / 6 && hoursUntil(s.date) > -(s.durationMinutes / 60);
@@ -91,23 +91,23 @@ export default function CoachScheduleClient({ sessions }: { sessions: CoachSessi
               .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             const isToday = d.toDateString() === new Date().toDateString();
             return (
-              <div key={d.toISOString()} className={`rounded-2xl border p-3 ${isToday ? "border-brand-yellow bg-brand-yellow/5" : "border-black/[0.06] bg-white"}`}>
-                <p className="mb-2 text-center text-xs font-bold text-black/60">
+              <div key={d.toISOString()} className={`rounded-2xl p-3 ${isToday ? "glass-accent" : "glass-strong"}`}>
+                <p className="mb-2 text-center text-xs font-bold text-white/60">
                   {d.toLocaleDateString("en-US", { weekday: "short" })}
                   <br />
                   <span className="text-base">{d.getDate()}</span>
                 </p>
                 <div className="space-y-1.5">
-                  {daySessions.length === 0 && <p className="text-center text-[10px] text-black/25">—</p>}
+                  {daySessions.length === 0 && <p className="text-center text-[10px] text-white/25">—</p>}
                   {daySessions.map((s) => (
                     <a
                       key={s.id}
                       href={`/coach/session/${s.id}`}
-                      className="block rounded-lg bg-black/[0.04] px-2 py-1.5 text-[10px] font-semibold leading-tight hover:bg-black/10"
+                      className="block rounded-lg bg-white/[0.06] px-2 py-1.5 text-[10px] font-semibold leading-tight hover:bg-white/10"
                     >
                       {formatTime(s.date)}
                       <br />
-                      <span className="text-black/60">{s.client?.name.split(" ")[0]}</span>
+                      <span className="text-white/60">{s.client?.name.split(" ")[0]}</span>
                     </a>
                   ))}
                 </div>

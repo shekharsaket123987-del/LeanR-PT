@@ -45,8 +45,8 @@ export default function DemoBookingClient() {
   if (result) {
     return (
       <Card className="p-8 text-center">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100">
-          <CheckCircle2 className="h-7 w-7 text-emerald-600" />
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-400/15">
+          <CheckCircle2 className="h-7 w-7 text-emerald-400" />
         </div>
         <p className="text-display text-xl font-bold italic">Demo Session Booked Successfully</p>
         <div className="mt-4 flex items-center justify-center gap-3">
@@ -55,12 +55,12 @@ export default function DemoBookingClient() {
           </div>
           <div className="text-left">
             <p className="text-sm font-bold">{result.coachName}</p>
-            <p className="text-xs text-black/50">
+            <p className="text-xs text-white/50">
               {formatDate(result.slotStart)} · {formatTime(result.slotStart)}
             </p>
           </div>
         </div>
-        <p className="mt-3 text-xs text-black/45">Your coach was automatically assigned based on availability.</p>
+        <p className="mt-3 text-xs text-white/45">Your coach was automatically assigned based on availability.</p>
         <Button className="mt-6" onClick={() => router.push("/client/dashboard")}>
           Go to Dashboard
         </Button>
@@ -72,30 +72,30 @@ export default function DemoBookingClient() {
     <Card className="p-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
-          <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Preferred Date</label>
+          <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Preferred Date</label>
           <input
             type="date"
             value={date}
             min={todayISO()}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full rounded-xl border border-black/15 p-3 text-sm"
+            className="glass-faint w-full rounded-xl p-3 text-sm text-white outline-none focus:border-white/20"
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Preferred Time (optional)</label>
+          <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Preferred Time (optional)</label>
           <input
             type="time"
             value={preferredTime}
             onChange={(e) => setPreferredTime(e.target.value)}
-            className="w-full rounded-xl border border-black/15 p-3 text-sm"
+            className="glass-faint w-full rounded-xl p-3 text-sm text-white outline-none focus:border-white/20"
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Coach Gender (optional)</label>
+          <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Coach Gender (optional)</label>
           <select
             value={genderPreference}
             onChange={(e) => setGenderPreference(e.target.value as any)}
-            className="w-full rounded-xl border border-black/15 p-3 text-sm"
+            className="glass-faint w-full rounded-xl p-3 text-sm text-white outline-none focus:border-white/20"
           >
             <option value="">No preference</option>
             <option value="male">Male</option>
@@ -104,10 +104,10 @@ export default function DemoBookingClient() {
           </select>
         </div>
       </div>
-      <p className="mt-3 text-xs text-black/40">
+      <p className="mt-3 text-xs text-white/40">
         We&apos;ll automatically match you with the best available coach for your chosen time -- no need to pick one yourself.
       </p>
-      {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
       <Button className="mt-5" loading={booking} onClick={bookDemo}>
         Book Free Demo Session
       </Button>

@@ -39,21 +39,21 @@ export default function AdminClientsListClient({ clients }: { clients: AdminClie
     <>
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-black/30" />
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search clients by name, ID, or phone..."
-            className="w-full rounded-xl border border-black/10 bg-white py-2.5 pl-10 pr-4 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+            className="w-full glass-faint rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-white/30 outline-none focus:border-brand-yellow focus:ring-1 focus:ring-brand-yellow"
           />
         </div>
-        <div className="flex gap-1 rounded-xl bg-black/5 p-1">
+        <div className="flex gap-1 rounded-xl bg-white/5 p-1">
           {["all", "active", "paused", "expired", "inactive"].map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
               className={`whitespace-nowrap rounded-lg px-3.5 py-2 text-xs font-bold capitalize ${
-                statusFilter === s ? "bg-white shadow-card" : "text-black/50"
+                statusFilter === s ? "glass-strong" : "text-white/50"
               }`}
             >
               {s}
@@ -63,7 +63,7 @@ export default function AdminClientsListClient({ clients }: { clients: AdminClie
       </div>
 
       <Card className="overflow-hidden">
-        <div className="hidden grid-cols-12 gap-4 border-b border-black/[0.06] px-5 py-3 text-xs font-bold uppercase text-black/40 sm:grid">
+        <div className="hidden grid-cols-12 gap-4 border-b border-white/[0.06] px-5 py-3 text-xs font-bold uppercase text-white/40 sm:grid">
           <div className="col-span-3">Client</div>
           <div className="col-span-2">Package</div>
           <div className="col-span-2">Coach</div>
@@ -72,12 +72,12 @@ export default function AdminClientsListClient({ clients }: { clients: AdminClie
           <div className="col-span-1">Status</div>
           <div className="col-span-1"></div>
         </div>
-        <div className="divide-y divide-black/[0.05]">
+        <div className="divide-y divide-white/[0.05]">
           {filtered.map((c) => (
             <Link
               key={c.id}
               href={`/admin/clients/${c.id}`}
-              className="grid grid-cols-2 items-center gap-4 px-5 py-4 hover:bg-black/[0.02] sm:grid-cols-12"
+              className="grid grid-cols-2 items-center gap-4 px-5 py-4 hover:bg-white/[0.02] sm:grid-cols-12"
             >
               <div className="col-span-2 flex items-center gap-3 sm:col-span-3">
                 <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full">
@@ -85,19 +85,19 @@ export default function AdminClientsListClient({ clients }: { clients: AdminClie
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold">{c.name}</p>
-                  <p className="truncate text-xs text-black/40">{c.clientCode || c.phone || "—"}</p>
+                  <p className="truncate text-xs text-white/40">{c.clientCode || c.phone || "—"}</p>
                 </div>
               </div>
-              <div className="col-span-1 text-sm text-black/60 sm:col-span-2">{c.packageName ?? "—"}</div>
-              <div className="col-span-1 text-sm text-black/60 sm:col-span-2">{c.coachName ?? "—"}</div>
-              <div className="col-span-1 text-sm text-black/60 sm:col-span-2">{formatSlot(c.slotDays, c.slotStartTime)}</div>
-              <div className="col-span-1 text-sm text-black/60">
+              <div className="col-span-1 text-sm text-white/60 sm:col-span-2">{c.packageName ?? "—"}</div>
+              <div className="col-span-1 text-sm text-white/60 sm:col-span-2">{c.coachName ?? "—"}</div>
+              <div className="col-span-1 text-sm text-white/60 sm:col-span-2">{formatSlot(c.slotDays, c.slotStartTime)}</div>
+              <div className="col-span-1 text-sm text-white/60">
                 {c.sessionsRemaining != null && c.sessionsTotal != null ? `${c.sessionsRemaining} / ${c.sessionsTotal}` : "—"}
               </div>
               <div className="col-span-1">
                 <Badge variant={STATUS_BADGE[c.status].variant}>{STATUS_BADGE[c.status].label}</Badge>
               </div>
-              <ChevronRight className="col-span-1 hidden h-4 w-4 justify-self-end text-black/30 sm:block" />
+              <ChevronRight className="col-span-1 hidden h-4 w-4 justify-self-end text-white/30 sm:block" />
             </Link>
           ))}
         </div>

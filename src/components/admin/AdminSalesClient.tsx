@@ -25,35 +25,35 @@ export default function AdminSalesClient({ sales }: { sales: AdminSaleView[] }) 
     <div>
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-black/30" />
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by client, ID, or plan…"
-            className="w-full rounded-xl border border-black/15 py-2.5 pl-10 pr-4 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+            className="w-full glass-faint rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-white/30 outline-none focus:border-brand-yellow focus:ring-1 focus:ring-brand-yellow"
           />
         </div>
-        <p className="text-sm font-bold text-black/60 sm:text-right">
+        <p className="text-sm font-bold text-white/60 sm:text-right">
           {filtered.length} sale{filtered.length === 1 ? "" : "s"} · ₹{total.toLocaleString("en-IN")}
         </p>
       </div>
 
       {filtered.length === 0 && <EmptyState icon={Receipt} title="No sales found" description="No purchases match that search." />}
 
-      <Card className="divide-y divide-black/[0.05]">
+      <Card className="divide-y divide-white/[0.05]">
         {filtered.map((s) => (
           <div key={s.subscriptionId} className="flex items-center justify-between gap-3 p-4">
             <div className="min-w-0">
               <Link href={`/admin/clients/${s.clientId}`} className="text-sm font-bold hover:underline">
                 {s.clientName}
               </Link>
-              <p className="truncate text-xs text-black/40">
+              <p className="truncate text-xs text-white/40">
                 {s.clientCode} · {s.packageName}
               </p>
             </div>
             <div className="shrink-0 text-right">
               <p className="text-sm font-bold">₹{s.amount.toLocaleString("en-IN")}</p>
-              <p className="text-xs text-black/40">{formatDate(s.saleDate)}</p>
+              <p className="text-xs text-white/40">{formatDate(s.saleDate)}</p>
             </div>
           </div>
         ))}

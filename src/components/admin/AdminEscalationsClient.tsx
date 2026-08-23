@@ -53,13 +53,13 @@ export default function AdminEscalationsClient({ escalations }: { escalations: A
 
   return (
     <div>
-      <div className="mb-6 flex gap-1 rounded-xl bg-black/5 p-1">
+      <div className="mb-6 flex gap-1 rounded-xl bg-white/5 p-1">
         {(["active", "resolved"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`flex-1 rounded-lg px-4 py-2 text-sm font-bold capitalize transition-colors ${
-              tab === t ? "bg-white shadow-card" : "text-black/50 hover:text-black"
+              tab === t ? "glass-strong" : "text-white/50 hover:text-white"
             }`}
           >
             {t}
@@ -67,7 +67,7 @@ export default function AdminEscalationsClient({ escalations }: { escalations: A
         ))}
       </div>
 
-      {error && <p className="mb-3 text-xs text-red-600">{error}</p>}
+      {error && <p className="mb-3 text-xs text-red-400">{error}</p>}
 
       {filtered.length === 0 && (
         <EmptyState
@@ -83,19 +83,19 @@ export default function AdminEscalationsClient({ escalations }: { escalations: A
           return (
             <Card key={e.id} className="p-5">
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                <span className="font-mono text-[11px] font-bold text-black/40">{e.clientCode || `#${e.id.slice(0, 8).toUpperCase()}`}</span>
+                <span className="font-mono text-[11px] font-bold text-white/40">{e.clientCode || `#${e.id.slice(0, 8).toUpperCase()}`}</span>
                 <Badge variant="gray">{categoryLabel(e.category)}</Badge>
                 <Badge variant={badge.variant}>{badge.label}</Badge>
-                <span className="text-xs text-black/40">{formatDate(e.createdAt)}</span>
+                <span className="text-xs text-white/40">{formatDate(e.createdAt)}</span>
               </div>
               <Link href={`/admin/clients/${e.clientId}`} className="text-sm font-bold hover:underline">
                 {e.clientName}
               </Link>
-              {e.packageName && <span className="ml-1.5 text-xs font-normal text-black/40">· {e.packageName}</span>}
-              <p className="mt-1 text-sm text-black/65">{e.reason}</p>
-              {e.description && <p className="mt-1 text-xs text-black/50">{e.description}</p>}
+              {e.packageName && <span className="ml-1.5 text-xs font-normal text-white/40">· {e.packageName}</span>}
+              <p className="mt-1 text-sm text-white/65">{e.reason}</p>
+              {e.description && <p className="mt-1 text-xs text-white/50">{e.description}</p>}
               {e.status === "resolved" && e.resolutionNotes && (
-                <p className="mt-2 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800">
+                <p className="mt-2 rounded-lg bg-emerald-400/10 p-3 text-xs text-emerald-300">
                   <span className="font-bold">Resolution: </span>
                   {e.resolutionNotes}
                 </p>

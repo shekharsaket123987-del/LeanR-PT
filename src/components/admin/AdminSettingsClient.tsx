@@ -141,28 +141,28 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
         </div>
         <div className="space-y-2">
           {data.packages.map((p) => (
-            <div key={p.id} className="flex items-center justify-between rounded-xl border border-black/[0.06] px-4 py-3">
+            <div key={p.id} className="flex items-center justify-between rounded-xl border border-white/[0.06] px-4 py-3">
               <div>
                 <p className="flex items-center gap-1.5 text-sm font-semibold">
                   {p.name}
                   {p.highlighted && <Star className="h-3 w-3 fill-brand-yellow text-brand-yellow" />}
                 </p>
-                <p className="text-xs text-black/40">
+                <p className="text-xs text-white/40">
                   {p.sessions} sessions · ₹{p.price.toLocaleString("en-IN")}
                   {p.originalPrice && p.originalPrice > p.price ? ` (was ₹${p.originalPrice.toLocaleString("en-IN")})` : ""}
                 </p>
               </div>
               <div className="flex items-center gap-3">
                 <button onClick={() => openEditPackage(p)}>
-                  <Pencil className="h-4 w-4 text-black/30 hover:text-black" />
+                  <Pencil className="h-4 w-4 text-white/30 hover:text-white" />
                 </button>
                 <button onClick={() => setConfirmDeleteTarget({ id: p.id, name: p.name })} disabled={deletingId === p.id}>
-                  <Trash2 className="h-4 w-4 text-black/30 hover:text-red-500" />
+                  <Trash2 className="h-4 w-4 text-white/30 hover:text-red-400" />
                 </button>
               </div>
             </div>
           ))}
-          {data.packages.length === 0 && <p className="text-sm text-black/40">No packages yet.</p>}
+          {data.packages.length === 0 && <p className="text-sm text-white/40">No packages yet.</p>}
         </div>
       </Card>
 
@@ -170,14 +170,14 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
         <p className="mb-4 text-sm font-bold">Session Rules</p>
         <div className="space-y-5">
           <div>
-            <label className="mb-1.5 flex justify-between text-xs font-bold uppercase text-black/40">
-              Default Session Duration <span className="text-black/60">{duration} min</span>
+            <label className="mb-1.5 flex justify-between text-xs font-bold uppercase text-white/40">
+              Default Session Duration <span className="text-white/60">{duration} min</span>
             </label>
             <input type="range" min={30} max={90} step={15} value={duration} onChange={(e) => setDuration(Number(e.target.value))} className="w-full accent-brand-yellow" />
           </div>
           <div>
-            <label className="mb-1.5 flex justify-between text-xs font-bold uppercase text-black/40">
-              Cancellation Cutoff Window <span className="text-black/60">{cancellationCutoff} hrs</span>
+            <label className="mb-1.5 flex justify-between text-xs font-bold uppercase text-white/40">
+              Cancellation Cutoff Window <span className="text-white/60">{cancellationCutoff} hrs</span>
             </label>
             <input
               type="range"
@@ -190,8 +190,8 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
             />
           </div>
           <div>
-            <label className="mb-1.5 flex justify-between text-xs font-bold uppercase text-black/40">
-              Reschedule Cutoff Window <span className="text-black/60">{rescheduleCutoff} hrs</span>
+            <label className="mb-1.5 flex justify-between text-xs font-bold uppercase text-white/40">
+              Reschedule Cutoff Window <span className="text-white/60">{rescheduleCutoff} hrs</span>
             </label>
             <input
               type="range"
@@ -204,14 +204,14 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
             />
           </div>
           <div>
-            <label className="mb-1.5 flex justify-between text-xs font-bold uppercase text-black/40">
-              Inactivity Threshold <span className="text-black/60">{inactivity} days</span>
+            <label className="mb-1.5 flex justify-between text-xs font-bold uppercase text-white/40">
+              Inactivity Threshold <span className="text-white/60">{inactivity} days</span>
             </label>
             <input type="range" min={7} max={90} step={7} value={inactivity} onChange={(e) => setInactivity(Number(e.target.value))} className="w-full accent-brand-yellow" />
           </div>
         </div>
-        {saveError && <p className="mt-3 text-xs text-red-600">{saveError}</p>}
-        {saved && !saveError && <p className="mt-3 text-xs text-emerald-600">Saved.</p>}
+        {saveError && <p className="mt-3 text-xs text-red-400">{saveError}</p>}
+        {saved && !saveError && <p className="mt-3 text-xs text-emerald-400">Saved.</p>}
         <Button className="mt-6" loading={saving} onClick={saveSettings}>
           Save Settings
         </Button>
@@ -220,19 +220,19 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
       <Modal open={formOpen} onClose={() => setFormOpen(false)} title={editingId ? "Edit Package" : "Add Package"}>
         <div className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Name</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Name</label>
             <input
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              className="w-full rounded-xl border border-black/15 p-3 text-sm"
+              className="w-full glass-faint rounded-xl p-3 text-sm text-white"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Category</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Category</label>
             <select
               value={form.category}
               onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as "advance" | "addon" }))}
-              className="w-full rounded-xl border border-black/15 p-3 text-sm"
+              className="w-full glass-faint rounded-xl p-3 text-sm text-white"
             >
               <option value="addon">Add-on</option>
               <option value="advance">Advance</option>
@@ -240,44 +240,44 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Sessions</label>
+              <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Sessions</label>
               <input
                 type="number"
                 min={1}
                 value={form.sessions}
                 onChange={(e) => setForm((f) => ({ ...f, sessions: Number(e.target.value) }))}
-                className="w-full rounded-xl border border-black/15 p-3 text-sm"
+                className="w-full glass-faint rounded-xl p-3 text-sm text-white"
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Price (₹)</label>
+              <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Price (₹)</label>
               <input
                 type="number"
                 min={0}
                 value={form.price}
                 onChange={(e) => setForm((f) => ({ ...f, price: Number(e.target.value) }))}
-                className="w-full rounded-xl border border-black/15 p-3 text-sm"
+                className="w-full glass-faint rounded-xl p-3 text-sm text-white"
               />
             </div>
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Original Price (₹, optional — shown struck through)</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Original Price (₹, optional — shown struck through)</label>
             <input
               type="number"
               min={0}
               value={form.originalPrice}
               onChange={(e) => setForm((f) => ({ ...f, originalPrice: Number(e.target.value) }))}
-              className="w-full rounded-xl border border-black/15 p-3 text-sm"
+              className="w-full glass-faint rounded-xl p-3 text-sm text-white"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Default Pause-Days Allowed</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Default Pause-Days Allowed</label>
             <input
               type="number"
               min={0}
               value={form.defaultPauseDays}
               onChange={(e) => setForm((f) => ({ ...f, defaultPauseDays: Number(e.target.value) }))}
-              className="w-full rounded-xl border border-black/15 p-3 text-sm"
+              className="w-full glass-faint rounded-xl p-3 text-sm text-white"
             />
           </div>
           <TagEditor label="Features" values={form.features} onChange={(v) => setForm((f) => ({ ...f, features: v }))} />
@@ -290,7 +290,7 @@ export default function AdminSettingsClient({ data }: { data: AdminSettingsData 
             />
             Highlight as featured plan
           </label>
-          {formError && <p className="text-xs text-red-600">{formError}</p>}
+          {formError && <p className="text-xs text-red-400">{formError}</p>}
           <Button className="w-full" disabled={!form.name} loading={formBusy} onClick={savePackage}>
             {editingId ? "Save Changes" : "Add Package"}
           </Button>

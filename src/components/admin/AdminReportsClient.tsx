@@ -76,12 +76,12 @@ export default function AdminReportsClient() {
       {reports.map((r) => (
         <Card key={r.key} className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-yellow/15">
-            <r.icon className="h-5 w-5 text-black/70" />
+            <r.icon className="h-5 w-5 text-white/70" />
           </div>
           <div className="flex-1">
             <p className="text-sm font-bold">{r.title}</p>
-            <p className="mt-0.5 text-xs text-black/45">{r.description}</p>
-            {error?.key === r.key && <p className="mt-1 text-xs text-red-600">{error.message}</p>}
+            <p className="mt-0.5 text-xs text-white/45">{r.description}</p>
+            {error?.key === r.key && <p className="mt-1 text-xs text-red-400">{error.message}</p>}
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" loading={busyKey === `${r.key}-csv`} onClick={() => handleExport(r, "csv")}>

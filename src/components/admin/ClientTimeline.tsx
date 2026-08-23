@@ -71,7 +71,7 @@ function groupByDay(events: TimelineEventRow[]): { date: string; events: Timelin
 
 export default function ClientTimeline({ events }: { events: TimelineEventRow[] }) {
   if (events.length === 0) {
-    return <p className="text-sm text-black/45">No timeline events yet.</p>;
+    return <p className="text-sm text-white/45">No timeline events yet.</p>;
   }
 
   const groups = groupByDay(events);
@@ -80,18 +80,18 @@ export default function ClientTimeline({ events }: { events: TimelineEventRow[] 
     <div className="space-y-5">
       {groups.map((group) => (
         <div key={group.date}>
-          <p className="mb-2 text-xs font-bold uppercase text-black/40">{group.date}</p>
+          <p className="mb-2 text-xs font-bold uppercase text-white/40">{group.date}</p>
           <div className="space-y-2">
             {group.events.map((event) => {
               const Icon = EVENT_ICONS[event.event_type] ?? Clock3;
               return (
                 <Card key={event.id} className="flex items-start gap-3 p-3">
                   <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-yellow/15">
-                    <Icon className="h-4 w-4 text-black/70" />
+                    <Icon className="h-4 w-4 text-white/70" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold">{event.title}</p>
-                    {event.description && <p className="mt-0.5 text-xs text-black/50">{event.description}</p>}
+                    {event.description && <p className="mt-0.5 text-xs text-white/50">{event.description}</p>}
                   </div>
                 </Card>
               );

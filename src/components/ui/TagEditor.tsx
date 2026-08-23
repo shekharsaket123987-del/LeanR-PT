@@ -15,10 +15,10 @@ export default function TagEditor({ label, values, onChange }: { label: string; 
 
   return (
     <div>
-      <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">{label}</label>
+      <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">{label}</label>
       <div className="mb-2 flex flex-wrap gap-2">
         {values.map((v) => (
-          <span key={v} className="flex items-center gap-1 rounded-full bg-black/5 px-3 py-1 text-xs font-semibold">
+          <span key={v} className="flex items-center gap-1 rounded-full bg-white/[0.06] px-3 py-1 text-xs font-semibold text-white">
             {v}
             <button type="button" onClick={() => onChange(values.filter((x) => x !== v))}>
               <X className="h-3 w-3" />
@@ -37,7 +37,7 @@ export default function TagEditor({ label, values, onChange }: { label: string; 
             }
           }}
           placeholder={`Add ${label.toLowerCase()}...`}
-          className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+          className="w-full rounded-xl glass-faint p-2.5 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/20"
         />
         <Button type="button" variant="outline" size="sm" onClick={add}>
           Add

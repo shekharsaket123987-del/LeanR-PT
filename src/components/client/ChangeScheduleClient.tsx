@@ -47,7 +47,7 @@ export default function ChangeScheduleClient({ existingSchedule }: { existingSch
     return (
       <Card className="p-6 text-center">
         <p className="text-display text-xl font-bold italic">Schedule Updated</p>
-        <p className="mt-1 text-sm text-black/50">Your new recurring sessions have been generated.</p>
+        <p className="mt-1 text-sm text-white/50">Your new recurring sessions have been generated.</p>
       </Card>
     );
   }
@@ -56,7 +56,7 @@ export default function ChangeScheduleClient({ existingSchedule }: { existingSch
     return (
       <Card className="p-6">
         <p className="text-sm font-bold">You already have an active recurring schedule</p>
-        <ul className="mt-3 space-y-1 text-sm text-black/60">
+        <ul className="mt-3 space-y-1 text-sm text-white/60">
           {existingSchedule.map((s, i) => (
             <li key={i}>
               {DAY_LABELS[s.dayOfWeek]} at {s.startTime.slice(0, 5)}
@@ -73,23 +73,23 @@ export default function ChangeScheduleClient({ existingSchedule }: { existingSch
   return (
     <Card className="p-6">
       <p className="text-sm font-bold">Pick your new days &amp; time</p>
-      <p className="mt-1 text-xs text-black/45">We'll check your current coach's availability first.</p>
+      <p className="mt-1 text-xs text-white/45">We'll check your current coach's availability first.</p>
       <div className="mt-4 flex flex-wrap gap-2">
         {DAYS.map((d, i) => (
           <button
             key={d}
             type="button"
             onClick={() => toggleDay(i)}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${days.includes(i) ? "border-brand-yellow bg-brand-yellow/15" : "border-black/15"}`}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${days.includes(i) ? "border-brand-yellow bg-brand-yellow/15" : "border-white/15"}`}
           >
             {d}
           </button>
         ))}
       </div>
-      <input type="time" value={timeOfDay} onChange={(e) => setTimeOfDay(e.target.value)} className="mt-3 w-full max-w-[160px] rounded-xl border border-black/15 p-2.5 text-sm" />
+      <input type="time" value={timeOfDay} onChange={(e) => setTimeOfDay(e.target.value)} className="glass-faint mt-3 w-full max-w-[160px] rounded-xl p-2.5 text-sm text-white outline-none focus:border-white/20" />
 
       {unavailable && (
-        <div className="mt-4 rounded-xl bg-black/[0.03] p-4">
+        <div className="mt-4 rounded-xl bg-white/[0.04] p-4">
           <p className="text-sm font-semibold">Your current coach is unavailable at the requested time.</p>
           <div className="mt-3 flex flex-wrap gap-3">
             <Button size="sm" variant="outline" onClick={() => setUnavailable(false)}>
@@ -103,7 +103,7 @@ export default function ChangeScheduleClient({ existingSchedule }: { existingSch
           </div>
         </div>
       )}
-      {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
 
       <div className="mt-4 flex gap-3">
         <Button variant="outline" onClick={() => setEditing(false)}>

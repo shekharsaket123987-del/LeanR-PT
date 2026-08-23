@@ -32,14 +32,14 @@ export default async function ClientSubscriptionPage() {
               <p className="text-display text-lg font-bold italic">Demo Package</p>
               <Badge variant="gray">Expired</Badge>
             </div>
-            <div className="mt-4 space-y-2 text-sm text-black/60">
+            <div className="mt-4 space-y-2 text-sm text-white/60">
               <p className="flex items-center gap-2">
-                <CalendarClock className="h-4 w-4 text-black/35" /> Session date: {formatDate(demoSession.slotStart)} ·{" "}
+                <CalendarClock className="h-4 w-4 text-white/35" /> Session date: {formatDate(demoSession.slotStart)} ·{" "}
                 {formatTime(demoSession.slotStart)}
               </p>
               <p>Amount: Free</p>
             </div>
-            <p className="mt-4 text-sm text-black/50">Choose a plan to unlock ongoing sessions with a dedicated coach.</p>
+            <p className="mt-4 text-sm text-white/50">Choose a plan to unlock ongoing sessions with a dedicated coach.</p>
             <Button href="/client/plans" className="mt-4">
               Choose Your Plan
             </Button>
@@ -53,9 +53,9 @@ export default async function ClientSubscriptionPage() {
         <div className="mx-auto max-w-2xl">
           <PageHeader title="Subscription & Payments" description="Your plan, remaining sessions, and payment history." />
           <Card className="flex flex-col items-center gap-3 p-8 text-center">
-            <Ban className="h-8 w-8 text-black/25" />
+            <Ban className="h-8 w-8 text-white/25" />
             <p className="text-sm font-bold">No Subscription Found</p>
-            <p className="max-w-sm text-sm text-black/50">
+            <p className="max-w-sm text-sm text-white/50">
               {stage === "demo_booked"
                 ? "Your demo session doesn't require a plan -- choose one anytime to start ongoing training."
                 : "You haven't purchased a plan yet."}

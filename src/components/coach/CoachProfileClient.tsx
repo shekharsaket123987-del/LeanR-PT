@@ -108,7 +108,7 @@ export default function CoachProfileClient({ profile }: { profile: CoachProfileV
           </div>
           <div>
             <p className="text-display text-xl font-bold italic">{profile.name || "Coach"}</p>
-            <p className="text-sm text-black/45">{profile.specialization || "No specialization set"}</p>
+            <p className="text-sm text-white/45">{profile.specialization || "No specialization set"}</p>
             {profile.reviewCount > 0 && (
               <Badge variant="green" className="mt-1.5">
                 <Star className="h-3 w-3 fill-current" /> {profile.rating} ({profile.reviewCount})
@@ -120,63 +120,63 @@ export default function CoachProfileClient({ profile }: { profile: CoachProfileV
           </Button>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 border-t border-black/[0.06] pt-6 sm:grid-cols-2">
+        <div className="mt-6 grid grid-cols-1 gap-4 border-t border-white/[0.06] pt-6 sm:grid-cols-2">
           <div className="flex items-center gap-3 text-sm">
-            <Mail className="h-4 w-4 text-black/40" />
+            <Mail className="h-4 w-4 text-white/40" />
             {profile.email}
           </div>
           <div className="flex items-center gap-3 text-sm">
-            <Phone className="h-4 w-4 text-black/40" />
+            <Phone className="h-4 w-4 text-white/40" />
             {profile.phone || "Not set"}
           </div>
           <div className="flex items-center gap-3 text-sm sm:col-span-2">
-            <ShieldAlert className="h-4 w-4 text-black/40" />
+            <ShieldAlert className="h-4 w-4 text-white/40" />
             Emergency Contact: {profile.emergencyContact || "Not set"}
           </div>
         </div>
 
-        <div className="mt-6 border-t border-black/[0.06] pt-6">
-          <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Bio</label>
-          <p className="text-sm text-black/60">{profile.bio || "No bio added yet."}</p>
-          <p className="mt-1.5 text-[11px] text-black/35">Managed by Admin — contact Operations to update.</p>
+        <div className="mt-6 border-t border-white/[0.06] pt-6">
+          <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Bio</label>
+          <p className="text-sm text-white/60">{profile.bio || "No bio added yet."}</p>
+          <p className="mt-1.5 text-[11px] text-white/35">Managed by Admin — contact Operations to update.</p>
         </div>
 
-        <div className="mt-6 border-t border-black/[0.06] pt-6">
-          <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase text-black/40">
+        <div className="mt-6 border-t border-white/[0.06] pt-6">
+          <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase text-white/40">
             <Award className="h-3.5 w-3.5" /> Certifications
           </p>
           <div className="flex flex-wrap gap-2">
-            {profile.certifications.length === 0 && <span className="text-sm text-black/40">None on file.</span>}
+            {profile.certifications.length === 0 && <span className="text-sm text-white/40">None on file.</span>}
             {profile.certifications.map((c) => (
-              <span key={c} className="rounded-full bg-black/5 px-3 py-1 text-xs font-semibold">
+              <span key={c} className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold">
                 {c}
               </span>
             ))}
           </div>
         </div>
 
-        <div className="mt-6 border-t border-black/[0.06] pt-6">
-          <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase text-black/40">
+        <div className="mt-6 border-t border-white/[0.06] pt-6">
+          <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase text-white/40">
             <Languages className="h-3.5 w-3.5" /> Languages
           </p>
           <div className="flex flex-wrap gap-2">
-            {profile.languages.length === 0 && <span className="text-sm text-black/40">None on file.</span>}
+            {profile.languages.length === 0 && <span className="text-sm text-white/40">None on file.</span>}
             {profile.languages.map((c) => (
-              <span key={c} className="rounded-full bg-black/5 px-3 py-1 text-xs font-semibold">
+              <span key={c} className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold">
                 {c}
               </span>
             ))}
           </div>
         </div>
 
-        <div className="mt-6 border-t border-black/[0.06] pt-6">
-          <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase text-black/40">
+        <div className="mt-6 border-t border-white/[0.06] pt-6">
+          <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase text-white/40">
             <Sparkles className="h-3.5 w-3.5" /> Skills
           </p>
           <div className="mb-3 flex flex-wrap gap-2">
-            {skills.length === 0 && <span className="text-sm text-black/40">None added yet.</span>}
+            {skills.length === 0 && <span className="text-sm text-white/40">None added yet.</span>}
             {skills.map((s) => (
-              <span key={s} className="rounded-full bg-black/5 px-3 py-1 text-xs font-semibold">
+              <span key={s} className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold">
                 {s}
               </span>
             ))}
@@ -192,37 +192,37 @@ export default function CoachProfileClient({ profile }: { profile: CoachProfileV
                 }
               }}
               placeholder="Add a skill…"
-              className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+              className="glass-faint w-full rounded-xl p-2.5 text-sm text-white placeholder:text-white/30 outline-none"
             />
             <Button type="button" variant="outline" size="sm" loading={skillBusy} onClick={addSkill}>
               <Plus className="h-3.5 w-3.5" /> Add
             </Button>
           </div>
-          {skillError && <p className="mt-1.5 text-xs text-red-600">{skillError}</p>}
-          <p className="mt-1.5 text-[11px] text-black/35">You can add skills here — removing one requires Admin.</p>
+          {skillError && <p className="mt-1.5 text-xs text-red-400">{skillError}</p>}
+          <p className="mt-1.5 text-[11px] text-white/35">You can add skills here — removing one requires Admin.</p>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-4 border-t border-black/[0.06] pt-6 sm:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-4 border-t border-white/[0.06] pt-6 sm:grid-cols-4">
           <div>
-            <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-black/40">
+            <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-white/40">
               <Hash className="h-3 w-3" /> Employee Code
             </p>
             <p className="text-sm">{profile.employeeCode || "—"}</p>
           </div>
           <div>
-            <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-black/40">
+            <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-white/40">
               <CalendarDays className="h-3 w-3" /> Joining Date
             </p>
             <p className="text-sm">{formatDate(profile.joiningDate)}</p>
           </div>
           <div className="col-span-2 sm:col-span-1">
-            <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-black/40">
+            <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-white/40">
               <Clock className="h-3 w-3" /> Working Hours
             </p>
             <p className="text-sm">{profile.workingHours}</p>
           </div>
           <div>
-            <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-black/40">
+            <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-white/40">
               <Gauge className="h-3 w-3" /> Capacity
             </p>
             <p className="text-sm">
@@ -231,7 +231,7 @@ export default function CoachProfileClient({ profile }: { profile: CoachProfileV
           </div>
         </div>
 
-        <div className="mt-6 border-t border-black/[0.06] pt-6">
+        <div className="mt-6 border-t border-white/[0.06] pt-6">
           <Button variant="outline" size="sm" onClick={openPasswordModal}>
             <KeyRound className="h-3.5 w-3.5" /> Change Password
           </Button>
@@ -240,27 +240,27 @@ export default function CoachProfileClient({ profile }: { profile: CoachProfileV
 
       <Modal open={open} onClose={() => setOpen(false)} title="Edit Contact Info">
         <div className="space-y-4">
-          <p className="text-xs text-black/45">
+          <p className="text-xs text-white/45">
             Only mobile number, emergency contact, and profile picture can be edited here. Professional details are managed by Admin.
           </p>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Mobile Number</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl border border-black/15 p-2.5 text-sm" />
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Mobile Number</label>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} className="glass-faint w-full rounded-xl p-2.5 text-sm text-white placeholder:text-white/30 outline-none" />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Emergency Contact</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Emergency Contact</label>
             <input
               value={emergencyContact}
               onChange={(e) => setEmergencyContact(e.target.value)}
               placeholder="Name and phone number"
-              className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+              className="glass-faint w-full rounded-xl p-2.5 text-sm text-white placeholder:text-white/30 outline-none"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Profile Picture URL</label>
-            <input value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} className="w-full rounded-xl border border-black/15 p-2.5 text-sm" />
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Profile Picture URL</label>
+            <input value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} className="glass-faint w-full rounded-xl p-2.5 text-sm text-white placeholder:text-white/30 outline-none" />
           </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p className="text-xs text-red-400">{error}</p>}
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
@@ -276,24 +276,24 @@ export default function CoachProfileClient({ profile }: { profile: CoachProfileV
         {!pwSuccess ? (
           <div className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">New Password</label>
+              <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">New Password</label>
               <input
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+                className="glass-faint w-full rounded-xl p-2.5 text-sm text-white placeholder:text-white/30 outline-none"
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Confirm Password</label>
+              <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Confirm Password</label>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+                className="glass-faint w-full rounded-xl p-2.5 text-sm text-white placeholder:text-white/30 outline-none"
               />
             </div>
-            {pwError && <p className="text-xs text-red-600">{pwError}</p>}
+            {pwError && <p className="text-xs text-red-400">{pwError}</p>}
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setPwOpen(false)}>
                 Cancel
@@ -306,7 +306,7 @@ export default function CoachProfileClient({ profile }: { profile: CoachProfileV
         ) : (
           <div className="py-4 text-center">
             <p className="text-display text-lg font-bold italic">Password updated</p>
-            <p className="mt-1 text-sm text-black/50">Use your new password next time you sign in.</p>
+            <p className="mt-1 text-sm text-white/50">Use your new password next time you sign in.</p>
             <Button className="mt-4" variant="outline" onClick={() => setPwOpen(false)}>
               Close
             </Button>

@@ -49,7 +49,7 @@ export function TaskRow({
   return (
     <div
       className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
-        task.overdue ? "border-red-300 bg-red-50" : "border-black/[0.06]"
+        task.overdue ? "border-red-400/30 bg-red-400/10" : "border-white/[0.06]"
       }`}
     >
       <div className="flex items-center gap-3">
@@ -65,11 +65,11 @@ export function TaskRow({
               <ShieldCheck className="h-3 w-3" /> Shadow
             </Badge>
           )}
-          <p className="text-xs text-black/45">
+          <p className="text-xs text-white/45">
             {task.clientCode && `${task.clientCode} · `}
             {task.packageName ?? "No active plan"} · {formatTime(task.scheduledStart)}
           </p>
-          {task.overdue && <p className="mt-0.5 text-xs font-bold text-red-600">Attendance overdue — mark it now</p>}
+          {task.overdue && <p className="mt-0.5 text-xs font-bold text-red-400">Attendance overdue — mark it now</p>}
         </div>
       </div>
 
@@ -114,7 +114,7 @@ export function TaskRow({
           <Badge variant="green">Notes submitted</Badge>
         )}
       </div>
-      {error && <p className="w-full text-xs text-red-600">{error}</p>}
+      {error && <p className="w-full text-xs text-red-400">{error}</p>}
     </div>
   );
 }

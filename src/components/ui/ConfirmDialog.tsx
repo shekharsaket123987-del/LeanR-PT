@@ -27,12 +27,12 @@ export default function ConfirmDialog({
   return (
     <Modal open={open} onClose={onClose} title={title} maxWidth="max-w-md">
       <div className="flex gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100">
-          <AlertTriangle className="h-5 w-5 text-red-600" />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-400/15">
+          <AlertTriangle className="h-5 w-5 text-red-400" />
         </div>
-        <p className="text-sm text-black/60">{description}</p>
+        <p className="text-sm text-white/60">{description}</p>
       </div>
-      {error && <p className="mt-3 text-xs font-semibold text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-xs font-semibold text-red-400">{error}</p>}
       <div className="mt-6 flex justify-end gap-3">
         <Button variant="outline" onClick={onClose} disabled={loading}>
           Cancel

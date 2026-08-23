@@ -17,9 +17,9 @@ export default function NextSessionCard({ session }: { session: SessionView | nu
   if (!session) {
     return (
       <Card className="flex flex-col items-center justify-center p-10 text-center">
-        <CalendarClock className="mb-3 h-9 w-9 text-black/20" />
+        <CalendarClock className="mb-3 h-9 w-9 text-white/20" />
         <p className="text-display text-lg font-bold italic">No upcoming sessions</p>
-        <p className="mt-1 text-sm text-black/45">Book your next session to keep your streak going.</p>
+        <p className="mt-1 text-sm text-white/45">Book your next session to keep your streak going.</p>
         <Button href="/client/book" className="mt-5">
           Book a Session
         </Button>
@@ -41,8 +41,8 @@ export default function NextSessionCard({ session }: { session: SessionView | nu
             <Badge variant="gray">Next Up</Badge>
           </div>
           <p className="text-display text-2xl font-bold italic">{coach?.name}</p>
-          <p className="text-sm text-black/50">{coach?.specialization}</p>
-          <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-black/60">
+          <p className="text-sm text-white/50">{coach?.specialization}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-white/60">
             <span className="flex items-center gap-1.5">
               <CalendarClock className="h-4 w-4" />
               {formatDate(session.date)} · {formatTime(session.date)}
@@ -64,7 +64,7 @@ export default function NextSessionCard({ session }: { session: SessionView | nu
             <Video className="h-4 w-4" />
             {canJoin ? "Join Now" : "Join"}
           </Button>
-          <p className="text-center text-xs text-black/40 sm:text-right">
+          <p className="text-center text-xs text-white/40 sm:text-right">
             {!session.zoomJoinUrl ? "Join link not ready yet" : label}
           </p>
         </div>

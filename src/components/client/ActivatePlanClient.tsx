@@ -33,14 +33,14 @@ export default function ActivatePlanClient({ subscriptionId, packageName }: { su
   return (
     <Card className="p-6">
       <p className="text-sm font-bold">{packageName ?? "Your Plan"}</p>
-      <p className="mt-1 text-xs text-black/50">
+      <p className="mt-1 text-xs text-white/50">
         Pick the date your plan starts. This can only be set once -- your coach and session schedule will be set up right after.
       </p>
       <div className="mt-5">
-        <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Start Date</label>
-        <input type="date" value={startDate} min={todayISO()} onChange={(e) => setStartDate(e.target.value)} className="w-full max-w-xs rounded-xl border border-black/15 p-3 text-sm" />
+        <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Start Date</label>
+        <input type="date" value={startDate} min={todayISO()} onChange={(e) => setStartDate(e.target.value)} className="glass-faint w-full max-w-xs rounded-xl p-3 text-sm text-white outline-none focus:border-white/20" />
       </div>
-      {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
       <Button className="mt-6" loading={busy} onClick={activate}>
         Confirm Start Date
       </Button>

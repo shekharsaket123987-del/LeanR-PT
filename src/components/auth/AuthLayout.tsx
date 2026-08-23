@@ -1,4 +1,4 @@
-import Image from "next/image";
+import Link from "next/link";
 import Logo from "../shared/Logo";
 import { LucideIcon } from "lucide-react";
 
@@ -7,7 +7,6 @@ export default function AuthLayout({
   subtitle,
   roleLabel,
   roleIcon: RoleIcon,
-  imageSeed,
   children,
 }: {
   title: string;
@@ -18,31 +17,38 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="grid min-h-screen grid-cols-1 bg-black lg:grid-cols-2">
-      <div className="flex flex-col justify-between px-6 py-8 sm:px-12 sm:py-10">
-        <Logo dark />
+    <div className="relative min-h-screen overflow-hidden bg-surface">
+      <div className="pointer-events-none absolute -top-32 left-1/2 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-brand-yellow/10 blur-[140px]" />
 
-        <div className="mx-auto w-full max-w-sm py-16">
-          <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-brand-yellow/30 bg-brand-yellow/10 px-3 py-1.5">
-            <RoleIcon className="h-3.5 w-3.5 text-brand-yellow" />
-            <span className="text-xs font-bold uppercase tracking-wide text-brand-yellow">{roleLabel}</span>
+      <header className="container-px relative pt-8">
+        <Logo height={30} />
+      </header>
+
+      <main className="container-px relative flex min-h-[calc(100vh-96px)] w-full items-center py-12">
+        <div className="mx-auto w-full max-w-md">
+          <Link href="/" className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-white/50 transition-colors hover:text-brand-yellow">
+            <span aria-hidden>←</span> Back to Home
+          </Link>
+
+          <div className="glass-strong glow-yellow noise relative mt-5 overflow-hidden rounded-2xl p-6 sm:p-8">
+            <div className="flex flex-col items-center text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-yellow/30 to-brand-yellow/5 shadow-[0_15px_40px_-15px_rgba(0,0,0,0.7)]">
+                <RoleIcon className="h-8 w-8 text-brand-yellow" />
+              </div>
+              <div className="mt-4 inline-flex items-center gap-2 rounded-full glass-faint px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-brand-yellow">
+                <span className="h-1.5 w-1.5 rounded-full bg-brand-yellow shadow-[0_0_10px_2px_rgba(245,217,10,0.8)]" />
+                {roleLabel}
+              </div>
+              <h1 className="text-display mt-3 text-2xl sm:text-3xl">{title}</h1>
+              <p className="mt-1.5 text-sm text-white/60">{subtitle}</p>
+            </div>
+
+            <div className="mt-6">{children}</div>
           </div>
-          <h1 className="text-display text-4xl font-bold italic leading-tight text-white">{title}</h1>
-          <p className="mt-3 text-sm text-white/50">{subtitle}</p>
-          <div className="mt-10">{children}</div>
-        </div>
 
-        <p className="text-xs text-white/25">© 2026 LEANR by Fitelo. All rights reserved.</p>
-      </div>
-
-      <div className="relative hidden lg:block">
-        <Image src={`https://picsum.photos/seed/${imageSeed}/1200/1400`} alt="" fill className="object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-l from-black/20 via-black/50 to-black" />
-        <div className="absolute bottom-12 left-12 right-12 rounded-2xl border border-white/10 bg-black/50 p-6 backdrop-blur-md">
-          <p className="text-display text-xl italic text-white">&ldquo;LEANR made showing up the easy part.&rdquo;</p>
-          <p className="mt-2 text-xs font-medium text-white/50">Ishita Rao · Client since 2025</p>
+          <p className="mt-5 text-center text-xs text-white/25">© 2026 LEANR by Fitelo. All rights reserved.</p>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

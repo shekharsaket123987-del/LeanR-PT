@@ -12,8 +12,13 @@ const config: Config = {
           black: "#000000",
           charcoal: "#111111",
           charcoal2: "#1A1A1A",
-          yellow: "#F5E400",
-          yellow2: "#FFE600",
+          yellow: "#F5D90A",
+          yellow2: "#FFE94D",
+        },
+        surface: {
+          DEFAULT: "#060606",
+          elevated: "#0C0C0C",
+          soft: "#111111",
         },
       },
       fontFamily: {
@@ -27,7 +32,9 @@ const config: Config = {
       boxShadow: {
         soft: "0 4px 24px rgba(0,0,0,0.06)",
         card: "0 2px 12px rgba(0,0,0,0.05)",
-        glow: "0 0 40px rgba(245,228,0,0.25)",
+        glow: "0 0 60px -10px rgba(245,217,10,0.35)",
+        "glow-lg": "0 0 40px -8px rgba(245,217,10,0.6)",
+        glass: "rgba(255,255,255,0.12) 0 1px inset, rgba(0,0,0,0.25) 0 0 0 1px, rgba(0,0,0,0.8) 0 25px 70px -20px",
       },
       animation: {
         "fade-in": "fadeIn 0.5s ease-out",

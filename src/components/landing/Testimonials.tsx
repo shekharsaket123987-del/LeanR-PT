@@ -4,31 +4,31 @@ import { testimonials } from "@/lib/mock-data";
 
 export default function Testimonials() {
   return (
-    <section id="stories" className="bg-white py-20 sm:py-28">
+    <section id="stories" className="relative py-20 sm:py-28">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
         <div className="mb-14 text-center">
-          <span className="text-xs font-bold uppercase tracking-widest text-black/40">Success stories</span>
-          <h2 className="text-display mt-2 text-4xl font-bold italic tracking-tight sm:text-5xl">
+          <span className="text-xs font-bold uppercase tracking-widest text-brand-yellow/70">Success stories</span>
+          <h2 className="text-display mt-2 text-4xl tracking-tight text-white sm:text-5xl">
             Real Results, Real People
           </h2>
         </div>
 
         <div className="mb-14 grid grid-cols-1 gap-6 lg:grid-cols-3">
           {testimonials.map((t) => (
-            <div key={t.id} className="rounded-2xl border border-black/[0.06] bg-[#FAFAFA] p-6 shadow-card">
-              <Quote className="h-7 w-7 text-brand-yellow" fill="#F5E400" />
-              <p className="mt-4 text-sm leading-relaxed text-black/70">&ldquo;{t.quote}&rdquo;</p>
+            <div key={t.id} className="rounded-2xl glass-strong p-6">
+              <Quote className="h-7 w-7 text-brand-yellow" fill="#F5D90A" />
+              <p className="mt-4 text-sm leading-relaxed text-white/70">&ldquo;{t.quote}&rdquo;</p>
               <div className="mt-6 flex items-center gap-3">
                 <div className="relative h-11 w-11 overflow-hidden rounded-full">
                   <Image src={t.photo} alt={t.name} fill className="object-cover" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold">{t.name}</p>
-                  <p className="text-xs text-black/40">Coached by {t.coachName}</p>
+                  <p className="text-sm font-bold text-white">{t.name}</p>
+                  <p className="text-xs text-white/40">Coached by {t.coachName}</p>
                 </div>
               </div>
-              <div className="mt-4 flex items-center justify-between border-t border-black/5 pt-4">
-                <span className="text-xs font-bold text-emerald-600">{t.result}</span>
+              <div className="mt-4 flex items-center justify-between border-t border-white/[0.06] pt-4">
+                <span className="text-xs font-bold text-emerald-400">{t.result}</span>
                 <div className="flex gap-0.5">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <Star key={i} className="h-3.5 w-3.5 fill-brand-yellow text-brand-yellow" />

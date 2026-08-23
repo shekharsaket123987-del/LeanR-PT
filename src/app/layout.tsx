@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { Oswald, Manrope } from "next/font/google";
+import { Anton, Manrope } from "next/font/google";
 import "./globals.css";
 
-const display = Oswald({
+const display = Anton({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["400"],
   variable: "--font-display",
   display: "swap",
 });

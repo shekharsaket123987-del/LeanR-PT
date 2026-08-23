@@ -52,7 +52,7 @@ export default function JoinCountdown({
 }) {
   const state = useJoinCountdown(scheduledStart, durationMinutes);
   return (
-    <span className={className ?? `text-xs font-semibold ${state.isLive ? "text-emerald-600" : "text-black/50"}`}>
+    <span className={className ?? `text-xs font-semibold ${state.isLive ? "text-emerald-400" : "text-white/50"}`}>
       {state.label}
     </span>
   );

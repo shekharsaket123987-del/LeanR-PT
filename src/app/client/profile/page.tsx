@@ -10,7 +10,7 @@ export default async function ClientProfilePage() {
     <div className="mx-auto max-w-2xl">
       <PageHeader title="Profile" description="Manage your personal and health information." />
       {isFailure(result) ? (
-        <p className="text-sm text-red-600">{result.error.message}</p>
+        <p className="text-sm text-red-400">{result.error.message}</p>
       ) : (
         <ClientProfileClient profile={result.data} />
       )}

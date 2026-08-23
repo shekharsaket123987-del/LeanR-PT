@@ -26,12 +26,12 @@ export default function ShadowCoverageQueueClient({ gaps }: { gaps: ShadowCovera
           <div>
             <p className="text-sm font-bold">
               {g.clientName}
-              {g.clientCode && <span className="ml-1.5 font-normal text-black/40">({g.clientCode})</span>}
+              {g.clientCode && <span className="ml-1.5 font-normal text-white/40">({g.clientCode})</span>}
             </p>
-            <p className="mt-0.5 text-xs text-black/50">
+            <p className="mt-0.5 text-xs text-white/50">
               Session {formatDate(g.scheduledStart)} · {formatTime(g.scheduledStart)} with {g.coachName}
             </p>
-            <p className="mt-1 text-xs text-red-600">
+            <p className="mt-1 text-xs text-red-400">
               {g.coachName} is on approved leave {formatDate(g.leaveStartsOn)}
               {g.leaveEndsOn !== g.leaveStartsOn ? `–${formatDate(g.leaveEndsOn)}` : ""}
               {g.leaveReason ? ` — "${g.leaveReason}"` : ""} and no shadow coach has been assigned for this session yet.

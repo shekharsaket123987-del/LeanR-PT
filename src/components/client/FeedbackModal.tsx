@@ -12,8 +12,8 @@ function StarPicker({ value, onChange }: { value: number; onChange: (n: number) 
         <button key={i} type="button" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(0)} onClick={() => onChange(i)}>
           <Star
             className="h-7 w-7 transition-colors"
-            fill={(hover || value) >= i ? "#F5E400" : "none"}
-            stroke={(hover || value) >= i ? "#F5E400" : "#00000030"}
+            fill={(hover || value) >= i ? "#F5D90A" : "none"}
+            stroke={(hover || value) >= i ? "#F5D90A" : "#ffffff30"}
           />
         </button>
       ))}
@@ -69,11 +69,11 @@ export default function FeedbackModal({
       {!submitted ? (
         <>
           <div className="mb-5">
-            <p className="mb-2 text-center text-sm font-semibold text-black/70">How was the session overall?</p>
+            <p className="mb-2 text-center text-sm font-semibold text-white/70">How was the session overall?</p>
             <StarPicker value={qualityRating} onChange={setQualityRating} />
           </div>
           <div className="mb-5">
-            <p className="mb-2 text-center text-sm font-semibold text-black/70">How was {coachName ?? "your coach"}?</p>
+            <p className="mb-2 text-center text-sm font-semibold text-white/70">How was {coachName ?? "your coach"}?</p>
             <StarPicker value={trainerRating} onChange={setTrainerRating} />
           </div>
           <textarea
@@ -81,9 +81,9 @@ export default function FeedbackModal({
             onChange={(e) => setNote(e.target.value)}
             rows={3}
             placeholder="Anything you'd like to share? (optional)"
-            className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+            className="glass-faint w-full rounded-xl p-3 text-sm text-white placeholder:text-white/30 outline-none focus:border-brand-yellow focus:ring-1 focus:ring-brand-yellow"
           />
-          {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+          {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
           <Button className="mt-5 w-full" disabled={!qualityRating || !trainerRating} loading={submitting} onClick={handleSubmit}>
             Submit Feedback
           </Button>
@@ -91,7 +91,7 @@ export default function FeedbackModal({
       ) : (
         <div className="py-6 text-center">
           <p className="text-display text-xl font-bold italic">Thanks for the feedback!</p>
-          <p className="mt-1 text-sm text-black/50">It helps us keep every session on track.</p>
+          <p className="mt-1 text-sm text-white/50">It helps us keep every session on track.</p>
         </div>
       )}
     </Modal>

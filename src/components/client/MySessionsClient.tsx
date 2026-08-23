@@ -67,13 +67,13 @@ export default function MySessionsClient({ initialSessions, rules: initialRules 
     <div className="mx-auto max-w-4xl">
       <PageHeader title="My Sessions" description="Everything you've booked, past and upcoming." />
 
-      <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl bg-black/5 p-1">
+      <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl bg-white/5 p-1">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`flex-1 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-bold transition-colors ${
-              tab === t.key ? "bg-white shadow-card" : "text-black/50 hover:text-black"
+              tab === t.key ? "bg-white/10 text-white" : "text-white/50 hover:text-white"
             }`}
           >
             {t.label}
@@ -82,7 +82,7 @@ export default function MySessionsClient({ initialSessions, rules: initialRules 
       </div>
 
       {tab === "upcoming" && (
-        <p className="mb-4 text-xs font-semibold text-black/45">
+        <p className="mb-4 text-xs font-semibold text-white/45">
           {rules.reschedulesUsedThisWeek} of {rules.reschedulesUsedThisWeek + rules.reschedulesRemaining} reschedules used this week
         </p>
       )}
@@ -119,7 +119,7 @@ export default function MySessionsClient({ initialSessions, rules: initialRules 
                     <SessionStatusBadge status={s.status} />
                   </div>
                   <p className="text-sm font-bold">{s.coach?.name}</p>
-                  <p className="flex items-center gap-1.5 text-xs text-black/45">
+                  <p className="flex items-center gap-1.5 text-xs text-white/45">
                     <CalendarClock className="h-3.5 w-3.5" />
                     {formatDate(s.date)} · {formatTime(s.date)}
                   </p>
@@ -138,7 +138,7 @@ export default function MySessionsClient({ initialSessions, rules: initialRules 
                 )}
               </div>
               {s.status === "upcoming" && (
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-black/35">
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-white/35">
                   <span>
                     {canCancel ? "Cancellable until" : "Cancellation window closed —"} {formatDate(cancellableUntil)} · {formatTime(cancellableUntil)}
                   </span>
@@ -148,13 +148,13 @@ export default function MySessionsClient({ initialSessions, rules: initialRules 
                 </div>
               )}
               {s.wasRescheduled && s.originalDate && (
-                <p className="mt-2 text-[11px] text-black/35">
+                <p className="mt-2 text-[11px] text-white/35">
                   Originally: {formatDate(s.originalDate)} · {formatTime(s.originalDate)}
                 </p>
               )}
               {s.status === "completed" && s.coachNotes && (
-                <p className="mt-3 rounded-lg bg-black/[0.03] p-3 text-xs text-black/55">
-                  <span className="font-bold text-black/70">Coach notes: </span>
+                <p className="mt-3 rounded-lg bg-white/[0.04] p-3 text-xs text-white/55">
+                  <span className="font-bold text-white/70">Coach notes: </span>
                   {s.coachNotes}
                 </p>
               )}

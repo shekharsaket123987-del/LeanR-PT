@@ -59,12 +59,12 @@ export default async function ClientDashboardPage() {
             </div>
             <div>
               <p className="text-display text-xl font-bold italic">{demoSession.coachName}</p>
-              <p className="mt-1 flex items-center justify-center gap-1.5 text-sm text-black/60">
+              <p className="mt-1 flex items-center justify-center gap-1.5 text-sm text-white/60">
                 <CalendarClock className="h-4 w-4" />
                 {formatDate(demoSession.slotStart)} · {formatTime(demoSession.slotStart)}
               </p>
             </div>
-            <p className="max-w-sm text-sm text-black/50">
+            <p className="max-w-sm text-sm text-white/50">
               Your coach was automatically matched based on availability. We&apos;ll send a reminder before your session.
             </p>
           </Card>
@@ -82,7 +82,7 @@ export default async function ClientDashboardPage() {
             </div>
             <div>
               <p className="text-display text-xl font-bold italic">How was your demo with {demoSession?.coachName ?? "your coach"}?</p>
-              <p className="mt-1 text-sm text-black/50">Pick a plan to keep training with a dedicated coach every week.</p>
+              <p className="mt-1 text-sm text-white/50">Pick a plan to keep training with a dedicated coach every week.</p>
             </div>
             <Button href="/client/plans">Choose Your Plan</Button>
           </Card>
@@ -113,7 +113,7 @@ export default async function ClientDashboardPage() {
           <ProgressRing value={data.sessionsUsed} max={data.sessionsTotal || 1} label={`${data.sessionsRemaining}`} sublabel="Sessions left" />
           <div>
             <p className="text-sm font-bold">{data.packageName ?? "No active package"}</p>
-            <p className="text-xs text-black/45">
+            <p className="text-xs text-white/45">
               {data.sessionsUsed} of {data.sessionsTotal} sessions used
             </p>
           </div>
@@ -148,9 +148,9 @@ export default async function ClientDashboardPage() {
                 const diff = diffLabel(m.d1, m.latest, m.lowerIsBetter ?? true);
                 return (
                   <div key={m.label}>
-                    <p className="text-[11px] font-bold uppercase text-black/40">{m.label}</p>
+                    <p className="text-[11px] font-bold uppercase text-white/40">{m.label}</p>
                     <p className="mt-1 text-lg font-bold">{m.latest ?? "—"}</p>
-                    <p className={`text-xs ${diff?.improved ? "text-emerald-600" : "text-black/45"}`}>{diff?.text ?? "—"}</p>
+                    <p className={`text-xs ${diff?.improved ? "text-emerald-400" : "text-white/45"}`}>{diff?.text ?? "—"}</p>
                   </div>
                 );
               })}
@@ -176,15 +176,15 @@ export default async function ClientDashboardPage() {
 
       <div className="mt-8">
         <h2 className="text-display mb-4 text-xl font-bold italic">Recent Sessions</h2>
-        <Card className="divide-y divide-black/[0.05]">
-          {data.recentCompleted.length === 0 && <p className="p-4 text-sm text-black/45">No completed sessions yet.</p>}
+        <Card className="divide-y divide-white/[0.05]">
+          {data.recentCompleted.length === 0 && <p className="p-4 text-sm text-white/45">No completed sessions yet.</p>}
           {data.recentCompleted.map((s) => (
             <div key={s.id} className="flex items-center justify-between gap-4 p-4">
               <div>
                 <p className="text-sm font-bold">{formatDate(s.date)}</p>
-                <p className="mt-0.5 line-clamp-1 text-xs text-black/45">{s.coachNotes ?? "No notes from your coach yet."}</p>
+                <p className="mt-0.5 line-clamp-1 text-xs text-white/45">{s.coachNotes ?? "No notes from your coach yet."}</p>
               </div>
-              {s.qualityRating && <span className="shrink-0 text-xs font-bold text-black/50">{"★".repeat(s.qualityRating)}</span>}
+              {s.qualityRating && <span className="shrink-0 text-xs font-bold text-white/50">{"★".repeat(s.qualityRating)}</span>}
             </div>
           ))}
         </Card>
