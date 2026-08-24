@@ -19,11 +19,26 @@
 
 html {
   scroll-behavior: smooth;
+  /* Tells the browser to render native form controls (select dropdowns,
+     checkboxes/radios, date/time pickers, scrollbars) with a dark palette
+     instead of the OS-default light one -- without this, every <select>'s
+     open option list renders white-on-black text on a white popup, clashing
+     with the rest of the dark glass UI, in every portal that uses one. */
+  color-scheme: dark;
 }
 
 body {
   @apply bg-surface text-white font-body;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Belt-and-suspenders on top of color-scheme: dark -- pins the popup to the
+   app's own elevated-surface color rather than the browser's generic dark
+   gray, so it actually matches the glass panels around it. */
+select,
+select option {
+  background-color: var(--bg-elevated);
+  color: var(--white);
 }
 
 ::selection {
