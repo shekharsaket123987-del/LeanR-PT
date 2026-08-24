@@ -100,10 +100,16 @@ export interface CoachSlotPattern {
   durationMinutes?: number; // defaults to 60
 }
 
-/** Admin "Add Coach" persona builder: provisions the login (which the
- * existing handle_new_user() DB trigger turns into profiles + coach_profiles
- * rows), then fills in the persona details and generates coach_availability
- * rows from the slot patterns in one step. */
+/** Admin "Add Coach" persona builder: provisions the login, then fills in
+ * the persona details and generates coach_availability rows from the slot
+ * patterns in one step.
+ *
+ * Role/coach_profiles provisioning is done explicitly here rather than left
+ * to the handle_new_user() DB trigger: the Admin API's createUser() issues a
+ * bare INSERT into auth.users before attaching app_metadata in a follow-up
+ * UPDATE, so the (deliberately INSERT-only, see migration 0040) trigger
+ * fires before that role is visible and always provisions role='client' +
+ * a client_profiles row here regardless of the app_metadata passed below. */
 export async function createCoach(
   accessToken: string,
   input: {
@@ -124,9 +130,24 @@ export async function createCoach(
     email: input.email,
     password: input.password,
     email_confirm: true,
-    user_metadata: { role: "coach", full_name: input.fullName },
+    // role lives in app_metadata, not user_metadata: app_metadata can only be
+    // set by a service-role caller like this one, never by the public
+    // signUp() endpoint -- see migration 0040's note on fix_signup_role_escalation.
+    app_metadata: { role: "coach" },
+    user_metadata: { full_name: input.fullName },
   });
   if (createError || !created.user) throw createError ?? new Error("Failed to create coach account");
+
+  const { error: roleFixError } = await supabaseAdmin
+    .from("profiles")
+    .update({ role: "coach" })
+    .eq("id", created.user.id);
+  if (roleFixError) throw roleFixError;
+
+  await supabaseAdmin.from("client_profiles").delete().eq("profile_id", created.user.id);
+
+  const { error: coachInsertError } = await supabaseAdmin.from("coach_profiles").insert({ profile_id: created.user.id });
+  if (coachInsertError && coachInsertError.code !== "23505") throw coachInsertError;
 
   const { data: coachRow, error: coachError } = await supabaseAdmin
     .from("coach_profiles")
