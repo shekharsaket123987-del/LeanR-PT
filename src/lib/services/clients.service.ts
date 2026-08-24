@@ -95,15 +95,42 @@ export async function updateMyClientProfile(
 }
 
 /** All clients linked to the signed-in coach via a booking or recurring
- * slot — RLS (coach_client_linked) already scopes this, so no explicit join
- * is needed here. Also merges each client's recurring-slot schedule (one row
- * per day_of_week under this coach, same "fetch once, merge in JS" pattern
- * as the subscription merge below) — backs the Coach Portal PRD's "My
- * Clients" columns (Assigned Day(s), Assigned Time Slot). */
+ * slot. Used to be RLS-scoped for free (coach_client_linked), but migration
+ * 0033 widened client_profiles SELECT to any coach platform-wide to support
+ * Coach Global Search below -- so this now filters explicitly by the same
+ * booking/recurring_slot linkage coach_client_linked() encodes, otherwise
+ * every coach's "My Clients" page would silently show every client on the
+ * platform. Also merges each client's recurring-slot schedule (one row per
+ * day_of_week under this coach, same "fetch once, merge in JS" pattern as
+ * the subscription merge below) — backs the Coach Portal PRD's "My Clients"
+ * columns (Assigned Day(s), Assigned Time Slot). */
 export async function listMyClients(accessToken: string) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["coach"]);
-  const { data, error } = await ctx.client.from("client_profiles").select("*, profile:profiles(full_name, photo_url, phone)");
+
+  const { data: myCoach, error: myCoachError } = await ctx.client
+    .from("coach_profiles")
+    .select("id")
+    .eq("profile_id", ctx.userId)
+    .single();
+  if (myCoachError || !myCoach) throw myCoachError ?? new Error("Coach profile not found");
+
+  const [{ data: bookingLinks, error: bookingLinksError }, { data: slotLinks, error: slotLinksError }] = await Promise.all([
+    ctx.client.from("bookings").select("client_id").eq("coach_id", myCoach.id),
+    ctx.client.from("recurring_slots").select("client_id").eq("coach_id", myCoach.id),
+  ]);
+  if (bookingLinksError) throw bookingLinksError;
+  if (slotLinksError) throw slotLinksError;
+
+  const linkedClientIds = Array.from(
+    new Set([...(bookingLinks ?? []), ...(slotLinks ?? [])].map((r) => r.client_id))
+  );
+  if (linkedClientIds.length === 0) return [];
+
+  const { data, error } = await ctx.client
+    .from("client_profiles")
+    .select("*, profile:profiles(full_name, photo_url, phone)")
+    .in("id", linkedClientIds);
   if (error) throw error;
 
   const clientIds = (data ?? []).map((c) => c.id);
