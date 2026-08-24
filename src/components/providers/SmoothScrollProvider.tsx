@@ -1,9 +1,15 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import dynamic from "next/dynamic";
 import Lenis from "lenis";
 import { ScrollStateContext, useCreateScrollStateRef } from "@/lib/scroll-context";
-import BackgroundScene from "@/components/three/BackgroundScene";
+
+// three.js/@react-three/fiber/drei are heavy (a large slice of the landing
+// page's ~380kB First Load JS) and purely decorative -- code-split them into
+// their own chunk instead of bundling into the page's initial JS so the rest
+// of the page can parse/hydrate without waiting on it.
+const BackgroundScene = dynamic(() => import("@/components/three/BackgroundScene"), { ssr: false });
 
 declare global {
   interface Window {
