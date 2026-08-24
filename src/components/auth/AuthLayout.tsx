@@ -21,7 +21,7 @@ export default function AuthLayout({
       <div className="pointer-events-none absolute -top-32 left-1/2 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-brand-yellow/10 blur-[140px]" />
 
       <header className="container-px relative pt-8">
-        <Logo height={30} />
+        <Logo height={38} />
       </header>
 
       <main className="container-px relative flex min-h-[calc(100vh-96px)] w-full items-center py-12">

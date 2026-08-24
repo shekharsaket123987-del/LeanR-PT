@@ -38,7 +38,7 @@ export default function Navbar() {
             scrolled ? "glass-strong" : "glass-faint border-transparent"
           )}
         >
-          <Logo height={30} />
+          <Logo height={42} />
 
           <nav className="hidden items-center gap-8 lg:flex">
             {LINKS.map((link) => (

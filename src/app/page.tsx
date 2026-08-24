@@ -2,28 +2,19 @@ import SmoothScrollProvider from "@/components/providers/SmoothScrollProvider";
 import Navbar from "@/components/landing/Navbar";
 import Hero from "@/components/landing/Hero";
 import TrustBar from "@/components/landing/TrustBar";
-import TrainerCarousel, { PublicCoach } from "@/components/landing/TrainerCarousel";
+import CoachingShowsUp from "@/components/landing/CoachingShowsUp";
+import WhatIsLeanR from "@/components/landing/WhatIsLeanR";
+import TrainerCarousel from "@/components/landing/TrainerCarousel";
 import HowItWorks from "@/components/landing/HowItWorks";
+import ReadyWhenYouAre from "@/components/landing/ReadyWhenYouAre";
 import PricingSection, { PublicPackage } from "@/components/landing/PricingSection";
+import WhyLeanR from "@/components/landing/WhyLeanR";
 import Testimonials from "@/components/landing/Testimonials";
 import Footer from "@/components/landing/Footer";
-import { listPublicActiveCoaches } from "@/lib/services/coaches.service";
 import { listPublicActivePackages } from "@/lib/services/packages.service";
 
-const FALLBACK_PHOTO = (seed: string) => `https://picsum.photos/seed/${seed}-action/400/500`;
-
 export default async function LandingPage() {
-  const [coachRows, packageRows] = await Promise.all([listPublicActiveCoaches(), listPublicActivePackages()]);
-
-  const coaches: PublicCoach[] = (coachRows as any[]).map((c) => ({
-    id: c.id,
-    name: c.profile?.full_name ?? "Coach",
-    photo: c.profile?.photo_url ?? FALLBACK_PHOTO(c.id),
-    specialization: c.specialization ?? "",
-    yearsExperience: c.years_experience ?? 0,
-    rating: c.rating ?? 0,
-    reviewCount: c.review_count ?? 0,
-  }));
+  const packageRows = await listPublicActivePackages();
 
   const packages: PublicPackage[] = (packageRows as any[]).map((p) => ({
     id: p.id,
@@ -41,9 +32,13 @@ export default async function LandingPage() {
         <Navbar />
         <Hero />
         <TrustBar />
-        <TrainerCarousel coaches={coaches} />
+        <CoachingShowsUp />
+        <WhatIsLeanR />
         <HowItWorks />
+        <TrainerCarousel />
+        <ReadyWhenYouAre />
         <PricingSection packages={packages} />
+        <WhyLeanR />
         <Testimonials />
         <Footer />
       </div>

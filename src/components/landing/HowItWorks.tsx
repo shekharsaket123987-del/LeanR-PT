@@ -1,4 +1,7 @@
 import { PackageSearch, UserCheck2, CalendarClock, Video, LineChart } from "lucide-react";
+import FlipSection from "../ui/FlipSection";
+import GlassSectionPanel from "../ui/GlassSectionPanel";
+import TiltCard from "../ui/TiltCard";
 
 const steps = [
   { icon: PackageSearch, title: "Choose Package", description: "Pick LeanR Advance or a PT Add-on tier that fits your goals." },
@@ -10,29 +13,35 @@ const steps = [
 
 export default function HowItWorks() {
   return (
-    <section id="how-it-works" className="relative py-20 sm:py-28">
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <div className="mb-14 text-center">
-          <span className="text-xs font-bold uppercase tracking-widest text-brand-yellow">The process</span>
-          <h2 className="text-display mt-2 text-4xl font-bold italic tracking-tight text-white sm:text-5xl">
-            How LEANR Works
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
-          {steps.map((step, i) => (
-            <div key={step.title} className="relative rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-              <span className="text-display text-5xl font-bold italic text-white/10">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <div className="mt-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-yellow">
-                <step.icon className="h-5 w-5 text-black" />
-              </div>
-              <p className="text-display mt-4 text-lg font-bold italic text-white">{step.title}</p>
-              <p className="mt-1.5 text-sm text-white/50">{step.description}</p>
+    <section id="how-it-works" className="relative min-h-screen overflow-hidden pt-24 pb-4 md:pt-28">
+      <FlipSection className="container-px">
+        <GlassSectionPanel className="p-6 noise sm:p-9">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-14 text-center">
+              <span className="text-xs font-bold uppercase tracking-widest text-brand-yellow">The process</span>
+              <h2 className="text-display mt-2 text-4xl font-bold italic tracking-tight text-white sm:text-5xl">
+                How LEANR Works
+              </h2>
             </div>
-          ))}
-        </div>
-      </div>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
+              {steps.map((step, i) => (
+                <TiltCard key={step.title}>
+                  <div className="relative h-full rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-[border-color,box-shadow] duration-300 hover:border-brand-yellow/40 hover:shadow-[0_0_40px_-15px_rgba(245,217,10,0.5)]">
+                    <span className="text-display text-5xl font-bold italic text-white/10">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <div className="mt-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-yellow">
+                      <step.icon className="h-5 w-5 text-black" />
+                    </div>
+                    <p className="text-display mt-4 text-lg font-bold italic text-white">{step.title}</p>
+                    <p className="mt-1.5 text-sm text-white/50">{step.description}</p>
+                  </div>
+                </TiltCard>
+              ))}
+            </div>
+          </div>
+        </GlassSectionPanel>
+      </FlipSection>
     </section>
   );
 }

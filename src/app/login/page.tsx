@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import Logo from "@/components/shared/Logo";
+import FlipSection from "@/components/ui/FlipSection";
+import GlassSectionPanel from "@/components/ui/GlassSectionPanel";
 import Reveal from "@/components/ui/Reveal";
 import SectionTag from "@/components/ui/SectionTag";
 import { cn } from "@/lib/utils";
@@ -88,25 +90,29 @@ export default function LoginPortalPickerPage() {
       <div className="pointer-events-none absolute -top-32 left-1/2 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-brand-yellow/10 blur-[140px]" />
 
       <header className="container-px relative pt-8">
-        <Logo height={30} />
+        <Logo height={38} />
       </header>
 
-      <main className="container-px relative py-16">
-        <div className="mx-auto max-w-5xl">
-          <Reveal className="mx-auto max-w-2xl text-center">
-            <SectionTag className="mx-auto">Member Access</SectionTag>
-            <h1 className="text-display mt-3 text-3xl leading-[0.95] sm:text-4xl md:text-5xl">
-              CHOOSE YOUR <span className="italic-skew text-brand-yellow">PORTAL</span>
-            </h1>
-            <p className="mt-2 text-sm text-white/60">Sign in to the workspace built for your role.</p>
-          </Reveal>
+      <main className="relative pt-8 pb-16 md:pt-12">
+        <FlipSection className="container-px">
+          <GlassSectionPanel className="p-6 noise sm:p-9">
+            <div className="mx-auto max-w-5xl">
+              <Reveal className="mx-auto max-w-2xl text-center">
+                <SectionTag className="mx-auto">Member Access</SectionTag>
+                <h1 className="text-display mt-3 text-3xl leading-[0.95] sm:text-4xl md:text-5xl">
+                  CHOOSE YOUR <span className="italic-skew text-brand-yellow">PORTAL</span>
+                </h1>
+                <p className="mt-2 text-sm text-white/60">Sign in to the workspace built for your role.</p>
+              </Reveal>
 
-          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3" style={{ perspective: 1800 }}>
-            {PORTAL_LIST.map((portal, i) => (
-              <PortalCard key={portal.slug} portal={portal} delay={i * 0.08} />
-            ))}
-          </div>
-        </div>
+              <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3" style={{ perspective: 1800 }}>
+                {PORTAL_LIST.map((portal, i) => (
+                  <PortalCard key={portal.slug} portal={portal} delay={i * 0.08} />
+                ))}
+              </div>
+            </div>
+          </GlassSectionPanel>
+        </FlipSection>
       </main>
     </div>
   );

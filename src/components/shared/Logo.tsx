@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 export default function Logo({
   dark = true,
   href = "/",
-  height = 30,
+  height = 40,
   className,
 }: {
   dark?: boolean;
