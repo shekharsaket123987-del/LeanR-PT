@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Check, Info } from "lucide-react";
 import Button from "../ui/Button";
@@ -21,14 +21,31 @@ export interface PublicPackage {
   highlighted: boolean;
 }
 
-function PackageCard({ pkg, index }: { pkg: PublicPackage; index: number }) {
+function PackageCard({
+  pkg,
+  index,
+  activeIndex,
+  onFocus,
+  onHoverEnter,
+  onHoverLeave,
+}: {
+  pkg: PublicPackage;
+  index: number;
+  activeIndex: number;
+  onFocus: () => void;
+  onHoverEnter: () => void;
+  onHoverLeave: () => void;
+}) {
+  const isActive = index === activeIndex;
+
   const ref = useRef<HTMLDivElement>(null);
   const mx = useMotionValue(0);
   const my = useMotionValue(0);
-  const rotateX = useSpring(useTransform(my, [-0.5, 0.5], [7, -7]), { stiffness: 220, damping: 22 });
-  const rotateY = useSpring(useTransform(mx, [-0.5, 0.5], [-7, 7]), { stiffness: 220, damping: 22 });
+  const rotateX = useSpring(useTransform(my, [-0.5, 0.5], [6, -6]), { stiffness: 220, damping: 22 });
+  const rotateY = useSpring(useTransform(mx, [-0.5, 0.5], [-6, 6]), { stiffness: 220, damping: 22 });
 
   function handleMove(e: React.MouseEvent<HTMLDivElement>) {
+    if (!isActive) return;
     const rect = ref.current?.getBoundingClientRect();
     if (!rect) return;
     mx.set((e.clientX - rect.left) / rect.width - 0.5);
@@ -37,29 +54,35 @@ function PackageCard({ pkg, index }: { pkg: PublicPackage; index: number }) {
   function handleLeave() {
     mx.set(0);
     my.set(0);
+    onHoverLeave();
   }
 
   return (
-    <div style={{ perspective: 1400 }} className="h-full">
+    <div style={{ zIndex: isActive ? 10 : 1, position: "relative" }} className="h-full">
       <motion.div
-        initial={{ opacity: 0, y: 60, scale: 0.94 }}
-        whileInView={{ opacity: 1, y: 0, scale: 1 }}
-        viewport={{ once: true, margin: "0px 0px -15% 0px" }}
-        transition={{ duration: 0.8, delay: index * 0.1, ease: [0.16, 1, 0.3, 1] }}
-        className={cn("h-full", pkg.highlighted && "lg:-translate-y-2")}
-        style={{ transformStyle: "preserve-3d" }}
+        animate={{ scale: isActive ? 1.05 : 0.95, opacity: isActive ? 1 : 0.82, y: isActive ? -8 : 0 }}
+        transition={{ type: "spring", stiffness: 220, damping: 26 }}
+        className="h-full"
       >
-        <div ref={ref} onMouseMove={handleMove} onMouseLeave={handleLeave} className="h-full [perspective:1000px]">
+        <div
+          ref={ref}
+          onMouseMove={handleMove}
+          onMouseEnter={onHoverEnter}
+          onMouseLeave={handleLeave}
+          onClick={onFocus}
+          className="h-full cursor-pointer [perspective:1000px]"
+        >
           <motion.div
-            style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
-            whileHover={{ y: pkg.highlighted ? -14 : -6 }}
-            transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            style={{ rotateX: isActive ? rotateX : 0, rotateY: isActive ? rotateY : 0, transformStyle: "preserve-3d" }}
             className="h-full"
           >
             <GlassCard
-              variant={pkg.highlighted ? "yellow" : "default"}
-              glow={pkg.highlighted}
-              className="relative flex h-full flex-col p-6"
+              variant={isActive ? "yellow" : "default"}
+              glow={isActive}
+              className={cn(
+                "relative flex h-full flex-col p-6 transition-[border-color,box-shadow] duration-300",
+                isActive && "border-brand-yellow/50 shadow-[0_0_90px_-15px_rgba(245,217,10,0.6)]"
+              )}
             >
               {pkg.highlighted && (
                 <span className="absolute -top-3 left-1/2 w-fit -translate-x-1/2 rounded-full bg-brand-yellow px-3.5 py-1 text-[10px] font-bold uppercase tracking-wider text-black">
@@ -67,7 +90,7 @@ function PackageCard({ pkg, index }: { pkg: PublicPackage; index: number }) {
                 </span>
               )}
               <p className="text-display text-xl font-bold italic text-white">{pkg.name}</p>
-              <p className={cn("mt-1 text-xs font-medium", pkg.highlighted ? "text-white/50" : "text-white/40")}>
+              <p className={cn("mt-1 text-xs font-medium", isActive ? "text-white/50" : "text-white/40")}>
                 {pkg.sessions} PT sessions
               </p>
               <div className="mt-5 flex items-baseline gap-2">
@@ -75,7 +98,7 @@ function PackageCard({ pkg, index }: { pkg: PublicPackage; index: number }) {
                   ₹{pkg.price.toLocaleString("en-IN")}
                 </span>
                 {pkg.originalPrice && (
-                  <span className={cn("text-sm line-through", pkg.highlighted ? "text-white/40" : "text-white/30")}>
+                  <span className={cn("text-sm line-through", isActive ? "text-white/40" : "text-white/30")}>
                     ₹{pkg.originalPrice.toLocaleString("en-IN")}
                   </span>
                 )}
@@ -83,12 +106,12 @@ function PackageCard({ pkg, index }: { pkg: PublicPackage; index: number }) {
               <ul className="mt-6 flex-1 space-y-3">
                 {pkg.features.map((f) => (
                   <li key={f} className="flex items-start gap-2 text-sm">
-                    <Check className={cn("mt-0.5 h-4 w-4 shrink-0", pkg.highlighted ? "text-brand-yellow" : "text-white")} />
-                    <span className={pkg.highlighted ? "text-white/70" : "text-white/60"}>{f}</span>
+                    <Check className={cn("mt-0.5 h-4 w-4 shrink-0", isActive ? "text-brand-yellow" : "text-white")} />
+                    <span className={isActive ? "text-white/70" : "text-white/60"}>{f}</span>
                   </li>
                 ))}
               </ul>
-              <Button href="/signup" variant={pkg.highlighted ? "primary" : "secondary"} className="mt-7 w-full">
+              <Button href="/signup" variant={isActive ? "primary" : "secondary"} className="mt-7 w-full">
                 Get Started
               </Button>
             </GlassCard>
@@ -100,6 +123,15 @@ function PackageCard({ pkg, index }: { pkg: PublicPackage; index: number }) {
 }
 
 export default function PricingSection({ packages }: { packages: PublicPackage[] }) {
+  const defaultIndex = useMemo(() => {
+    const i = packages.findIndex((p) => p.highlighted);
+    return i === -1 ? 0 : i;
+  }, [packages]);
+
+  const [activeIndex, setActiveIndex] = useState(defaultIndex);
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const displayIndex = hoverIndex ?? activeIndex;
+
   return (
     <section id="pricing" className="relative min-h-screen overflow-hidden pt-24 pb-4 md:pt-28">
       <FlipSection className="container-px">
@@ -121,9 +153,17 @@ export default function PricingSection({ packages }: { packages: PublicPackage[]
           {packages.length === 0 ? (
             <p className="text-center text-sm text-white/45">Pricing is being updated -- check back shortly.</p>
           ) : (
-            <div className="grid grid-cols-1 gap-6 pt-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-6 pt-3 sm:grid-cols-2 lg:grid-cols-4" style={{ perspective: 1800 }}>
               {packages.map((pkg, i) => (
-                <PackageCard key={pkg.id} pkg={pkg} index={i} />
+                <PackageCard
+                  key={pkg.id}
+                  pkg={pkg}
+                  index={i}
+                  activeIndex={displayIndex}
+                  onFocus={() => setActiveIndex(i)}
+                  onHoverEnter={() => setHoverIndex(i)}
+                  onHoverLeave={() => setHoverIndex(null)}
+                />
               ))}
             </div>
           )}

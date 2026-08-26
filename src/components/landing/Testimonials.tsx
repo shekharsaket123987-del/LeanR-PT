@@ -159,24 +159,17 @@ function TransformCard({
   }
 
   return (
-    <div style={{ perspective: 1200 }} className="h-full">
+    <div className="h-full">
       <motion.div
-        initial={{ opacity: 0, y: 70, rotateX: 10 }}
-        whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
+        initial={{ opacity: 0, y: 70 }}
+        whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "0px 0px -10% 0px" }}
         transition={{ duration: 0.8, delay: Math.abs(offset) * 0.12, ease: [0.16, 1, 0.3, 1] }}
-        style={{ transformStyle: "preserve-3d" }}
         className="h-full"
       >
         <motion.div
-          animate={{
-            scale: isActive ? 1 : 0.88,
-            opacity: isActive ? 1 : 0.5,
-            rotateY: isActive ? 0 : offset < 0 ? 14 : -14,
-            z: isActive ? 40 : -60,
-          }}
+          animate={{ scale: isActive ? 1 : 0.88, opacity: isActive ? 1 : 0.5 }}
           transition={{ type: "spring", stiffness: 220, damping: 26 }}
-          style={{ transformStyle: "preserve-3d" }}
           className="h-full"
         >
           <div

@@ -58,7 +58,6 @@ function CoachCard({
   onOpen: () => void;
 }) {
   const isActive = index === activeIndex;
-  const offset = index - activeIndex;
 
   const ref = useRef<HTMLDivElement>(null);
   const mx = useMotionValue(0);
@@ -80,16 +79,10 @@ function CoachCard({
   }
 
   return (
-    <div style={{ perspective: 1400 }} className="h-full">
+    <div className="h-full">
       <motion.div
-        animate={{
-          scale: isActive ? 1 : 0.87,
-          opacity: isActive ? 1 : 0.5,
-          rotateY: isActive ? 0 : offset < 0 ? 16 : -16,
-          z: isActive ? 40 : -60,
-        }}
+        animate={{ scale: isActive ? 1 : 0.87, opacity: isActive ? 1 : 0.5 }}
         transition={{ type: "spring", stiffness: 220, damping: 26 }}
-        style={{ transformStyle: "preserve-3d" }}
         className="h-full"
       >
         <div ref={ref} onMouseMove={handleMove} onMouseEnter={onHoverEnter} onMouseLeave={handleLeave} className="h-full [perspective:1000px]">
