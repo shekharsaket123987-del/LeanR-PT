@@ -42,28 +42,28 @@ export default function CoachPendingTasksGateModal({ initialPendingTasks }: { in
     // an unreachable hamburger button or an unusable sidebar.
     <div className="fixed left-0 right-0 top-14 bottom-0 z-30 flex items-center justify-center p-4 lg:left-72 lg:top-0">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
-      <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border-2 border-red-200 bg-white p-6 shadow-2xl animate-slide-up">
+      <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border-2 border-red-200 bg-bg-elevated p-6 shadow-2xl animate-slide-up">
         <div className="mb-1 flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-100">
-            <AlertOctagon className="h-4.5 w-4.5 text-red-600" style={{ height: 18, width: 18 }} />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-400/10">
+            <AlertOctagon className="h-4.5 w-4.5 text-red-400" style={{ height: 18, width: 18 }} />
           </div>
-          <h3 className="text-display text-xl font-bold italic text-red-700">
+          <h3 className="text-display text-xl font-bold italic text-red-400">
             {tasks.length} session{tasks.length === 1 ? "" : "s"} still need action
           </h3>
         </div>
-        <p className="mb-5 text-sm text-black/50">
+        <p className="mb-5 text-sm text-white/50">
           These are past sessions that still need attendance marked or notes submitted before they can close out.
         </p>
 
         <div className="space-y-2">
           {listed.map((t) => (
-            <div key={t.bookingId} className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3">
+            <div key={t.bookingId} className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-400/10 p-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold">{t.clientName}</p>
-                <p className="text-xs text-black/50">
+                <p className="text-xs text-white/50">
                   {formatDate(t.scheduledStart)} · {formatTime(t.scheduledStart)}
                 </p>
-                <p className="text-xs font-semibold text-red-600">{reasonFor(t)}</p>
+                <p className="text-xs font-semibold text-red-400">{reasonFor(t)}</p>
               </div>
               <Button
                 size="sm"
@@ -77,14 +77,14 @@ export default function CoachPendingTasksGateModal({ initialPendingTasks }: { in
               </Button>
             </div>
           ))}
-          {extra > 0 && <p className="text-center text-xs text-black/40">+{extra} more on your Schedule page</p>}
+          {extra > 0 && <p className="text-center text-xs text-white/40">+{extra} more on your Schedule page</p>}
         </div>
 
         <div className="mt-6 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-black/40 hover:text-black/60"
+            className="flex items-center gap-1.5 text-xs font-semibold text-white/40 hover:text-white/60"
           >
             <X className="h-3.5 w-3.5" />
             Skip for now

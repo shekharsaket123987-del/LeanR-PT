@@ -76,10 +76,10 @@ export default function CoachChangeRequestsClient({ data }: { data: AdminCoachCh
                 </div>
                 <div>
                   <p className="text-sm font-bold">{r.clientName}</p>
-                  <p className="text-xs text-black/45">Currently with {r.currentCoachName}</p>
+                  <p className="text-xs text-white/45">Currently with {r.currentCoachName}</p>
                 </div>
               </div>
-              <p className="flex-1 rounded-lg bg-black/[0.03] p-3 text-xs text-black/60">&ldquo;{r.reason}&rdquo;</p>
+              <p className="flex-1 rounded-lg bg-white/[0.03] p-3 text-xs text-white/60">&ldquo;{r.reason}&rdquo;</p>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" loading={busyId === r.id} onClick={() => reject(r.id)}>
                   <XCircle className="h-3.5 w-3.5" /> Reject
@@ -89,7 +89,7 @@ export default function CoachChangeRequestsClient({ data }: { data: AdminCoachCh
                 </Button>
               </div>
             </div>
-            <p className="mt-3 text-[11px] text-black/35">Submitted {formatDate(r.submittedDate)}</p>
+            <p className="mt-3 text-[11px] text-white/35">Submitted {formatDate(r.submittedDate)}</p>
           </Card>
         ))}
       </div>
@@ -111,14 +111,14 @@ export default function CoachChangeRequestsClient({ data }: { data: AdminCoachCh
       <Modal open={!!approveId} onClose={closeModal} title="Approve Coach Change">
         {activeRequest && step === "pick" && (
           <div className="space-y-4">
-            <p className="text-sm text-black/50">
+            <p className="text-sm text-white/50">
               Optionally pick a new coach directly for {activeRequest.clientName} now, or leave this blank to let the
               client pick their own day/time and available coach after approval.
             </p>
             <select
               value={newCoach}
               onChange={(e) => setNewCoach(e.target.value)}
-              className="w-full rounded-xl border border-black/15 p-3 text-sm"
+              className="w-full rounded-xl border border-white/15 p-3 text-sm"
             >
               <option value="">Let client choose after approval</option>
               {data.coaches
@@ -130,7 +130,7 @@ export default function CoachChangeRequestsClient({ data }: { data: AdminCoachCh
                   </option>
                 ))}
             </select>
-            {error && <p className="text-xs text-red-600">{error}</p>}
+            {error && <p className="text-xs text-red-400">{error}</p>}
             <Button className="w-full" loading={busyId === approveId} onClick={finalizeApprove}>
               {newCoach ? "Confirm New Coach" : "Approve Request"} <ArrowRight className="h-4 w-4" />
             </Button>
@@ -138,11 +138,11 @@ export default function CoachChangeRequestsClient({ data }: { data: AdminCoachCh
         )}
         {step === "done" && (
           <div className="py-6 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100">
-              <Check className="h-7 w-7 text-emerald-600" />
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-400/10">
+              <Check className="h-7 w-7 text-emerald-400" />
             </div>
             <p className="text-display text-xl font-bold italic">Request Approved</p>
-            <p className="mt-1 text-sm text-black/50">
+            <p className="mt-1 text-sm text-white/50">
               {newCoach
                 ? "Active recurring slots and upcoming bookings have been moved to the new coach."
                 : "The client can now pick their preferred day/time and available coach from their portal."}

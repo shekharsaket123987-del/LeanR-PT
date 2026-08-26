@@ -8,11 +8,11 @@ interface BadgeProps {
 
 const variants: Record<string, string> = {
   yellow: "bg-brand-yellow text-black",
-  black: "bg-black text-white",
-  green: "bg-emerald-100 text-emerald-700",
-  red: "bg-red-100 text-red-600",
-  gray: "bg-black/5 text-black/60",
-  "outline-yellow": "border border-brand-yellow text-black bg-brand-yellow/10",
+  black: "border border-white/10 bg-white/10 text-white",
+  green: "border border-emerald-400/30 bg-emerald-400/10 text-emerald-400",
+  red: "border border-red-400/30 bg-red-400/10 text-red-400",
+  gray: "bg-white/5 text-white/60",
+  "outline-yellow": "border border-brand-yellow/50 text-brand-yellow bg-brand-yellow/10",
 };
 
 export default function Badge({ children, variant = "gray", className }: BadgeProps) {

@@ -34,13 +34,13 @@ export default function CoachChatsClient({ conversations }: { conversations: Coa
     <div className="mx-auto max-w-5xl">
       <PageHeader title="My Chats" description="Conversations with your clients." />
 
-      <div className="mb-6 flex flex-wrap gap-1 rounded-xl bg-black/5 p-1">
+      <div className="mb-6 flex flex-wrap gap-1 rounded-xl bg-white/5 p-1">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => selectTab(t.key)}
             className={`flex-1 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-bold transition-colors sm:text-sm ${
-              tab === t.key ? "bg-white shadow-card" : "text-black/50 hover:text-black"
+              tab === t.key ? "bg-bg-elevated shadow-card" : "text-white/50 hover:text-white"
             }`}
           >
             {t.label} ({conversations.filter((c) => c.category === t.key).length})
@@ -58,7 +58,7 @@ export default function CoachChatsClient({ conversations }: { conversations: Coa
                 key={c.id}
                 onClick={() => setSelectedId(c.id)}
                 className={`flex w-full items-center gap-3 rounded-xl border-2 p-3 text-left transition-colors ${
-                  selectedId === c.id ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10 hover:border-black/25"
+                  selectedId === c.id ? "border-brand-yellow bg-brand-yellow/10" : "border-white/10 hover:border-white/25"
                 }`}
               >
                 <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full">
@@ -69,10 +69,10 @@ export default function CoachChatsClient({ conversations }: { conversations: Coa
                     Client {c.client.name}
                     {c.client.clientCode ? ` · ${c.client.clientCode}` : ""}
                   </p>
-                  <p className="text-xs text-black/45">{c.status === "closed" ? "Closed" : "Active"}</p>
+                  <p className="text-xs text-white/45">{c.status === "closed" ? "Closed" : "Active"}</p>
                 </div>
                 {c.unreadCount > 0 && (
-                  <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
+                  <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-400/100 px-1.5 text-[11px] font-bold text-white">
                     {c.unreadCount}
                   </span>
                 )}

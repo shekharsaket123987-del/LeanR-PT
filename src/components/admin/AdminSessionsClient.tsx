@@ -62,7 +62,7 @@ export default function AdminSessionsClient({ sessions, coaches }: { sessions: A
         <select
           value={coachFilter}
           onChange={(e) => setCoachFilter(e.target.value)}
-          className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm focus:border-brand-yellow focus:outline-none"
+          className="rounded-xl border border-white/10 bg-bg-elevated px-4 py-2.5 text-sm focus:border-brand-yellow focus:outline-none"
         >
           <option value="all">All Coaches</option>
           {coaches.map((c) => (
@@ -74,7 +74,7 @@ export default function AdminSessionsClient({ sessions, coaches }: { sessions: A
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm focus:border-brand-yellow focus:outline-none"
+          className="rounded-xl border border-white/10 bg-bg-elevated px-4 py-2.5 text-sm focus:border-brand-yellow focus:outline-none"
         >
           <option value="all">All Statuses</option>
           <option value="upcoming">Upcoming</option>
@@ -85,7 +85,7 @@ export default function AdminSessionsClient({ sessions, coaches }: { sessions: A
       </div>
 
       <Card className="overflow-hidden">
-        <div className="hidden grid-cols-12 gap-4 border-b border-black/[0.06] px-5 py-3 text-xs font-bold uppercase text-black/40 sm:grid">
+        <div className="hidden grid-cols-12 gap-4 border-b border-white/[0.06] px-5 py-3 text-xs font-bold uppercase text-white/40 sm:grid">
           <div className="col-span-3">Client</div>
           <div className="col-span-3">Coach</div>
           <div className="col-span-2">Date &amp; Time</div>
@@ -93,16 +93,16 @@ export default function AdminSessionsClient({ sessions, coaches }: { sessions: A
           <div className="col-span-1">Status</div>
           <div className="col-span-2 text-right">Actions</div>
         </div>
-        <div className="divide-y divide-black/[0.05]">
+        <div className="divide-y divide-white/[0.05]">
           {filtered.map((s) => (
             <div key={s.id} className="grid grid-cols-2 items-center gap-3 px-5 py-4 sm:grid-cols-12">
               <Link href={`/admin/sessions/${s.id}`} className="col-span-1 truncate text-sm font-semibold hover:underline sm:col-span-3">
                 {s.clientName}
               </Link>
-              <Link href={`/admin/sessions/${s.id}`} className="col-span-1 truncate text-sm text-black/60 hover:underline sm:col-span-3">
+              <Link href={`/admin/sessions/${s.id}`} className="col-span-1 truncate text-sm text-white/60 hover:underline sm:col-span-3">
                 {s.coachName}
               </Link>
-              <Link href={`/admin/sessions/${s.id}`} className="col-span-1 text-sm text-black/60 sm:col-span-2">
+              <Link href={`/admin/sessions/${s.id}`} className="col-span-1 text-sm text-white/60 sm:col-span-2">
                 {formatDate(s.date)} · {formatTime(s.date)}
               </Link>
               <div className="col-span-1">{s.type === "assessment" ? <AssessmentBadge amountPaid={s.amountPaid} /> : <Badge variant="gray">Regular</Badge>}</div>
@@ -123,27 +123,27 @@ export default function AdminSessionsClient({ sessions, coaches }: { sessions: A
               </div>
             </div>
           ))}
-          {filtered.length === 0 && <p className="p-6 text-center text-sm text-black/40">No sessions match these filters.</p>}
+          {filtered.length === 0 && <p className="p-6 text-center text-sm text-white/40">No sessions match these filters.</p>}
         </div>
       </Card>
 
       <Modal open={!!activeSession} onClose={closeModal} title="Reschedule Session">
         {activeSession && (
           <div className="space-y-4">
-            <p className="text-sm text-black/50">
+            <p className="text-sm text-white/50">
               Reschedule {activeSession.clientName}&apos;s session with {activeSession.coachName}.
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">New Date</label>
-                <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="w-full rounded-xl border border-black/15 p-3 text-sm" />
+                <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">New Date</label>
+                <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="w-full rounded-xl border border-white/15 p-3 text-sm" />
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">New Time</label>
-                <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} className="w-full rounded-xl border border-black/15 p-3 text-sm" />
+                <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">New Time</label>
+                <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} className="w-full rounded-xl border border-white/15 p-3 text-sm" />
               </div>
             </div>
-            {error && <p className="text-xs text-red-600">{error}</p>}
+            {error && <p className="text-xs text-red-400">{error}</p>}
             <Button className="w-full" disabled={!newDate || !newTime} loading={busyId === activeSession.id} onClick={saveReschedule}>
               <RefreshCcw className="h-4 w-4" /> Save Changes
             </Button>

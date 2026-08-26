@@ -73,25 +73,25 @@ export default function RenewalCheckinClient({ priorLogs }: { priorLogs: Measure
 
       <Card className="p-6">
         <p className="mb-1 text-sm font-bold">Log Today's Measurements</p>
-        <p className="mb-5 text-xs text-black/45">
+        <p className="mb-5 text-xs text-white/45">
           A fresh check-in for your new plan -- your history above stays exactly as it is.
         </p>
 
         <div className="grid grid-cols-2 gap-3">
           {FIELDS.map((f) => (
             <div key={f.key}>
-              <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">{f.label}</label>
+              <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">{f.label}</label>
               <input
                 type="number"
                 value={form[f.key]}
                 onChange={(e) => setForm((cur) => ({ ...cur, [f.key]: e.target.value }))}
-                className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+                className="w-full rounded-xl border border-white/15 p-2.5 text-sm"
               />
             </div>
           ))}
         </div>
 
-        {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+        {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
 
         <div className="mt-6 flex justify-end">
           <Button loading={busy} onClick={submit}>

@@ -10,7 +10,7 @@ import { formatDate, formatTime } from "@/lib/utils";
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[11px] font-bold uppercase text-black/40">{label}</p>
+      <p className="text-[11px] font-bold uppercase text-white/40">{label}</p>
       <p className="mt-0.5 text-sm">{value}</p>
     </div>
   );
@@ -38,7 +38,7 @@ export default async function AdminSessionDetailPage({ params }: { params: { id:
       />
 
       <Card className="p-6">
-        <p className="mb-4 text-xs font-bold uppercase text-black/40">Basic Information</p>
+        <p className="mb-4 text-xs font-bold uppercase text-white/40">Basic Information</p>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Field label="Session ID" value={<span className="font-mono text-xs">{s.id.slice(0, 8)}</span>} />
           <Field label="Client" value={s.clientName} />
@@ -52,7 +52,7 @@ export default async function AdminSessionDetailPage({ params }: { params: { id:
 
       {(s.wasRescheduled || s.cancelReason || s.noShowParty || s.technicalIssue || s.coachOnLeave) && (
         <Card className="p-6">
-          <p className="mb-4 text-xs font-bold uppercase text-black/40">Outcome Detail</p>
+          <p className="mb-4 text-xs font-bold uppercase text-white/40">Outcome Detail</p>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             {s.wasRescheduled && s.originalScheduledStart && (
               <Field label="Originally Scheduled" value={`${formatDate(s.originalScheduledStart)} · ${formatTime(s.originalScheduledStart)}`} />
@@ -66,7 +66,7 @@ export default async function AdminSessionDetailPage({ params }: { params: { id:
       )}
 
       <Card className="p-6">
-        <p className="mb-4 text-xs font-bold uppercase text-black/40">Attendance</p>
+        <p className="mb-4 text-xs font-bold uppercase text-white/40">Attendance</p>
         {s.attendance ? (
           <div className="grid grid-cols-2 gap-4">
             <Field label="Client Joined" value={s.attendance.clientJoinedAt ? formatTime(s.attendance.clientJoinedAt) : "—"} />
@@ -75,27 +75,27 @@ export default async function AdminSessionDetailPage({ params }: { params: { id:
             <Field label="Coach Left" value={s.attendance.coachLeftAt ? formatTime(s.attendance.coachLeftAt) : "—"} />
           </div>
         ) : (
-          <p className="text-sm text-black/45">No attendance recorded yet.</p>
+          <p className="text-sm text-white/45">No attendance recorded yet.</p>
         )}
       </Card>
 
       <Card className="p-6">
-        <p className="mb-4 text-xs font-bold uppercase text-black/40">Coaching Notes</p>
+        <p className="mb-4 text-xs font-bold uppercase text-white/40">Coaching Notes</p>
         {s.notes || s.homework ? (
           <div className="space-y-3">
             {s.notes && <Field label="Notes" value={s.notes} />}
             {s.homework && <Field label="Homework" value={s.homework} />}
           </div>
         ) : (
-          <p className="text-sm text-black/45">No coaching notes for this session.</p>
+          <p className="text-sm text-white/45">No coaching notes for this session.</p>
         )}
       </Card>
 
       <Card className="p-6">
-        <p className="mb-4 text-xs font-bold uppercase text-black/40">Weekly Progress Snapshot</p>
+        <p className="mb-4 text-xs font-bold uppercase text-white/40">Weekly Progress Snapshot</p>
         {s.progressSnapshot ? (
           <>
-            <p className="mb-3 text-[11px] text-black/40">As of {formatDate(s.progressSnapshot.loggedAt)}</p>
+            <p className="mb-3 text-[11px] text-white/40">As of {formatDate(s.progressSnapshot.loggedAt)}</p>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <Field label="Weight" value={s.progressSnapshot.weight ?? "—"} />
               <Field label="Body Fat %" value={s.progressSnapshot.bodyFatPct ?? "—"} />
@@ -108,14 +108,14 @@ export default async function AdminSessionDetailPage({ params }: { params: { id:
             </div>
           </>
         ) : (
-          <p className="text-sm text-black/45">No measurements recorded before this session.</p>
+          <p className="text-sm text-white/45">No measurements recorded before this session.</p>
         )}
       </Card>
 
       {s.escalation && (
-        <Card className="border-red-200 bg-red-50 p-6">
-          <p className="mb-2 text-xs font-bold uppercase text-red-700">Linked Escalation</p>
-          <p className="text-sm text-red-900">{s.escalation.reason}</p>
+        <Card className="border-red-200 bg-red-400/10 p-6">
+          <p className="mb-2 text-xs font-bold uppercase text-red-400">Linked Escalation</p>
+          <p className="text-sm text-red-300">{s.escalation.reason}</p>
           <Badge variant={s.escalation.status === "open" ? "red" : "green"} className="mt-2">
             {s.escalation.status}
           </Badge>

@@ -3,9 +3,9 @@ import { RotateCcw } from "lucide-react";
 import { CoachCalendarSlot } from "@/lib/services/scheduling.service";
 
 const STATUS_STYLE: Record<CoachCalendarSlot["status"], string> = {
-  open: "bg-emerald-50 text-emerald-700 border-emerald-100",
-  booked: "bg-black text-white border-black",
-  unavailable: "bg-black/[0.04] text-black/25 border-black/[0.04]",
+  open: "bg-emerald-400/10 text-emerald-400 border-emerald-400/20",
+  booked: "bg-brand-yellow/15 text-brand-yellow border-brand-yellow/25",
+  unavailable: "bg-white/[0.04] text-white/25 border-white/[0.04]",
 };
 
 const BOOKING_STATUS_LABEL: Record<string, string> = {
@@ -17,7 +17,7 @@ const BOOKING_STATUS_LABEL: Record<string, string> = {
 
 export default function CoachWeekCalendar({ slots }: { slots: CoachCalendarSlot[] }) {
   if (slots.length === 0) {
-    return <p className="text-sm text-black/40">No working hours set for this coach.</p>;
+    return <p className="text-sm text-white/40">No working hours set for this coach.</p>;
   }
 
   const dates = [...new Set(slots.map((s) => s.date))].sort();
@@ -28,13 +28,13 @@ export default function CoachWeekCalendar({ slots }: { slots: CoachCalendarSlot[
     new Date(`${dateStr}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-black/[0.06]">
+    <div className="overflow-x-auto rounded-xl border border-white/[0.06]">
       <table className="w-full min-w-[640px] border-collapse text-xs">
         <thead>
           <tr>
-            <th className="sticky left-0 z-10 bg-white p-2 text-left font-bold text-black/40">Time</th>
+            <th className="sticky left-0 z-10 bg-bg-elevated p-2 text-left font-bold text-white/40">Time</th>
             {dates.map((d) => (
-              <th key={d} className="p-2 text-center font-bold text-black/60">
+              <th key={d} className="p-2 text-center font-bold text-white/60">
                 {dayLabel(d)}
               </th>
             ))}
@@ -43,7 +43,7 @@ export default function CoachWeekCalendar({ slots }: { slots: CoachCalendarSlot[
         <tbody>
           {times.map((t) => (
             <tr key={t}>
-              <td className="sticky left-0 z-10 bg-white p-2 font-semibold text-black/50">{t}</td>
+              <td className="sticky left-0 z-10 bg-bg-elevated p-2 font-semibold text-white/50">{t}</td>
               {dates.map((d) => {
                 const slot = byKey.get(`${d}|${t}`);
                 if (!slot) return <td key={d} className="p-1" />;

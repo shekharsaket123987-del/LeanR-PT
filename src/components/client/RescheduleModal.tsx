@@ -166,25 +166,25 @@ export default function RescheduleModal({
     <Modal open={open} onClose={onClose} title="Reschedule Session" maxWidth="max-w-xl">
       {loading && (
         <div className="flex items-center justify-center py-10">
-          <Loader2 className="h-5 w-5 animate-spin text-black/40" />
+          <Loader2 className="h-5 w-5 animate-spin text-white/40" />
         </div>
       )}
 
-      {!loading && loadError && <p className="text-sm text-red-600">{loadError}</p>}
+      {!loading && loadError && <p className="text-sm text-red-400">{loadError}</p>}
 
       {!loading && options && (
         <>
           {(closestLoading || (closestSlots && closestSlots.length > 0)) && (
-            <div className="mb-5 rounded-xl border border-black/[0.06] bg-black/[0.02] p-4">
+            <div className="mb-5 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
               <p className="mb-1 flex items-center gap-1.5 text-sm font-bold">
                 <Zap className="h-4 w-4 text-brand-yellow" /> Fastest Available
               </p>
-              <p className="mb-3 text-xs text-black/45">
+              <p className="mb-3 text-xs text-white/45">
                 Each coach&apos;s soonest open slot, so you don&apos;t have to check times one by one.
               </p>
               {closestLoading && (
                 <div className="flex items-center justify-center py-4">
-                  <Loader2 className="h-4 w-4 animate-spin text-black/40" />
+                  <Loader2 className="h-4 w-4 animate-spin text-white/40" />
                 </div>
               )}
               {!closestLoading && closestSlots && (
@@ -193,14 +193,14 @@ export default function RescheduleModal({
                     <div
                       key={slot.coachId}
                       className={`flex items-center justify-between rounded-lg border p-3 ${
-                        slot.isOwnCoach ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10"
+                        slot.isOwnCoach ? "border-brand-yellow bg-brand-yellow/10" : "border-white/10"
                       }`}
                     >
                       <div>
                         <p className="text-sm font-semibold">
                           {slot.coachName} {slot.isOwnCoach && <span className="text-xs font-bold text-brand-yellow">· Your coach</span>}
                         </p>
-                        <p className="text-xs text-black/50">
+                        <p className="text-xs text-white/50">
                           {formatDate(slot.start)} · {formatTime(slot.start)}
                         </p>
                       </div>
@@ -216,15 +216,15 @@ export default function RescheduleModal({
                   ))}
                 </div>
               )}
-              {closestError && <p className="mt-2 text-xs text-red-600">{closestError}</p>}
+              {closestError && <p className="mt-2 text-xs text-red-400">{closestError}</p>}
             </div>
           )}
 
-          <p className="mb-4 text-xs text-black/45">
+          <p className="mb-4 text-xs text-white/45">
             Or browse {options.coach.name.split(" ")[0]}&apos;s open slots for the next 30 days ·{" "}
-            <span className="font-bold text-black/60">{options.reschedulesRemaining} of 2 reschedules left this week</span>
+            <span className="font-bold text-white/60">{options.reschedulesRemaining} of 2 reschedules left this week</span>
           </p>
-          <p className="mb-4 rounded-lg bg-black/[0.03] p-3 text-xs text-black/50">
+          <p className="mb-4 rounded-lg bg-white/[0.03] p-3 text-xs text-white/50">
             Sessions can be rescheduled up to 2 times per week, must be moved at least {options.cutoffHours} hour
             {options.cutoffHours === 1 ? "" : "s"} before the original start time, and can't land on a day you already have another session.
           </p>
@@ -239,12 +239,12 @@ export default function RescheduleModal({
                 key={slot.start}
                 onClick={() => setSelectedSlot(slot)}
                 className={`rounded-xl border-2 p-4 text-left transition-colors ${
-                  selectedSlot?.start === slot.start ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10 hover:border-black/25"
+                  selectedSlot?.start === slot.start ? "border-brand-yellow bg-brand-yellow/10" : "border-white/10 hover:border-white/25"
                 }`}
               >
-                <CalendarDays className="mb-2 h-5 w-5 text-black/60" />
+                <CalendarDays className="mb-2 h-5 w-5 text-white/60" />
                 <p className="text-sm font-bold">{formatDate(slot.start)}</p>
-                <p className="text-xs text-black/45">
+                <p className="text-xs text-white/45">
                   {formatTime(slot.start)} · {options.durationMinutes} min
                 </p>
               </button>
@@ -252,12 +252,12 @@ export default function RescheduleModal({
           </div>
 
           {selectedSlot && (
-            <p className="mt-4 text-xs text-black/50">
+            <p className="mt-4 text-xs text-white/50">
               This will move your session to {formatDate(selectedSlot.start)} · {formatTime(selectedSlot.start)}, using{" "}
               {options.reschedulesUsedThisWeek + 1} of your 2 reschedules for this week.
             </p>
           )}
-          {submitError && <p className="mt-4 text-xs text-red-600">{submitError}</p>}
+          {submitError && <p className="mt-4 text-xs text-red-400">{submitError}</p>}
 
           <div className="mt-6 flex justify-end gap-3">
             <Button variant="outline" onClick={onClose} disabled={submitting}>
@@ -268,9 +268,9 @@ export default function RescheduleModal({
             </Button>
           </div>
 
-          <div className="mt-6 border-t border-black/[0.06] pt-5">
+          <div className="mt-6 border-t border-white/[0.06] pt-5">
             <p className="text-sm font-bold">Prefer a specific date &amp; time?</p>
-            <p className="mt-1 text-xs text-black/45">
+            <p className="mt-1 text-xs text-white/45">
               If it's not free with {options.coach.name.split(" ")[0]}, we'll check whether another coach can cover just this one session.
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -282,7 +282,7 @@ export default function RescheduleModal({
                   setDesiredDate(e.target.value);
                   setDesiredResult(null);
                 }}
-                className="rounded-xl border border-black/15 p-2.5 text-sm"
+                className="rounded-xl border border-white/15 p-2.5 text-sm"
               />
               <select
                 value={desiredTime}
@@ -290,7 +290,7 @@ export default function RescheduleModal({
                   setDesiredTime(e.target.value);
                   setDesiredResult(null);
                 }}
-                className="rounded-xl border border-black/15 p-2.5 text-sm"
+                className="rounded-xl border border-white/15 p-2.5 text-sm"
               >
                 {hourOptions.map((h) => (
                   <option key={h} value={`${String(h).padStart(2, "0")}:00`}>
@@ -303,10 +303,10 @@ export default function RescheduleModal({
               </Button>
             </div>
 
-            {desiredError && <p className="mt-3 text-xs text-red-600">{desiredError}</p>}
+            {desiredError && <p className="mt-3 text-xs text-red-400">{desiredError}</p>}
 
             {desiredResult?.available && (
-              <div className="mt-4 rounded-xl bg-black/[0.03] p-4">
+              <div className="mt-4 rounded-xl bg-white/[0.03] p-4">
                 <p className="text-sm font-semibold">
                   {formatDate(desiredResult.desiredStart)} · {formatTime(desiredResult.desiredStart)} is free with {options.coach.name}.
                 </p>
@@ -317,20 +317,20 @@ export default function RescheduleModal({
             )}
 
             {desiredResult && !desiredResult.available && (
-              <div className="mt-4 rounded-xl bg-black/[0.03] p-4">
+              <div className="mt-4 rounded-xl bg-white/[0.03] p-4">
                 <p className="text-sm font-semibold">Not free with {options.coach.name.split(" ")[0]} at that time.</p>
                 {desiredResult.candidates.length === 0 ? (
-                  <p className="mt-1 text-xs text-black/50">No other coach is free then either — try another time, or contact support.</p>
+                  <p className="mt-1 text-xs text-white/50">No other coach is free then either — try another time, or contact support.</p>
                 ) : (
                   <>
-                    <p className="mt-1 text-xs text-black/50">
+                    <p className="mt-1 text-xs text-white/50">
                       These coaches are free just for this one session — your regular sessions stay with {options.coach.name.split(" ")[0]}.
                     </p>
                     <div className="mt-3 space-y-2">
                       {desiredResult.candidates.map((c) => (
-                        <div key={c.coachId} className="flex items-center justify-between rounded-lg border border-black/10 p-3">
+                        <div key={c.coachId} className="flex items-center justify-between rounded-lg border border-white/10 p-3">
                           <span className="flex items-center gap-2 text-sm font-semibold">
-                            <Users className="h-4 w-4 text-black/40" />
+                            <Users className="h-4 w-4 text-white/40" />
                             {c.name}
                           </span>
                           <Button size="sm" variant="outline" onClick={() => assignSubstitute(c.coachId)} loading={assigningCoachId === c.coachId}>

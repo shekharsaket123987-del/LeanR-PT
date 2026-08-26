@@ -16,7 +16,7 @@ export default function Avatar({
 }) {
   return (
     <div
-      className={cn("relative shrink-0 overflow-hidden rounded-full bg-black/5", ring && "ring-2 ring-brand-yellow ring-offset-2", className)}
+      className={cn("relative shrink-0 overflow-hidden rounded-full bg-white/5", ring && "ring-2 ring-brand-yellow ring-offset-2 ring-offset-[#0c0c0c]", className)}
       style={{ width: size, height: size }}
     >
       <Image src={src} alt={alt} fill sizes={`${size}px`} className="object-cover" />

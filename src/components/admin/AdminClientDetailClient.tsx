@@ -207,39 +207,39 @@ export default function AdminClientDetailClient({
             </div>
             <div>
               <p className="text-sm font-bold">{client.name}</p>
-              <p className="text-xs text-black/45">{client.email}</p>
-              <p className="text-xs text-black/45">{client.phone}</p>
+              <p className="text-xs text-white/45">{client.email}</p>
+              <p className="text-xs text-white/45">{client.phone}</p>
             </div>
           </div>
-          <div className="mt-4 space-y-3 border-t border-black/[0.06] pt-4">
+          <div className="mt-4 space-y-3 border-t border-white/[0.06] pt-4">
             <div className="grid grid-cols-3 gap-2 text-xs">
-              <div className="flex items-center gap-1.5 text-black/60">
-                <Ruler className="h-3.5 w-3.5 text-black/35" /> {client.demographics?.heightCm ? `${client.demographics.heightCm} cm` : "—"}
+              <div className="flex items-center gap-1.5 text-white/60">
+                <Ruler className="h-3.5 w-3.5 text-white/35" /> {client.demographics?.heightCm ? `${client.demographics.heightCm} cm` : "—"}
               </div>
-              <div className="flex items-center gap-1.5 text-black/60">
-                <Weight className="h-3.5 w-3.5 text-black/35" /> {client.demographics?.weightKg ? `${client.demographics.weightKg} kg` : "—"}
+              <div className="flex items-center gap-1.5 text-white/60">
+                <Weight className="h-3.5 w-3.5 text-white/35" /> {client.demographics?.weightKg ? `${client.demographics.weightKg} kg` : "—"}
               </div>
-              <div className="flex items-center gap-1.5 text-black/60">
-                <Scale className="h-3.5 w-3.5 text-black/35" /> {client.demographics?.bmi ? `BMI ${client.demographics.bmi}` : "—"}
+              <div className="flex items-center gap-1.5 text-white/60">
+                <Scale className="h-3.5 w-3.5 text-white/35" /> {client.demographics?.bmi ? `BMI ${client.demographics.bmi}` : "—"}
               </div>
             </div>
             <div>
-              <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase text-black/40">
+              <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase text-white/40">
                 <Target className="h-3.5 w-3.5" /> Goals
               </p>
-              <p className="text-xs text-black/60">{client.goals.length > 0 ? client.goals.join(", ") : "—"}</p>
+              <p className="text-xs text-white/60">{client.goals.length > 0 ? client.goals.join(", ") : "—"}</p>
             </div>
             <div>
-              <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase text-black/40">
+              <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase text-white/40">
                 <HeartPulse className="h-3.5 w-3.5" /> Medical Notes
               </p>
-              <p className="text-xs text-black/60">{client.medicalNotes ?? "—"}</p>
+              <p className="text-xs text-white/60">{client.medicalNotes ?? "—"}</p>
             </div>
           </div>
         </Card>
 
         <Card className="p-5">
-          <p className="mb-3 text-xs font-bold uppercase text-black/40">Assigned Coach</p>
+          <p className="mb-3 text-xs font-bold uppercase text-white/40">Assigned Coach</p>
           {client.coach ? (
             <div className="flex items-center gap-3">
               <div className="relative h-11 w-11 overflow-hidden rounded-full">
@@ -247,29 +247,29 @@ export default function AdminClientDetailClient({
               </div>
               <div>
                 <p className="text-sm font-bold">{client.coach.name}</p>
-                <p className="text-xs text-black/45">{client.coach.specialization ?? ""}</p>
+                <p className="text-xs text-white/45">{client.coach.specialization ?? ""}</p>
               </div>
             </div>
           ) : (
-            <p className="text-xs text-black/45">No coach assigned yet.</p>
+            <p className="text-xs text-white/45">No coach assigned yet.</p>
           )}
         </Card>
 
         {client.subscription && (
           <Card className="p-5">
-            <p className="mb-3 text-xs font-bold uppercase text-black/40">Package</p>
+            <p className="mb-3 text-xs font-bold uppercase text-white/40">Package</p>
             <p className="text-sm font-bold">{client.subscription.packageName}</p>
-            <p className="mt-1 text-xs text-black/45">
+            <p className="mt-1 text-xs text-white/45">
               {client.subscription.sessionsUsed} used · {client.subscription.sessionsRemaining} remaining of {client.subscription.sessionsTotal}
             </p>
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-black/5">
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/5">
               <div
                 className="h-full rounded-full bg-brand-yellow"
                 style={{ width: `${Math.min(100, (client.subscription.sessionsUsed / client.subscription.sessionsTotal) * 100)}%` }}
               />
             </div>
             {client.subscription.pauseDaysAllowed > 0 && (
-              <p className="mt-3 border-t border-black/[0.06] pt-3 text-xs text-black/50">
+              <p className="mt-3 border-t border-white/[0.06] pt-3 text-xs text-white/50">
                 {Math.max(0, client.subscription.pauseDaysAllowed - client.subscription.pauseDaysUsed).toFixed(1)} of{" "}
                 {client.subscription.pauseDaysAllowed} pause-days remaining
               </p>
@@ -281,7 +281,7 @@ export default function AdminClientDetailClient({
         )}
 
         <Card className="space-y-2 p-5">
-          <p className="mb-1 text-xs font-bold uppercase text-black/40">Manual Controls</p>
+          <p className="mb-1 text-xs font-bold uppercase text-white/40">Manual Controls</p>
           <Button
             variant="outline"
             size="sm"
@@ -319,14 +319,14 @@ export default function AdminClientDetailClient({
 
         {escalations.some((e) => e.status === "open") && (
           <Card className="space-y-2 p-5">
-            <p className="mb-1 text-xs font-bold uppercase text-black/40">Open Escalations</p>
+            <p className="mb-1 text-xs font-bold uppercase text-white/40">Open Escalations</p>
             {escalations
               .filter((e) => e.status === "open")
               .map((e) => (
-                <div key={e.id} className="rounded-xl border border-red-200 bg-red-50 p-3">
-                  <p className="text-sm font-semibold text-red-900">{e.reason}</p>
-                  {e.description && <p className="mt-0.5 text-xs text-red-700">{e.description}</p>}
-                  <p className="mt-1 text-[11px] text-red-600/70">
+                <div key={e.id} className="rounded-xl border border-red-200 bg-red-400/10 p-3">
+                  <p className="text-sm font-semibold text-red-300">{e.reason}</p>
+                  {e.description && <p className="mt-0.5 text-xs text-red-400">{e.description}</p>}
+                  <p className="mt-1 text-[11px] text-red-400/70">
                     {e.raisedByAdmin ? "Logged by admin" : "Raised by client"} · {formatDate(e.createdAt)}
                   </p>
                   <Button size="sm" variant="outline" className="mt-2 w-full" loading={resolvingId === e.id} onClick={() => resolveEscalation(e.id)}>
@@ -359,16 +359,16 @@ export default function AdminClientDetailClient({
         )}
 
         <h2 className="text-display mb-4 text-lg font-bold italic">Session History</h2>
-        {client.history.length === 0 && <p className="text-sm text-black/45">No sessions yet.</p>}
+        {client.history.length === 0 && <p className="text-sm text-white/45">No sessions yet.</p>}
         <div className="space-y-3">
           {client.history.map((s) => (
             <Card key={s.id} className="p-4">
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 {s.type === "assessment" ? <AssessmentBadge amountPaid={s.amountPaid} /> : <Badge variant="gray">Regular</Badge>}
                 <SessionStatusBadge status={s.status as any} />
-                <span className="text-xs text-black/40">{formatDate(s.date)}</span>
+                <span className="text-xs text-white/40">{formatDate(s.date)}</span>
               </div>
-              {s.remarks && <p className="text-sm text-black/60">{s.remarks}</p>}
+              {s.remarks && <p className="text-sm text-white/60">{s.remarks}</p>}
             </Card>
           ))}
         </div>
@@ -378,29 +378,29 @@ export default function AdminClientDetailClient({
         {client.subscription && (
           <div className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Sessions to Add / Remove</label>
+              <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Sessions to Add / Remove</label>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  className="rounded-lg border border-black/15 p-2"
+                  className="rounded-lg border border-white/15 p-2"
                   onClick={() => setSessionDelta((d) => d - 1)}
                 >
                   <MinusCircle className="h-4 w-4" />
                 </button>
-                <input readOnly value={sessionDelta} className="w-20 rounded-xl border border-black/15 p-2 text-center text-sm" />
+                <input readOnly value={sessionDelta} className="w-20 rounded-xl border border-white/15 p-2 text-center text-sm" />
                 <button
                   type="button"
-                  className="rounded-lg border border-black/15 p-2"
+                  className="rounded-lg border border-white/15 p-2"
                   onClick={() => setSessionDelta((d) => d + 1)}
                 >
                   <PlusCircle className="h-4 w-4" />
                 </button>
               </div>
-              <p className="mt-1.5 text-xs text-black/40">
+              <p className="mt-1.5 text-xs text-white/40">
                 New total: {client.subscription.sessionsTotal + sessionDelta}
               </p>
             </div>
-            {error && <p className="text-xs text-red-600">{error}</p>}
+            {error && <p className="text-xs text-red-400">{error}</p>}
             <Button className="w-full" loading={busy} disabled={sessionDelta === 0} onClick={saveSessionAdjust}>
               Save Changes
             </Button>
@@ -411,25 +411,25 @@ export default function AdminClientDetailClient({
       <Modal open={modal === "pauseDays"} onClose={closeModal} title="Grant Pause-Days">
         {client.subscription && (
           <div className="space-y-4">
-            <p className="text-xs text-black/45">
+            <p className="text-xs text-white/45">
               Currently {client.subscription.pauseDaysAllowed} pause-days allowed ({client.subscription.pauseDaysUsed.toFixed(1)} used).
             </p>
             <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Days to Add / Remove</label>
+              <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Days to Add / Remove</label>
               <div className="flex items-center gap-3">
-                <button type="button" className="rounded-lg border border-black/15 p-2" onClick={() => setPauseDaysDelta((d) => d - 1)}>
+                <button type="button" className="rounded-lg border border-white/15 p-2" onClick={() => setPauseDaysDelta((d) => d - 1)}>
                   <MinusCircle className="h-4 w-4" />
                 </button>
-                <input readOnly value={pauseDaysDelta} className="w-20 rounded-xl border border-black/15 p-2 text-center text-sm" />
-                <button type="button" className="rounded-lg border border-black/15 p-2" onClick={() => setPauseDaysDelta((d) => d + 1)}>
+                <input readOnly value={pauseDaysDelta} className="w-20 rounded-xl border border-white/15 p-2 text-center text-sm" />
+                <button type="button" className="rounded-lg border border-white/15 p-2" onClick={() => setPauseDaysDelta((d) => d + 1)}>
                   <PlusCircle className="h-4 w-4" />
                 </button>
               </div>
-              <p className="mt-1.5 text-xs text-black/40">
+              <p className="mt-1.5 text-xs text-white/40">
                 New total: {Math.max(0, client.subscription.pauseDaysAllowed + pauseDaysDelta)} pause-days
               </p>
             </div>
-            {error && <p className="text-xs text-red-600">{error}</p>}
+            {error && <p className="text-xs text-red-400">{error}</p>}
             <Button className="w-full" loading={busy} disabled={pauseDaysDelta === 0} onClick={savePauseDaysAdjust}>
               Save Changes
             </Button>
@@ -439,7 +439,7 @@ export default function AdminClientDetailClient({
 
       <Modal open={modal === "transfer"} onClose={closeModal} title="Transfer to Another Coach">
         <div className="space-y-4">
-          <p className="text-sm text-black/50">
+          <p className="text-sm text-white/50">
             {client.name}&apos;s active recurring slots and upcoming bookings will move to the new coach.
           </p>
           <select
@@ -448,7 +448,7 @@ export default function AdminClientDetailClient({
               setTransferTo(e.target.value);
               setTransferAvailabilityWarning("");
             }}
-            className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+            className="w-full rounded-xl border border-white/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
           >
             <option value="">Select a coach...</option>
             {coaches
@@ -460,10 +460,10 @@ export default function AdminClientDetailClient({
                 </option>
               ))}
           </select>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p className="text-xs text-red-400">{error}</p>}
           {transferAvailabilityWarning ? (
-            <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
-              <p className="text-xs text-amber-800">{transferAvailabilityWarning}</p>
+            <div className="space-y-3 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3">
+              <p className="text-xs text-amber-400">{transferAvailabilityWarning}</p>
               <Button className="w-full" variant="destructive-outline" loading={busy} onClick={() => confirmTransfer(true)}>
                 Transfer Anyway
               </Button>
@@ -478,29 +478,29 @@ export default function AdminClientDetailClient({
 
       <Modal open={modal === "refund"} onClose={closeModal} title="Log Refund Request">
         <div className="space-y-4">
-          <p className="text-xs text-black/45">
+          <p className="text-xs text-white/45">
             This platform has no payment gateway yet — this logs a refund request to the audit trail for finance to action manually; it does not move money.
           </p>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Refund Amount (₹)</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Refund Amount (₹)</label>
             <input
               type="number"
               value={refundAmount}
               onChange={(e) => setRefundAmount(e.target.value)}
               placeholder="0"
-              className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+              className="w-full rounded-xl border border-white/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Reason</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Reason</label>
             <textarea
               rows={3}
               value={refundReason}
               onChange={(e) => setRefundReason(e.target.value)}
-              className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+              className="w-full rounded-xl border border-white/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
             />
           </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p className="text-xs text-red-400">{error}</p>}
           <Button variant="destructive" className="w-full" loading={busy} disabled={!refundAmount || !refundReason} onClick={submitRefund}>
             Log Refund Request
           </Button>
@@ -509,26 +509,26 @@ export default function AdminClientDetailClient({
 
       <Modal open={modal === "escalation"} onClose={closeModal} title="Log Escalation">
         <div className="space-y-4">
-          <p className="text-xs text-black/45">Records a client concern for tracking and resolution -- appears on their timeline immediately.</p>
+          <p className="text-xs text-white/45">Records a client concern for tracking and resolution -- appears on their timeline immediately.</p>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Reason</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Reason</label>
             <input
               value={escalationReason}
               onChange={(e) => setEscalationReason(e.target.value)}
               placeholder="e.g. Unhappy with coach communication"
-              className="w-full rounded-xl border border-black/15 p-3 text-sm"
+              className="w-full rounded-xl border border-white/15 p-3 text-sm"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Details (optional)</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Details (optional)</label>
             <textarea
               rows={3}
               value={escalationDescription}
               onChange={(e) => setEscalationDescription(e.target.value)}
-              className="w-full rounded-xl border border-black/15 p-3 text-sm"
+              className="w-full rounded-xl border border-white/15 p-3 text-sm"
             />
           </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p className="text-xs text-red-400">{error}</p>}
           <Button className="w-full" disabled={!escalationReason} loading={busy} onClick={submitEscalation}>
             Log Escalation
           </Button>
@@ -551,17 +551,17 @@ export default function AdminClientDetailClient({
               ] as const
             ).map(([key, label]) => (
               <div key={key}>
-                <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">{label}</label>
+                <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">{label}</label>
                 <input
                   type="number"
                   value={measurement[key]}
                   onChange={(e) => setMeasurement((m) => ({ ...m, [key]: e.target.value }))}
-                  className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+                  className="w-full rounded-xl border border-white/15 p-2.5 text-sm"
                 />
               </div>
             ))}
           </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p className="text-xs text-red-400">{error}</p>}
           <Button className="w-full" loading={busy} onClick={submitMeasurement}>
             Save Measurement
           </Button>

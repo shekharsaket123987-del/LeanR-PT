@@ -9,7 +9,7 @@ export default function AdminLoading() {
     <div className="mx-auto max-w-6xl">
       <Skeleton className="mb-2 h-7 w-56" />
       <Skeleton className="mb-8 h-4 w-72" />
-      <div className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-card">
+      <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-bg-elevated shadow-card">
         <TableRowSkeleton />
         <TableRowSkeleton />
         <TableRowSkeleton />

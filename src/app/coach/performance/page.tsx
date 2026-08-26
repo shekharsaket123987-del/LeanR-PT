@@ -65,7 +65,7 @@ export default async function CoachPerformancePage() {
             {activity.map((a, i) => (
               <Card key={i} className="flex items-center justify-between gap-4 p-4">
                 <p className="text-sm font-semibold">{a.title}</p>
-                <span className="shrink-0 text-xs text-black/40">{formatDate(a.date)}</span>
+                <span className="shrink-0 text-xs text-white/40">{formatDate(a.date)}</span>
               </Card>
             ))}
           </div>

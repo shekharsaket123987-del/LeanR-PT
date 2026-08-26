@@ -123,19 +123,19 @@ export default function CoachAvailabilityClient({
 
       <Card className="p-6">
         <p className="mb-1 text-sm font-bold">Weekly Working Hours</p>
-        <p className="mb-4 text-xs text-black/40">Only admin can change your working hours. Contact admin if these need updating.</p>
+        <p className="mb-4 text-xs text-white/40">Only admin can change your working hours. Contact admin if these need updating.</p>
         <div className="space-y-2">
           {DAY_LABELS.map((label, i) => (
-            <div key={label} className="flex flex-wrap items-center gap-4 rounded-xl border border-black/[0.06] px-4 py-3">
+            <div key={label} className="flex flex-wrap items-center gap-4 rounded-xl border border-white/[0.06] px-4 py-3">
               <span className="w-32 text-sm font-semibold">{label}</span>
               {rows[i].enabled ? (
-                <div className="flex items-center gap-2 text-sm text-black/70">
+                <div className="flex items-center gap-2 text-sm text-white/70">
                   <span>{rows[i].start}</span>
-                  <span className="text-black/40">–</span>
+                  <span className="text-white/40">–</span>
                   <span>{rows[i].end}</span>
                 </div>
               ) : (
-                <span className="text-sm text-black/30">Unavailable</span>
+                <span className="text-sm text-white/30">Unavailable</span>
               )}
             </div>
           ))}
@@ -151,12 +151,12 @@ export default function CoachAvailabilityClient({
         </div>
         <div className="space-y-2">
           {leave.map((b) => (
-            <div key={b.id} className="flex items-center justify-between rounded-xl bg-black/[0.03] px-4 py-3">
+            <div key={b.id} className="flex items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3">
               <div className="flex items-center gap-2.5">
-                <PlaneTakeoff className="h-4 w-4 text-black/40" />
+                <PlaneTakeoff className="h-4 w-4 text-white/40" />
                 <div>
                   <p className="text-sm font-semibold">{b.reason || "Leave"}</p>
-                  <p className="text-xs text-black/40">
+                  <p className="text-xs text-white/40">
                     {b.leave_type === "partial"
                       ? `${formatDate(b.starts_on)} · ${b.partial_start_time?.slice(0, 5)}–${b.partial_end_time?.slice(0, 5)}`
                       : `${formatDate(b.starts_on)} – ${formatDate(b.ends_on)}`}
@@ -166,19 +166,19 @@ export default function CoachAvailabilityClient({
               <SessionStatusBadge status={b.status} />
             </div>
           ))}
-          {leave.length === 0 && <p className="text-xs text-black/40">No time off scheduled.</p>}
+          {leave.length === 0 && <p className="text-xs text-white/40">No time off scheduled.</p>}
         </div>
       </Card>
 
       <Modal open={leaveOpen} onClose={resetLeaveForm} title="Request Leave">
         <div className="space-y-4">
-          <div className="flex gap-1 rounded-xl bg-black/5 p-1">
+          <div className="flex gap-1 rounded-xl bg-white/5 p-1">
             {(["full_day", "partial"] as LeaveType[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setLeaveType(t)}
                 className={`flex-1 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
-                  leaveType === t ? "bg-white shadow-card" : "text-black/50 hover:text-black"
+                  leaveType === t ? "bg-bg-elevated shadow-card" : "text-white/50 hover:text-white"
                 }`}
               >
                 {t === "full_day" ? "Full day" : "Partial day"}
@@ -187,11 +187,11 @@ export default function CoachAvailabilityClient({
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Reason</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Reason</label>
             <input
               value={leaveReason}
               onChange={(e) => setLeaveReason(e.target.value)}
-              className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+              className="w-full rounded-xl border border-white/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
               placeholder="e.g. Personal travel"
             />
           </div>
@@ -199,64 +199,64 @@ export default function CoachAvailabilityClient({
           {leaveType === "full_day" ? (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">From</label>
+                <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">From</label>
                 <input
                   type="date"
                   value={leaveFrom}
                   min={minLeaveFromISO()}
                   onChange={(e) => setLeaveFrom(e.target.value)}
-                  className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+                  className="w-full rounded-xl border border-white/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">To</label>
+                <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">To</label>
                 <input
                   type="date"
                   value={leaveTo}
                   min={leaveFrom || minLeaveFromISO()}
                   onChange={(e) => setLeaveTo(e.target.value)}
-                  className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+                  className="w-full rounded-xl border border-white/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
                 />
               </div>
             </div>
           ) : (
             <>
               <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Date</label>
+                <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Date</label>
                 <input
                   type="date"
                   value={leaveFrom}
                   min={minLeaveFromISO()}
                   onChange={(e) => setLeaveFrom(e.target.value)}
-                  className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+                  className="w-full rounded-xl border border-white/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Unavailable from</label>
+                  <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Unavailable from</label>
                   <input
                     type="time"
                     value={partialStart}
                     onChange={(e) => setPartialStart(e.target.value)}
-                    className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+                    className="w-full rounded-xl border border-white/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Until</label>
+                  <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Until</label>
                   <input
                     type="time"
                     value={partialEnd}
                     onChange={(e) => setPartialEnd(e.target.value)}
-                    className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+                    className="w-full rounded-xl border border-white/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
                   />
                 </div>
               </div>
-              <p className="text-xs text-black/40">Only sessions inside this window are affected — the rest of the day stays bookable.</p>
+              <p className="text-xs text-white/40">Only sessions inside this window are affected — the rest of the day stays bookable.</p>
             </>
           )}
 
-          <p className="text-xs text-black/40">Leave must be requested at least 24 hours before it starts.</p>
-          {leaveError && <p className="text-xs text-red-600">{leaveError}</p>}
+          <p className="text-xs text-white/40">Leave must be requested at least 24 hours before it starts.</p>
+          {leaveError && <p className="text-xs text-red-400">{leaveError}</p>}
           <Button className="w-full" onClick={submitLeave} loading={leaveSubmitting}>
             Submit Request
           </Button>

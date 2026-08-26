@@ -62,14 +62,14 @@ export default function MeasurementGateModal({ initiallyStale }: { initiallyStal
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
-      <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl animate-slide-up">
+      <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-bg-elevated p-6 shadow-2xl animate-slide-up">
         <div className="mb-1 flex items-center gap-2.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-yellow/15">
             <Scale className="h-4.5 w-4.5" style={{ height: 18, width: 18 }} />
           </div>
           <h3 className="text-display text-xl font-bold italic">Time for your measurement update</h3>
         </div>
-        <p className="mb-5 text-sm text-black/50">
+        <p className="mb-5 text-sm text-white/50">
           It&apos;s been a week (or more) since your last update. Log this week&apos;s measurements to keep booking and joining sessions
           without interruption.
         </p>
@@ -77,24 +77,24 @@ export default function MeasurementGateModal({ initiallyStale }: { initiallyStal
         <div className="grid grid-cols-2 gap-3">
           {FIELDS.map((f) => (
             <div key={f.key}>
-              <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">{f.label}</label>
+              <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">{f.label}</label>
               <input
                 type="number"
                 value={form[f.key]}
                 onChange={(e) => setForm((cur) => ({ ...cur, [f.key]: e.target.value }))}
-                className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+                className="w-full rounded-xl border border-white/15 p-2.5 text-sm"
               />
             </div>
           ))}
         </div>
 
-        {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+        {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
 
         <div className="mt-6 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-black/40 hover:text-black/60"
+            className="flex items-center gap-1.5 text-xs font-semibold text-white/40 hover:text-white/60"
           >
             <X className="h-3.5 w-3.5" />
             Skip for now
@@ -103,7 +103,7 @@ export default function MeasurementGateModal({ initiallyStale }: { initiallyStal
             Save Update
           </Button>
         </div>
-        <p className="mt-3 text-center text-[11px] text-black/35">
+        <p className="mt-3 text-center text-[11px] text-white/35">
           Skipping keeps you signed in, but you won&apos;t be able to book a demo, book a session, or join a session until this is done.
         </p>
       </div>

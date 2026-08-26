@@ -113,7 +113,7 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
   }
 
   if (!session.client) {
-    return <p className="text-sm text-black/50">No client on this session.</p>;
+    return <p className="text-sm text-white/50">No client on this session.</p>;
   }
   const client = session.client;
   const sessionTypeLabel = session.type === "assessment" ? "Demo Session" : "Regular Session";
@@ -135,7 +135,7 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
               {joined ? (
                 <>
                   <p className="mt-3 text-sm font-bold">Session joined</p>
-                  <p className="mt-1 text-xs text-black/45">
+                  <p className="mt-1 text-xs text-white/45">
                     {sessionEnded ? "Mark attendance below." : "Attendance unlocks once the session's scheduled time ends."}
                   </p>
                   {session.zoomStartUrl && !sessionEnded && (
@@ -149,7 +149,7 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
               ) : (
                 <>
                   <p className="mt-3 text-sm font-bold">{session.zoomStartUrl ? "Ready to start this session" : "Start this session"}</p>
-                  <p className="mt-1 text-xs text-black/45">
+                  <p className="mt-1 text-xs text-white/45">
                     {session.zoomStartUrl
                       ? "Opens Zoom in a new tab, on your account, as the meeting host."
                       : "Zoom isn't configured yet -- this marks the session as started so you can log attendance once it ends."}
@@ -167,7 +167,7 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
           {!completed && !missed && attendance !== "present" && attendance !== "late" && (
             <Card className="mt-6 p-6">
               <p className="mb-1 text-sm font-bold">Attendance</p>
-              <p className="mb-4 text-xs text-black/45">
+              <p className="mb-4 text-xs text-white/45">
                 {canMarkAttendance
                   ? "Mark attendance before you can start session notes. Marking Absent closes this session immediately."
                   : !joined
@@ -204,16 +204,16 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
                 onChange={(e) => setAbsentRemark(e.target.value)}
                 rows={2}
                 placeholder="Optional remark (only used if marking Absent)"
-                className="mt-3 w-full rounded-xl border border-black/15 p-2.5 text-sm"
+                className="mt-3 w-full rounded-xl border border-white/15 p-2.5 text-sm"
               />
-              {attendanceError && <p className="mt-3 text-xs text-red-600">{attendanceError}</p>}
+              {attendanceError && <p className="mt-3 text-xs text-red-400">{attendanceError}</p>}
             </Card>
           )}
 
           {missed && (
             <Card className="mt-6 p-6">
-              <p className="text-sm font-bold text-red-700">Client marked absent</p>
-              <p className="mt-1 text-xs text-black/50">This session is closed. No session notes are required for a missed session.</p>
+              <p className="text-sm font-bold text-red-400">Client marked absent</p>
+              <p className="mt-1 text-xs text-white/50">This session is closed. No session notes are required for a missed session.</p>
               <Button variant="outline" className="mt-4" onClick={() => router.push("/coach/dashboard")}>
                 Back to Dashboard
               </Button>
@@ -223,32 +223,32 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
           {!missed && (attendance === "present" || attendance === "late" || completed) && (
             <Card className="mt-6 p-6">
               <p className="mb-1 text-sm font-bold">Session Notes</p>
-              <p className="mb-4 text-xs text-black/45">Mandatory before the session can be marked completed.</p>
+              <p className="mb-4 text-xs text-white/45">Mandatory before the session can be marked completed.</p>
 
               <div className="space-y-4">
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Session Summary</label>
+                  <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Session Summary</label>
                   <textarea
                     value={summary}
                     onChange={(e) => setSummary(e.target.value)}
                     rows={3}
                     placeholder="e.g. Squat depth improved, still guarding on left knee..."
-                    className="w-full rounded-xl border border-black/15 p-3 text-sm"
+                    className="w-full rounded-xl border border-white/15 p-3 text-sm"
                     disabled={completed}
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Exercises Performed</label>
+                  <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Exercises Performed</label>
                   <textarea
                     value={exercisesPerformed}
                     onChange={(e) => setExercisesPerformed(e.target.value)}
                     rows={2}
-                    className="w-full rounded-xl border border-black/15 p-3 text-sm"
+                    className="w-full rounded-xl border border-white/15 p-3 text-sm"
                     disabled={completed}
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Client Performance</label>
+                  <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Client Performance</label>
                   <div className="flex flex-wrap gap-2">
                     {PERFORMANCE_OPTIONS.map((p) => (
                       <button
@@ -257,7 +257,7 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
                         disabled={completed}
                         onClick={() => setPerformance(p.value)}
                         className={`rounded-xl border px-3.5 py-2 text-xs font-bold disabled:opacity-60 ${
-                          performance === p.value ? "border-brand-yellow bg-brand-yellow/15" : "border-black/15"
+                          performance === p.value ? "border-brand-yellow bg-brand-yellow/15" : "border-white/15"
                         }`}
                       >
                         {p.label}
@@ -269,11 +269,11 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
                   <TagEditor label="Improvements Seen" values={improvements} onChange={setImprovements} />
                 ) : (
                   <div>
-                    <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Improvements Seen</label>
+                    <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Improvements Seen</label>
                     <div className="flex flex-wrap gap-2">
-                      {improvements.length === 0 && <span className="text-sm text-black/40">None recorded.</span>}
+                      {improvements.length === 0 && <span className="text-sm text-white/40">None recorded.</span>}
                       {improvements.map((i) => (
-                        <span key={i} className="rounded-full bg-black/5 px-3 py-1 text-xs font-semibold">
+                        <span key={i} className="rounded-full bg-white/5 px-3 py-1 text-xs font-semibold">
                           {i}
                         </span>
                       ))}
@@ -281,30 +281,30 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
                   </div>
                 )}
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Homework</label>
+                  <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Homework</label>
                   <textarea
                     value={homework}
                     onChange={(e) => setHomework(e.target.value)}
                     rows={2}
                     placeholder="Exercises till next session (optional)"
-                    className="w-full rounded-xl border border-black/15 p-3 text-sm"
+                    className="w-full rounded-xl border border-white/15 p-3 text-sm"
                     disabled={completed}
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Additional Remarks</label>
+                  <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Additional Remarks</label>
                   <textarea
                     value={additionalRemarks}
                     onChange={(e) => setAdditionalRemarks(e.target.value)}
                     rows={2}
                     placeholder="Optional"
-                    className="w-full rounded-xl border border-black/15 p-3 text-sm"
+                    className="w-full rounded-xl border border-white/15 p-3 text-sm"
                     disabled={completed}
                   />
                 </div>
               </div>
 
-              {submitError && <p className="mt-3 text-xs text-red-600">{submitError}</p>}
+              {submitError && <p className="mt-3 text-xs text-red-400">{submitError}</p>}
               <div className="mt-5 flex justify-end">
                 {!completed ? (
                   <Button onClick={submitNotes} loading={submitting} disabled={!summary.trim()}>
@@ -336,47 +336,47 @@ export default function CoachSessionClient({ session }: { session: CoachSessionD
               </div>
             )}
 
-            <div className="mt-5 space-y-4 border-t border-black/[0.06] pt-4">
+            <div className="mt-5 space-y-4 border-t border-white/[0.06] pt-4">
               <div>
-                <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase text-black/40">
+                <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase text-white/40">
                   <Target className="h-3.5 w-3.5" /> Goals
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {client.goals.length === 0 && <span className="text-xs text-black/40">Not set</span>}
+                  {client.goals.length === 0 && <span className="text-xs text-white/40">Not set</span>}
                   {client.goals.map((g) => (
-                    <span key={g} className="rounded-full bg-black/5 px-2.5 py-1 text-[11px] font-semibold">
+                    <span key={g} className="rounded-full bg-white/5 px-2.5 py-1 text-[11px] font-semibold">
                       {g}
                     </span>
                   ))}
                 </div>
               </div>
               <div>
-                <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase text-black/40">
+                <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase text-white/40">
                   <HeartPulse className="h-3.5 w-3.5" /> Medical Notes
                 </p>
-                <p className="text-xs text-black/60">{client.medicalNotes || "None on file"}</p>
+                <p className="text-xs text-white/60">{client.medicalNotes || "None on file"}</p>
               </div>
               <div>
-                <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase text-black/40">
+                <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase text-white/40">
                   <Dumbbell className="h-3.5 w-3.5" /> Equipment
                 </p>
-                <p className="text-xs text-black/60">{client.equipment.length > 0 ? client.equipment.join(", ") : "None on file"}</p>
+                <p className="text-xs text-white/60">{client.equipment.length > 0 ? client.equipment.join(", ") : "None on file"}</p>
               </div>
             </div>
           </Card>
 
           <Card className="p-5">
-            <p className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase text-black/40">
+            <p className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase text-white/40">
               <FileClock className="h-3.5 w-3.5" /> Previous Session Remarks
             </p>
             <div className="space-y-3">
               {session.previousNotes.map((n, i) => (
-                <div key={i} className="rounded-lg bg-black/[0.03] p-3">
-                  <p className="text-[11px] font-bold text-black/50">{formatDate(n.date)}</p>
-                  <p className="mt-1 text-xs text-black/60">{n.notes ?? "No notes recorded."}</p>
+                <div key={i} className="rounded-lg bg-white/[0.03] p-3">
+                  <p className="text-[11px] font-bold text-white/50">{formatDate(n.date)}</p>
+                  <p className="mt-1 text-xs text-white/60">{n.notes ?? "No notes recorded."}</p>
                 </div>
               ))}
-              {session.previousNotes.length === 0 && <p className="text-xs text-black/40">No previous sessions yet.</p>}
+              {session.previousNotes.length === 0 && <p className="text-xs text-white/40">No previous sessions yet.</p>}
             </div>
           </Card>
         </div>

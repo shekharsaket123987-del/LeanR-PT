@@ -93,7 +93,7 @@ export default function PhoneGateModal({ missing }: { missing: boolean }) {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
-      <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl animate-slide-up">
+      <div className="relative w-full max-w-sm rounded-2xl bg-bg-elevated p-6 shadow-2xl animate-slide-up">
         {step === "phone" ? (
           <>
             <div className="mb-1 flex items-center gap-2.5">
@@ -102,7 +102,7 @@ export default function PhoneGateModal({ missing }: { missing: boolean }) {
               </div>
               <h3 className="text-display text-xl font-bold italic">Add your mobile number</h3>
             </div>
-            <p className="mb-5 text-sm text-black/50">
+            <p className="mb-5 text-sm text-white/50">
               We use this to text you session updates (bookings, reschedules, attendance). Required for every LEANR account.
             </p>
 
@@ -112,9 +112,9 @@ export default function PhoneGateModal({ missing }: { missing: boolean }) {
               placeholder="98765 43210"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="w-full rounded-xl border border-black/15 p-3 text-sm"
+              className="w-full rounded-xl border border-white/15 p-3 text-sm"
             />
-            {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+            {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
 
             <Button loading={busy} onClick={sendOtp} className="mt-5 w-full">
               Send Code
@@ -128,8 +128,8 @@ export default function PhoneGateModal({ missing }: { missing: boolean }) {
               </div>
               <h3 className="text-display text-xl font-bold italic">Verify your number</h3>
             </div>
-            <p className="mb-5 text-sm text-black/50">
-              We&apos;ve texted a code to <span className="text-black/70">{phone}</span>.
+            <p className="mb-5 text-sm text-white/50">
+              We&apos;ve texted a code to <span className="text-white/70">{phone}</span>.
             </p>
 
             <input
@@ -140,9 +140,9 @@ export default function PhoneGateModal({ missing }: { missing: boolean }) {
               placeholder="000000"
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-              className="w-full rounded-xl border border-black/15 p-3 text-center text-lg font-bold tracking-[0.4em]"
+              className="w-full rounded-xl border border-white/15 p-3 text-center text-lg font-bold tracking-[0.4em]"
             />
-            {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+            {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
 
             <Button loading={busy} onClick={verifyAndSave} className="mt-5 w-full">
               Verify & Continue
@@ -151,7 +151,7 @@ export default function PhoneGateModal({ missing }: { missing: boolean }) {
               type="button"
               onClick={resendOtp}
               disabled={resendCooldown}
-              className="mt-3 w-full text-center text-xs font-semibold text-black/50 hover:underline disabled:cursor-not-allowed disabled:text-black/25 disabled:no-underline"
+              className="mt-3 w-full text-center text-xs font-semibold text-white/50 hover:underline disabled:cursor-not-allowed disabled:text-white/25 disabled:no-underline"
             >
               {resendCooldown ? "Code resent" : "Didn't get it? Resend code"}
             </button>

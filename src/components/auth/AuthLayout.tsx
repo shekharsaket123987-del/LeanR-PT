@@ -18,7 +18,7 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="grid min-h-screen grid-cols-1 bg-black lg:grid-cols-2">
+    <div className="grid min-h-screen grid-cols-1 bg-bg lg:grid-cols-2">
       <div className="flex flex-col justify-between px-6 py-8 sm:px-12 sm:py-10">
         <Logo dark />
 

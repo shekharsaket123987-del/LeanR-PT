@@ -5,7 +5,7 @@ function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div>
       <p className="text-display text-xl font-bold italic">{value}</p>
-      <p className="text-[11px] text-black/40">{label}</p>
+      <p className="text-[11px] text-white/40">{label}</p>
     </div>
   );
 }
@@ -13,7 +13,7 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 export default function CoachPerformancePanel({ performance }: { performance: CoachPerformance }) {
   return (
     <Card className="p-5">
-      <p className="mb-4 text-xs font-bold uppercase text-black/40">Performance</p>
+      <p className="mb-4 text-xs font-bold uppercase text-white/40">Performance</p>
       <div className="grid grid-cols-2 gap-4">
         <Stat label="Attendance Rate" value={`${performance.attendancePct}%`} />
         <Stat label="Client No-show" value={`${performance.clientNoShowPct}%`} />

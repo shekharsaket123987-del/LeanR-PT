@@ -1,7 +1,31 @@
 import { clsx, type ClassValue } from "clsx";
+import type Lenis from "lenis";
+
+declare global {
+  interface Window {
+    __lenis?: Lenis;
+  }
+}
 
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
+}
+
+/**
+ * Scrolls to a section, routed through Lenis when it's active. Lenis drives
+ * scroll position from its own RAF loop, so a plain `scrollIntoView` gets
+ * fought and cancelled a frame later -- this is a no-op-safe fallback for
+ * when Lenis hasn't mounted yet (e.g. reduced-motion, or on portal pages
+ * where SmoothScrollProvider is never mounted).
+ */
+export function smoothScrollTo(target: string | HTMLElement, offset = -90) {
+  if (typeof window === "undefined") return;
+  if (window.__lenis) {
+    window.__lenis.scrollTo(target, { offset, duration: 1.2 });
+    return;
+  }
+  const el = typeof target === "string" ? document.querySelector(target) : target;
+  el?.scrollIntoView({ behavior: "smooth" });
 }
 
 export function initials(name: string) {

@@ -23,23 +23,24 @@ export default function ProgressRing({
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#0000000F" strokeWidth={strokeWidth} />
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={strokeWidth} />
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#F5E400"
+          stroke="#F5D90A"
           strokeWidth={strokeWidth}
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           strokeLinecap="round"
           className="transition-all duration-700 ease-out"
+          style={{ filter: "drop-shadow(0 0 6px rgba(245,217,10,0.5))" }}
         />
       </svg>
       <div className="absolute flex flex-col items-center justify-center text-center">
-        <span className="text-display text-2xl font-bold italic leading-none">{label ?? value}</span>
-        {sublabel && <span className="mt-1 text-[11px] font-medium text-black/50">{sublabel}</span>}
+        <span className="text-display text-2xl font-bold italic leading-none text-white">{label ?? value}</span>
+        {sublabel && <span className="mt-1 text-[11px] font-medium text-white/50">{sublabel}</span>}
       </div>
     </div>
   );

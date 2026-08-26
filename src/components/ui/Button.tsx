@@ -12,12 +12,12 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants: Record<string, string> = {
-  primary: "bg-brand-yellow text-black hover:bg-brand-yellow2 shadow-soft",
-  secondary: "bg-black text-white hover:bg-brand-charcoal2",
-  outline: "bg-transparent border border-black/15 text-black hover:border-black/40",
-  ghost: "bg-transparent text-black hover:bg-black/5",
-  destructive: "bg-red-600 text-white hover:bg-red-700",
-  "destructive-outline": "bg-transparent border border-red-300 text-red-600 hover:bg-red-50",
+  primary: "bg-brand-yellow text-black shadow-[0_0_40px_-8px_rgba(245,217,10,0.6)] hover:shadow-[0_0_55px_-6px_rgba(245,217,10,0.85)] hover:bg-brand-yellow2",
+  secondary: "glass text-white hover:border-brand-yellow/60",
+  outline: "bg-transparent border border-white/15 text-white hover:border-white/40",
+  ghost: "bg-transparent text-white hover:bg-white/5",
+  destructive: "bg-red-500 text-white hover:bg-red-600",
+  "destructive-outline": "bg-transparent border border-red-400/40 text-red-400 hover:bg-red-400/10",
 };
 
 const sizes: Record<string, string> = {
@@ -38,7 +38,7 @@ export default function Button({
   ...props
 }: ButtonProps) {
   const classes = cn(
-    "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap",
+    "inline-flex items-center justify-center gap-2 rounded-full font-semibold tracking-wide transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap",
     variants[variant],
     sizes[size],
     className

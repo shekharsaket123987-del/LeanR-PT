@@ -25,14 +25,14 @@ export default function SessionsLowGateModal({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
-      <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl animate-slide-up">
+      <div className="relative w-full max-w-md rounded-2xl bg-bg-elevated p-6 shadow-2xl animate-slide-up">
         <div className="mb-1 flex items-center gap-2.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-yellow/15">
             <AlertTriangle className="h-4.5 w-4.5" style={{ height: 18, width: 18 }} />
           </div>
           <h3 className="text-display text-xl font-bold italic">Running low on sessions</h3>
         </div>
-        <p className="mb-6 text-sm text-black/50">
+        <p className="mb-6 text-sm text-white/50">
           You have {sessionsRemaining} session{sessionsRemaining === 1 ? "" : "s"} left on your current plan. Renew now to keep
           training with your coach without a gap.
         </p>
@@ -41,7 +41,7 @@ export default function SessionsLowGateModal({
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-black/40 hover:text-black/60"
+            className="flex items-center gap-1.5 text-xs font-semibold text-white/40 hover:text-white/60"
           >
             <X className="h-3.5 w-3.5" />
             Skip for now

@@ -203,7 +203,7 @@ export default function AdminCoachDetailClient({
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold">{coach.name}</p>
-              <p className="flex items-center gap-1 text-xs text-black/45">
+              <p className="flex items-center gap-1 text-xs text-white/45">
                 <Star className="h-3 w-3 fill-brand-yellow text-brand-yellow" /> {coach.rating} ({coach.reviewCount})
               </p>
             </div>
@@ -211,15 +211,15 @@ export default function AdminCoachDetailClient({
               <Pencil className="h-3.5 w-3.5" /> Edit
             </Button>
           </div>
-          {coach.specialization && <p className="mt-3 text-xs text-black/50">{coach.specialization}</p>}
-          <div className="mt-4 grid grid-cols-2 gap-3 border-t border-black/[0.06] pt-4 text-center">
+          {coach.specialization && <p className="mt-3 text-xs text-white/50">{coach.specialization}</p>}
+          <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/[0.06] pt-4 text-center">
             <div>
               <p className="text-display text-2xl font-bold italic">{coach.activeClients}</p>
-              <p className="text-[11px] text-black/40">Active Clients</p>
+              <p className="text-[11px] text-white/40">Active Clients</p>
             </div>
             <div>
               <p className="text-display text-2xl font-bold italic">{coach.utilizationPct}%</p>
-              <p className="text-[11px] text-black/40">Utilization</p>
+              <p className="text-[11px] text-white/40">Utilization</p>
             </div>
           </div>
         </Card>
@@ -227,11 +227,11 @@ export default function AdminCoachDetailClient({
         {performance && <CoachPerformancePanel performance={performance} />}
 
         <Card className="p-5">
-          <p className="mb-1 text-xs font-bold uppercase text-black/40">Skills</p>
-          <p className="mb-3 text-[11px] text-black/40">The coach can only add here — full edit/remove is Admin-only.</p>
+          <p className="mb-1 text-xs font-bold uppercase text-white/40">Skills</p>
+          <p className="mb-3 text-[11px] text-white/40">The coach can only add here — full edit/remove is Admin-only.</p>
           <TagEditor label="Skills" values={skills} onChange={(v) => { setSkills(v); setSkillsSaved(false); }} />
-          {skillsError && <p className="mt-2 text-xs text-red-600">{skillsError}</p>}
-          {skillsSaved && !skillsDirty && <p className="mt-2 text-xs text-emerald-600">Saved.</p>}
+          {skillsError && <p className="mt-2 text-xs text-red-400">{skillsError}</p>}
+          {skillsSaved && !skillsDirty && <p className="mt-2 text-xs text-emerald-400">Saved.</p>}
           {skillsDirty && (
             <Button size="sm" className="mt-3 w-full" loading={skillsBusy} onClick={saveSkills}>
               Save Skills
@@ -240,7 +240,7 @@ export default function AdminCoachDetailClient({
         </Card>
 
         <Card className="space-y-2 p-5">
-          <p className="mb-1 text-xs font-bold uppercase text-black/40">Admin Controls</p>
+          <p className="mb-1 text-xs font-bold uppercase text-white/40">Admin Controls</p>
           <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => setBlockOpen(true)}>
             <CalendarClock className="h-3.5 w-3.5" /> Override / Block Slots
           </Button>
@@ -256,7 +256,7 @@ export default function AdminCoachDetailClient({
       <div className="space-y-6 lg:col-span-2">
         <div>
           <h2 className="text-display mb-4 text-lg font-bold italic">Assigned Clients ({coach.clients.length})</h2>
-          <Card className="divide-y divide-black/[0.05]">
+          <Card className="divide-y divide-white/[0.05]">
             {coach.clients.map((c) => (
               <div key={c.id} className="flex items-center gap-3 p-4">
                 <div className="relative h-9 w-9 overflow-hidden rounded-full">
@@ -264,22 +264,22 @@ export default function AdminCoachDetailClient({
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold">{c.name}</p>
-                  <p className="truncate text-xs text-black/40">{c.packageName ?? "No active package"}</p>
+                  <p className="truncate text-xs text-white/40">{c.packageName ?? "No active package"}</p>
                 </div>
                 {c.sessionsRemaining != null && <Badge variant="gray">{c.sessionsRemaining} left</Badge>}
               </div>
             ))}
-            {coach.clients.length === 0 && <p className="p-4 text-sm text-black/40">No clients assigned.</p>}
+            {coach.clients.length === 0 && <p className="p-4 text-sm text-white/40">No clients assigned.</p>}
           </Card>
         </div>
 
         <div>
           <h2 className="text-display mb-4 text-lg font-bold italic">Weekly Working Hours</h2>
           <Card className="p-5">
-            <p className="mb-4 text-xs text-black/40">Only admin can set a coach's working hours — coaches see this read-only.</p>
+            <p className="mb-4 text-xs text-white/40">Only admin can set a coach's working hours — coaches see this read-only.</p>
             <div className="space-y-2">
               {DAY_LABELS.map((label, i) => (
-                <div key={label} className="flex flex-wrap items-center gap-4 rounded-xl border border-black/[0.06] px-4 py-3">
+                <div key={label} className="flex flex-wrap items-center gap-4 rounded-xl border border-white/[0.06] px-4 py-3">
                   <label className="flex w-32 items-center gap-2.5">
                     <input
                       type="checkbox"
@@ -295,24 +295,24 @@ export default function AdminCoachDetailClient({
                         type="time"
                         value={availRows[i].start}
                         onChange={(e) => updateAvailTime(i, "start", e.target.value)}
-                        className="rounded-lg border border-black/15 px-2 py-1 text-sm"
+                        className="rounded-lg border border-white/15 px-2 py-1 text-sm"
                       />
-                      <span className="text-black/40">–</span>
+                      <span className="text-white/40">–</span>
                       <input
                         type="time"
                         value={availRows[i].end}
                         onChange={(e) => updateAvailTime(i, "end", e.target.value)}
-                        className="rounded-lg border border-black/15 px-2 py-1 text-sm"
+                        className="rounded-lg border border-white/15 px-2 py-1 text-sm"
                       />
                     </div>
                   ) : (
-                    <span className="text-sm text-black/30">Unavailable</span>
+                    <span className="text-sm text-white/30">Unavailable</span>
                   )}
                 </div>
               ))}
             </div>
-            {availError && <p className="mt-4 text-sm text-red-600">{availError}</p>}
-            {availSaved && <p className="mt-4 text-sm text-emerald-600">Saved.</p>}
+            {availError && <p className="mt-4 text-sm text-red-400">{availError}</p>}
+            {availSaved && <p className="mt-4 text-sm text-emerald-400">Saved.</p>}
             <div className="mt-5 flex justify-end">
               <Button onClick={saveAvailability} loading={availSaving}>
                 Save Working Hours
@@ -329,16 +329,16 @@ export default function AdminCoachDetailClient({
 
       <Modal open={blockOpen} onClose={() => setBlockOpen(false)} title="Override / Block Slot">
         <div className="space-y-4">
-          <p className="text-xs text-black/45">Marks {coach.name} fully unavailable for the selected date.</p>
+          <p className="text-xs text-white/45">Marks {coach.name} fully unavailable for the selected date.</p>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Date</label>
-            <input type="date" value={blockDate} onChange={(e) => setBlockDate(e.target.value)} className="w-full rounded-xl border border-black/15 p-3 text-sm" />
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Date</label>
+            <input type="date" value={blockDate} onChange={(e) => setBlockDate(e.target.value)} className="w-full rounded-xl border border-white/15 p-3 text-sm" />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Reason (optional)</label>
-            <input value={blockReason} onChange={(e) => setBlockReason(e.target.value)} className="w-full rounded-xl border border-black/15 p-3 text-sm" />
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Reason (optional)</label>
+            <input value={blockReason} onChange={(e) => setBlockReason(e.target.value)} className="w-full rounded-xl border border-white/15 p-3 text-sm" />
           </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p className="text-xs text-red-400">{error}</p>}
           <Button className="w-full" disabled={!blockDate} loading={busy} onClick={confirmBlock}>
             Block Slot
           </Button>
@@ -354,11 +354,11 @@ export default function AdminCoachDetailClient({
         }}
         title="Reassign Clients"
       >
-        <p className="mb-4 text-sm text-black/50">
+        <p className="mb-4 text-sm text-white/50">
           Select a new coach for all of {coach.name}&apos;s active clients. Their recurring slots and upcoming bookings move to
           the new coach.
         </p>
-        <select value={reassignTo} onChange={(e) => setReassignTo(e.target.value)} className="w-full rounded-xl border border-black/15 p-3 text-sm">
+        <select value={reassignTo} onChange={(e) => setReassignTo(e.target.value)} className="w-full rounded-xl border border-white/15 p-3 text-sm">
           <option value="">Select a coach...</option>
           {coaches
             .filter((c) => c.id !== coach.id)
@@ -369,23 +369,23 @@ export default function AdminCoachDetailClient({
               </option>
             ))}
         </select>
-        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+        {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
         <Button className="mt-4 w-full" disabled={!reassignTo} loading={busy} onClick={confirmReassign}>
           <RefreshCcw className="h-4 w-4" /> Reassign All Clients
         </Button>
         {reassignSummary && (
           <div className="mt-4 space-y-2">
             {reassignSummary.reassignedCount > 0 && (
-              <p className="text-xs font-semibold text-emerald-700">
+              <p className="text-xs font-semibold text-emerald-400">
                 {reassignSummary.reassignedCount} client{reassignSummary.reassignedCount === 1 ? "" : "s"} reassigned successfully.
               </p>
             )}
             {reassignSummary.failed.length > 0 && (
-              <div className="rounded-xl border border-red-200 bg-red-50 p-3">
-                <p className="mb-1 text-xs font-bold text-red-800">
+              <div className="rounded-xl border border-red-200 bg-red-400/10 p-3">
+                <p className="mb-1 text-xs font-bold text-red-400">
                   {reassignSummary.failed.length} client{reassignSummary.failed.length === 1 ? "" : "s"} couldn&apos;t be moved:
                 </p>
-                <ul className="space-y-1 text-xs text-red-700">
+                <ul className="space-y-1 text-xs text-red-400">
                   {reassignSummary.failed.map((f) => (
                     <li key={f.clientId}>
                       <span className="font-semibold">{f.clientName}</span> — {f.reason}
@@ -401,39 +401,39 @@ export default function AdminCoachDetailClient({
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Coach">
         <div className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Name</label>
-            <input value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full rounded-xl border border-black/15 p-2.5 text-sm" />
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Name</label>
+            <input value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full rounded-xl border border-white/15 p-2.5 text-sm" />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Specialization</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Specialization</label>
             <input
               value={editSpecialization}
               onChange={(e) => setEditSpecialization(e.target.value)}
-              className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+              className="w-full rounded-xl border border-white/15 p-2.5 text-sm"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Years of Experience</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Years of Experience</label>
             <input
               type="number"
               min="0"
               value={editYears}
               onChange={(e) => setEditYears(e.target.value)}
-              className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+              className="w-full rounded-xl border border-white/15 p-2.5 text-sm"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Bio</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Bio</label>
             <textarea
               value={editBio}
               onChange={(e) => setEditBio(e.target.value)}
               rows={3}
-              className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+              className="w-full rounded-xl border border-white/15 p-2.5 text-sm"
             />
           </div>
           <TagEditor label="Additional Specializations" values={editSecondary} onChange={setEditSecondary} />
           <TagEditor label="Languages" values={editLanguages} onChange={setEditLanguages} />
-          {editError && <p className="text-xs text-red-600">{editError}</p>}
+          {editError && <p className="text-xs text-red-400">{editError}</p>}
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setEditOpen(false)}>
               Cancel

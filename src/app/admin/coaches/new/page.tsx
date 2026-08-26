@@ -90,22 +90,22 @@ export default function NewCoachPage() {
     return (
       <div className="mx-auto max-w-xl">
         <Card className="p-6">
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100">
-            <Check className="h-6 w-6 text-emerald-600" />
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400/10">
+            <Check className="h-6 w-6 text-emerald-400" />
           </div>
           <p className="text-display text-xl font-bold italic">Coach created</p>
-          <p className="mt-2 text-sm text-black/60">
+          <p className="mt-2 text-sm text-white/60">
             {fullName} ({employeeCode}) can now log in at <span className="font-mono">/login/coach</span>.
           </p>
-          <div className="mt-4 rounded-xl bg-black/[0.03] p-4 text-sm">
+          <div className="mt-4 rounded-xl bg-white/[0.03] p-4 text-sm">
             <p>
-              <span className="text-black/50">Email:</span> <span className="font-mono">{email}</span>
+              <span className="text-white/50">Email:</span> <span className="font-mono">{email}</span>
             </p>
             <p className="mt-1">
-              <span className="text-black/50">Password:</span> <span className="font-mono">{password}</span>
+              <span className="text-white/50">Password:</span> <span className="font-mono">{password}</span>
             </p>
           </div>
-          <p className="mt-3 text-xs text-black/40">Share this password with the coach securely — it won&apos;t be shown again.</p>
+          <p className="mt-3 text-xs text-white/40">Share this password with the coach securely — it won&apos;t be shown again.</p>
           <div className="mt-6 flex gap-3">
             <Button variant="outline" onClick={() => router.push("/admin/coaches")}>
               Back to Coaches
@@ -125,40 +125,40 @@ export default function NewCoachPage() {
         <p className="mb-3 text-sm font-bold">Identity</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Full Name</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Full Name</label>
             <input
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="e.g. Rahul Sharma"
-              className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+              className="w-full rounded-xl border border-white/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Employee Code</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Employee Code</label>
             <input
               value={employeeCode}
               onChange={(e) => setEmployeeCode(e.target.value)}
               placeholder="e.g. E3196"
-              className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+              className="w-full rounded-xl border border-white/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Login Email</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Login Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="rahul@leanr.dev"
-              className="w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+              className="w-full rounded-xl border border-white/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Temporary Password</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Temporary Password</label>
             <div className="flex gap-2">
               <input
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-black/15 p-3 font-mono text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+                className="w-full rounded-xl border border-white/15 p-3 font-mono text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
               />
               <Button type="button" variant="outline" size="sm" onClick={() => setPassword(randomPassword())}>
                 <Shuffle className="h-3.5 w-3.5" />
@@ -170,12 +170,12 @@ export default function NewCoachPage() {
 
       <Card className="mt-6 p-6">
         <p className="mb-1 text-sm font-bold">Skills</p>
-        <p className="mb-3 text-xs text-black/45">Primary specialization, plus any additional skills.</p>
-        <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Primary Specialization</label>
+        <p className="mb-3 text-xs text-white/45">Primary specialization, plus any additional skills.</p>
+        <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Primary Specialization</label>
         <select
           value={specialization}
           onChange={(e) => setSpecialization(e.target.value)}
-          className="mb-4 w-full rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+          className="mb-4 w-full rounded-xl border border-white/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
         >
           {COACH_SKILLS.map((s) => (
             <option key={s} value={s}>
@@ -183,14 +183,14 @@ export default function NewCoachPage() {
             </option>
           ))}
         </select>
-        <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Additional Skills</label>
+        <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Additional Skills</label>
         <div className="flex flex-wrap gap-2">
           {COACH_SKILLS.filter((s) => s !== specialization).map((s) => (
             <button
               key={s}
               onClick={() => toggleExtraSkill(s)}
               className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                extraSkills.includes(s) ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10 hover:border-black/25"
+                extraSkills.includes(s) ? "border-brand-yellow bg-brand-yellow/10" : "border-white/10 hover:border-white/25"
               }`}
             >
               {s}
@@ -207,7 +207,7 @@ export default function NewCoachPage() {
               key={l}
               onClick={() => toggleLanguage(l)}
               className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                languages.includes(l) ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10 hover:border-black/25"
+                languages.includes(l) ? "border-brand-yellow bg-brand-yellow/10" : "border-white/10 hover:border-white/25"
               }`}
             >
               {l}
@@ -225,12 +225,12 @@ export default function NewCoachPage() {
         </div>
         <div className="space-y-3">
           {slots.map((slot) => (
-            <div key={slot.id} className="rounded-xl border border-black/[0.06] p-4">
+            <div key={slot.id} className="rounded-xl border border-white/[0.06] p-4">
               <div className="mb-3 flex items-center justify-between">
                 <select
                   value={slot.startTime}
                   onChange={(e) => updateSlotTime(slot.id, e.target.value)}
-                  className="rounded-lg border border-black/15 px-2 py-1.5 text-sm"
+                  className="rounded-lg border border-white/15 px-2 py-1.5 text-sm"
                 >
                   {HOUR_GRID.map((h) => (
                     <option key={h} value={`${String(h).padStart(2, "0")}:00`}>
@@ -240,7 +240,7 @@ export default function NewCoachPage() {
                 </select>
                 {slots.length > 1 && (
                   <button onClick={() => removeSlotRow(slot.id)}>
-                    <Trash2 className="h-4 w-4 text-black/30 hover:text-red-500" />
+                    <Trash2 className="h-4 w-4 text-white/30 hover:text-red-400" />
                   </button>
                 )}
               </div>
@@ -250,7 +250,7 @@ export default function NewCoachPage() {
                     key={day}
                     onClick={() => toggleSlotDay(slot.id, day)}
                     className={`rounded-lg border py-2 text-[11px] font-bold ${
-                      slot.days.includes(day) ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10 hover:border-black/25"
+                      slot.days.includes(day) ? "border-brand-yellow bg-brand-yellow/10" : "border-white/10 hover:border-white/25"
                     }`}
                   >
                     {label}
@@ -260,12 +260,12 @@ export default function NewCoachPage() {
             </div>
           ))}
         </div>
-        <p className="mt-3 text-[11px] text-black/40">
+        <p className="mt-3 text-[11px] text-white/40">
           e.g. one row for 1:00 PM · Monday, another for 2:00 PM · Mon–Sat, another for 3:00 PM · Tue/Wed/Fri.
         </p>
       </Card>
 
-      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
 
       <div className="mt-6 flex justify-end">
         <Button onClick={submit} loading={submitting} disabled={!canSubmit}>

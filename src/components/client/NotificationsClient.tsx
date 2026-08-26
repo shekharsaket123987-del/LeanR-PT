@@ -36,16 +36,16 @@ export default function NotificationsClient({ initialNotifications }: { initialN
             onClick={() => !n.read && handleRead(n.id)}
             className={`flex items-start gap-4 p-4 ${!n.read ? "cursor-pointer border-brand-yellow/50 bg-brand-yellow/[0.04]" : ""}`}
           >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black/[0.04]">
-              <Icon className="h-4.5 w-4.5 text-black/60" style={{ height: 18, width: 18 }} />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.04]">
+              <Icon className="h-4.5 w-4.5 text-white/60" style={{ height: 18, width: 18 }} />
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-bold">{n.title}</p>
                 {!n.read && <span className="h-2 w-2 shrink-0 rounded-full bg-brand-yellow" />}
               </div>
-              <p className="mt-0.5 text-sm text-black/50">{n.message}</p>
-              <p className="mt-1.5 text-[11px] text-black/30">
+              <p className="mt-0.5 text-sm text-white/50">{n.message}</p>
+              <p className="mt-1.5 text-[11px] text-white/30">
                 {formatDate(n.time)} · {formatTime(n.time)}
               </p>
             </div>

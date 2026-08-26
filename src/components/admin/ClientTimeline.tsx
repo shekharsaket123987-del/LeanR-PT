@@ -144,23 +144,23 @@ function DetailModal({ event, onClose }: { event: TimelineEventRow; onClose: () 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+      <div className="relative w-full max-w-md rounded-2xl bg-bg-elevated p-6 shadow-2xl">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase text-black/40">{formatHeaderDate(event.created_at)} · {formatHeaderTime(event.created_at)}</p>
+            <p className="text-xs font-bold uppercase text-white/40">{formatHeaderDate(event.created_at)} · {formatHeaderTime(event.created_at)}</p>
             <h3 className="text-display mt-0.5 text-lg font-bold italic">{event.title}</h3>
           </div>
-          <button onClick={onClose} className="rounded-full p-1.5 hover:bg-black/5">
+          <button onClick={onClose} className="rounded-full p-1.5 hover:bg-white/5">
             <X className="h-5 w-5" />
           </button>
         </div>
-        {event.description && <MultilineText text={event.description} className="mb-4 text-sm text-black/65" />}
+        {event.description && <MultilineText text={event.description} className="mb-4 text-sm text-white/65" />}
         {entries.length > 0 && (
-          <div className="space-y-2 rounded-xl bg-black/[0.03] p-3.5">
+          <div className="space-y-2 rounded-xl bg-white/[0.03] p-3.5">
             {entries.map(([key, value]) => (
               <div key={key} className="flex items-start justify-between gap-3 text-xs">
-                <span className="font-semibold text-black/45">{humanizeKey(key)}</span>
-                <span className="text-right font-medium text-black/75">{String(value)}</span>
+                <span className="font-semibold text-white/45">{humanizeKey(key)}</span>
+                <span className="text-right font-medium text-white/75">{String(value)}</span>
               </div>
             ))}
           </div>
@@ -182,13 +182,13 @@ function EventCard({ event, onExpand }: { event: TimelineEventRow; onExpand: (ev
         disabled={!hasDetail}
       >
         <p className="text-sm font-bold leading-snug">{event.title}</p>
-        {hasDetail && <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-black/30" />}
+        {hasDetail && <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-white/30" />}
       </button>
-      {event.description && <MultilineText text={event.description} className="mt-1 text-xs leading-relaxed text-black/55" />}
-      <div className="my-2.5 border-t border-black/[0.06]" />
+      {event.description && <MultilineText text={event.description} className="mt-1 text-xs leading-relaxed text-white/55" />}
+      <div className="my-2.5 border-t border-white/[0.06]" />
       <p className={`text-[11px] font-semibold ${accent === "teal" ? "text-teal-700" : "text-orange-600"}`}>Added by: {addedByLabel(event)}</p>
       {event.updated_at && (
-        <p className="mt-1 text-[11px] font-semibold text-emerald-600">
+        <p className="mt-1 text-[11px] font-semibold text-emerald-400">
           Updated At: {formatHeaderDate(event.updated_at)}, {formatHeaderTime(event.updated_at)}
         </p>
       )}
@@ -286,26 +286,26 @@ export default function ClientTimeline({
     <div className="space-y-5">
       {measurementsStale && (
         <Card className="flex items-center gap-3 border-red-500/30 bg-red-500/5 p-3.5">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" />
-          <p className="text-sm font-semibold text-red-700">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" />
+          <p className="text-sm font-semibold text-red-400">
             Measurements overdue{lastMeasurementAt ? ` — last updated ${formatHeaderDate(lastMeasurementAt)}` : " — never logged"}.
           </p>
         </Card>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-1 rounded-xl border border-black/10 p-1">
+        <div className="flex items-center gap-1 rounded-xl border border-white/10 p-1">
           <button
             type="button"
             onClick={() => setMode("split")}
-            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${mode === "split" ? "bg-black text-white" : "text-black/50 hover:text-black"}`}
+            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${mode === "split" ? "bg-brand-yellow text-black" : "text-white/50 hover:text-white"}`}
           >
             Split view
           </button>
           <button
             type="button"
             onClick={() => setMode("merged")}
-            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${mode === "merged" ? "bg-black text-white" : "text-black/50 hover:text-black"}`}
+            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${mode === "merged" ? "bg-brand-yellow text-black" : "text-white/50 hover:text-white"}`}
           >
             Merged view
           </button>
@@ -314,7 +314,7 @@ export default function ClientTimeline({
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value as TimelineEventType | "all")}
-          className="rounded-xl border border-black/15 bg-white px-3 py-1.5 text-xs font-semibold text-black/70"
+          className="rounded-xl border border-white/15 bg-bg-elevated px-3 py-1.5 text-xs font-semibold text-white/70"
         >
           <option value="all">Filter by event type/source: All</option>
           {availableTypes.map((t) => (
@@ -325,12 +325,12 @@ export default function ClientTimeline({
         </select>
       </div>
 
-      {filtered.length === 0 && <p className="text-sm text-black/45">No timeline events yet.</p>}
+      {filtered.length === 0 && <p className="text-sm text-white/45">No timeline events yet.</p>}
 
       {mode === "split" ? (
         <div className="relative">
-          <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-black/10" />
-          <div className="mb-3 flex items-center justify-between px-1 text-[11px] font-bold uppercase text-black/35">
+          <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/10" />
+          <div className="mb-3 flex items-center justify-between px-1 text-[11px] font-bold uppercase text-white/35">
             <span>LEANR Event</span>
             <span>Customer Event</span>
           </div>
@@ -338,8 +338,8 @@ export default function ClientTimeline({
             {groups.map((group) => (
               <div key={group.key}>
                 <div className="mb-2 flex items-center justify-between px-1">
-                  <span className="text-xs font-bold text-black/50">{group.date}</span>
-                  <span className="text-xs font-bold text-black/50">{group.time}</span>
+                  <span className="text-xs font-bold text-white/50">{group.date}</span>
+                  <span className="text-xs font-bold text-white/50">{group.time}</span>
                 </div>
                 <div className="space-y-3">
                   {group.events.map((event) => (
@@ -361,8 +361,8 @@ export default function ClientTimeline({
           {groups.map((group) => (
             <div key={group.key}>
               <div className="mb-2 flex items-center justify-between px-1">
-                <span className="text-xs font-bold text-black/50">{group.date}</span>
-                <span className="text-xs font-bold text-black/50">{group.time}</span>
+                <span className="text-xs font-bold text-white/50">{group.date}</span>
+                <span className="text-xs font-bold text-white/50">{group.time}</span>
               </div>
               <div className="space-y-3">
                 {group.events.map((event) => (
@@ -384,7 +384,7 @@ export default function ClientTimeline({
           <button
             type="button"
             onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-            className="text-xs font-bold text-black/40 hover:text-black/70"
+            className="text-xs font-bold text-white/40 hover:text-white/70"
           >
             Load more…
           </button>

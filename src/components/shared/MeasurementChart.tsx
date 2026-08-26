@@ -59,7 +59,7 @@ export default function MeasurementChart({ logs }: { logs: MeasurementPoint[] })
             type="button"
             onClick={() => setMetricKey(m.key)}
             className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
-              metricKey === m.key ? "bg-black text-white" : "bg-black/5 text-black/50 hover:bg-black/10"
+              metricKey === m.key ? "bg-brand-yellow text-black" : "bg-white/5 text-white/50 hover:bg-white/10"
             }`}
           >
             {m.label}
@@ -68,20 +68,20 @@ export default function MeasurementChart({ logs }: { logs: MeasurementPoint[] })
       </div>
 
       {data.length < 2 ? (
-        <p className="py-10 text-center text-sm text-black/40">
+        <p className="py-10 text-center text-sm text-white/40">
           Log at least 2 weeks of {metric.label.toLowerCase()} to see a trend.
         </p>
       ) : (
         <ResponsiveContainer width="100%" height={240}>
           <LineChart data={data} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#00000010" />
-            <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#00000060" }} axisLine={{ stroke: "#00000015" }} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: "#00000060" }} axisLine={false} tickLine={false} unit={metric.unit} width={46} />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#FFFFFF14" />
+            <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#FFFFFF66" }} axisLine={{ stroke: "#FFFFFF1A" }} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: "#FFFFFF66" }} axisLine={false} tickLine={false} unit={metric.unit} width={46} />
             <Tooltip
-              contentStyle={{ borderRadius: 12, border: "1px solid #00000010", fontSize: 12 }}
+              contentStyle={{ borderRadius: 12, border: "1px solid #FFFFFF1A", background: "#0c0c0c", color: "#fff", fontSize: 12 }}
               formatter={(value: number) => [`${value} ${metric.unit}`, metric.label]}
             />
-            <Line type="monotone" dataKey="value" stroke="#111111" strokeWidth={2.5} dot={{ fill: "#F5E400", stroke: "#111111", strokeWidth: 2, r: 4 }} />
+            <Line type="monotone" dataKey="value" stroke="#F5D90A" strokeWidth={2.5} dot={{ fill: "#F5D90A", stroke: "#0c0c0c", strokeWidth: 2, r: 4 }} />
           </LineChart>
         </ResponsiveContainer>
       )}

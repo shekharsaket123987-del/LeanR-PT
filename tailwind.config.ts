@@ -12,8 +12,22 @@ const config: Config = {
           black: "#000000",
           charcoal: "#111111",
           charcoal2: "#1A1A1A",
-          yellow: "#F5E400",
-          yellow2: "#FFE600",
+          yellow: "#F5D90A",
+          yellow2: "#FFE94D",
+        },
+        bg: {
+          DEFAULT: "#060606",
+          elevated: "#0c0c0c",
+          soft: "#141414",
+        },
+        muted: {
+          DEFAULT: "#9a9a95",
+          2: "#6f6f6b",
+        },
+        yellow: {
+          DEFAULT: "#F5D90A",
+          bright: "#FFE94D",
+          dim: "#B8A400",
         },
       },
       fontFamily: {
@@ -25,9 +39,9 @@ const config: Config = {
         "2xl": "1.25rem",
       },
       boxShadow: {
-        soft: "0 4px 24px rgba(0,0,0,0.06)",
-        card: "0 2px 12px rgba(0,0,0,0.05)",
-        glow: "0 0 40px rgba(245,228,0,0.25)",
+        soft: "0 4px 24px rgba(0,0,0,0.4)",
+        card: "0 2px 12px rgba(0,0,0,0.35)",
+        glow: "0 0 40px rgba(245,217,10,0.3)",
       },
       animation: {
         "fade-in": "fadeIn 0.5s ease-out",

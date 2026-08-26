@@ -14,7 +14,7 @@ export default function AdminClientChats({ conversations }: { conversations: Adm
   const [openId, setOpenId] = useState<string | null>(conversations.find((c) => c.status === "active")?.id ?? null);
 
   if (conversations.length === 0) {
-    return <p className="text-sm text-black/45">No chat history yet.</p>;
+    return <p className="text-sm text-white/45">No chat history yet.</p>;
   }
 
   return (
@@ -30,27 +30,27 @@ export default function AdminClientChats({ conversations }: { conversations: Adm
                 </span>
                 <span>
                   <span className="block text-sm font-bold">{c.coach.name}</span>
-                  <span className="block text-xs text-black/45">
+                  <span className="block text-xs text-white/45">
                     {c.status === "active" ? "Current coach" : `Coach until ${c.closedAt ? formatDate(c.closedAt) : "—"}`} ·{" "}
                     {c.messages.length} message{c.messages.length === 1 ? "" : "s"}
                   </span>
                 </span>
               </span>
-              <span className="text-xs font-semibold text-black/40">{open ? "Hide" : "View"}</span>
+              <span className="text-xs font-semibold text-white/40">{open ? "Hide" : "View"}</span>
             </button>
 
             {open && (
-              <div className="mt-4 max-h-96 space-y-3 overflow-y-auto rounded-xl bg-black/[0.02] p-3">
-                {c.messages.length === 0 && <p className="text-xs text-black/40">No messages in this conversation.</p>}
+              <div className="mt-4 max-h-96 space-y-3 overflow-y-auto rounded-xl bg-white/[0.02] p-3">
+                {c.messages.length === 0 && <p className="text-xs text-white/40">No messages in this conversation.</p>}
                 {c.messages.map((m) => (
                   <div key={m.id} className={`flex ${m.senderRole === "coach" ? "justify-end" : "justify-start"}`}>
                     <div
                       className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
-                        m.senderRole === "coach" ? "bg-black text-white" : "bg-black/[0.06] text-black"
+                        m.senderRole === "coach" ? "bg-brand-yellow text-black" : "bg-white/[0.06] text-white"
                       }`}
                     >
                       <p className="whitespace-pre-wrap break-words">{m.body}</p>
-                      <p className={`mt-1 text-[10px] ${m.senderRole === "coach" ? "text-white/50" : "text-black/40"}`}>
+                      <p className={`mt-1 text-[10px] ${m.senderRole === "coach" ? "text-white/50" : "text-white/40"}`}>
                         {m.senderRole === "coach" ? "Coach" : "Client"} · {formatDate(m.createdAt)} · {formatTime(m.createdAt)}
                       </p>
                     </div>

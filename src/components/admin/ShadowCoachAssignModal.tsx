@@ -80,13 +80,13 @@ export default function ShadowCoachAssignModal({ open, onClose, clientId, primar
       title="Assign Shadow Coach"
     >
       <div className="space-y-4">
-        <p className="text-sm text-black/50">
+        <p className="text-sm text-white/50">
           Finds the best-matching free coach for each of this client&apos;s sessions in the range — different sessions can
           land on different coaches if that&apos;s what&apos;s actually available.
         </p>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">From</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">From</label>
             <input
               type="date"
               value={startsOn}
@@ -94,11 +94,11 @@ export default function ShadowCoachAssignModal({ open, onClose, clientId, primar
                 setStartsOn(e.target.value);
                 reset();
               }}
-              className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+              className="w-full rounded-xl border border-white/15 p-2.5 text-sm"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">To</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">To</label>
             <input
               type="date"
               value={endsOn}
@@ -106,21 +106,21 @@ export default function ShadowCoachAssignModal({ open, onClose, clientId, primar
                 setEndsOn(e.target.value);
                 reset();
               }}
-              className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+              className="w-full rounded-xl border border-white/15 p-2.5 text-sm"
             />
           </div>
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Reason (optional)</label>
+          <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Reason (optional)</label>
           <input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="e.g. Primary coach unavailable, no leave on file"
-            className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+            className="w-full rounded-xl border border-white/15 p-2.5 text-sm"
           />
         </div>
 
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="text-xs text-red-400">{error}</p>}
 
         {plan === null ? (
           <Button className="w-full" loading={loading} onClick={search}>
@@ -129,14 +129,14 @@ export default function ShadowCoachAssignModal({ open, onClose, clientId, primar
         ) : (
           <div className="space-y-2">
             {plan.assignments.length === 0 && plan.uncoveredDates.length === 0 && (
-              <p className="rounded-lg bg-black/[0.03] p-3 text-sm text-black/50">
+              <p className="rounded-lg bg-white/[0.03] p-3 text-sm text-white/50">
                 This client has no sessions with their current coach in that range.
               </p>
             )}
             {plan.assignments.map((a, i) => (
-              <div key={i} className="rounded-xl border border-black/10 p-3 text-sm">
+              <div key={i} className="rounded-xl border border-white/10 p-3 text-sm">
                 <span className="font-semibold">{a.shadowCoachName}</span>
-                <span className="text-black/45">
+                <span className="text-white/45">
                   {" "}
                   — {formatDate(a.startsOn)}
                   {a.endsOn !== a.startsOn ? ` – ${formatDate(a.endsOn)}` : ""}
@@ -144,7 +144,7 @@ export default function ShadowCoachAssignModal({ open, onClose, clientId, primar
               </div>
             ))}
             {plan.uncoveredDates.length > 0 && (
-              <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <div className="rounded-xl border border-red-200 bg-red-400/10 p-3 text-sm text-red-400">
                 No coach free on: {plan.uncoveredDates.map((d) => formatDate(d)).join(", ")}
               </div>
             )}

@@ -26,13 +26,13 @@ export default function RenewalOpportunitiesClient({ rows, role }: { rows: Renew
 
   return (
     <>
-      <div className="mb-5 flex gap-1 rounded-xl bg-black/5 p-1">
+      <div className="mb-5 flex gap-1 rounded-xl bg-white/5 p-1">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`flex-1 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-bold transition-colors ${
-              tab === t.key ? "bg-white shadow-card" : "text-black/50 hover:text-black"
+              tab === t.key ? "bg-bg-elevated shadow-card" : "text-white/50 hover:text-white"
             }`}
           >
             {t.label} ({rows.filter((r) => r.category === t.key).length})
@@ -49,7 +49,7 @@ export default function RenewalOpportunitiesClient({ rows, role }: { rows: Renew
       ) : (
         <Card className="overflow-hidden">
           <div
-            className={`hidden grid-cols-12 gap-4 border-b border-black/[0.06] px-5 py-3 text-xs font-bold uppercase text-black/40 sm:grid`}
+            className={`hidden grid-cols-12 gap-4 border-b border-white/[0.06] px-5 py-3 text-xs font-bold uppercase text-white/40 sm:grid`}
           >
             <div className="col-span-3">Client</div>
             <div className="col-span-2">Plan</div>
@@ -57,12 +57,12 @@ export default function RenewalOpportunitiesClient({ rows, role }: { rows: Renew
             <div className={role === "admin" ? "col-span-2" : "col-span-3"}>Sessions Left</div>
             <div className={role === "admin" ? "col-span-3" : "col-span-4"}>Renewed?</div>
           </div>
-          <div className="divide-y divide-black/[0.05]">
+          <div className="divide-y divide-white/[0.05]">
             {filtered.map((r) => (
               <Link
                 key={r.clientId}
                 href={`/${role}/clients/${r.clientId}`}
-                className="grid grid-cols-2 items-center gap-4 px-5 py-4 hover:bg-black/[0.02] sm:grid-cols-12"
+                className="grid grid-cols-2 items-center gap-4 px-5 py-4 hover:bg-white/[0.02] sm:grid-cols-12"
               >
                 <div className="col-span-2 flex items-center gap-3 sm:col-span-3">
                   <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full">
@@ -70,12 +70,12 @@ export default function RenewalOpportunitiesClient({ rows, role }: { rows: Renew
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold">{r.clientName}</p>
-                    <p className="truncate text-xs text-black/40">{r.clientCode || "—"}</p>
+                    <p className="truncate text-xs text-white/40">{r.clientCode || "—"}</p>
                   </div>
                 </div>
-                <div className="col-span-1 text-sm text-black/60 sm:col-span-2">{r.packageName ?? "—"}</div>
-                {role === "admin" && <div className="col-span-1 text-sm text-black/60 sm:col-span-2">{r.coachName ?? "—"}</div>}
-                <div className={`col-span-1 text-sm font-bold text-black/70 ${role === "admin" ? "sm:col-span-2" : "sm:col-span-3"}`}>
+                <div className="col-span-1 text-sm text-white/60 sm:col-span-2">{r.packageName ?? "—"}</div>
+                {role === "admin" && <div className="col-span-1 text-sm text-white/60 sm:col-span-2">{r.coachName ?? "—"}</div>}
+                <div className={`col-span-1 text-sm font-bold text-white/70 ${role === "admin" ? "sm:col-span-2" : "sm:col-span-3"}`}>
                   {r.sessionsRemaining}
                 </div>
                 <div className={`col-span-1 ${role === "admin" ? "sm:col-span-3" : "sm:col-span-4"}`}>

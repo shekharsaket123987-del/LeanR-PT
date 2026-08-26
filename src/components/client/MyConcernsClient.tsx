@@ -61,23 +61,23 @@ export default function MyConcernsClient({ concerns }: { concerns: MyConcernView
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <Badge variant="gray">{categoryLabel(c.category)}</Badge>
                 <Badge variant={badge.variant}>{badge.label}</Badge>
-                <span className="text-xs text-black/40">Raised {formatDate(c.createdAt)}</span>
-                {c.resolvedAt && <span className="text-xs text-black/40">· Resolved {formatDate(c.resolvedAt)}</span>}
+                <span className="text-xs text-white/40">Raised {formatDate(c.createdAt)}</span>
+                {c.resolvedAt && <span className="text-xs text-white/40">· Resolved {formatDate(c.resolvedAt)}</span>}
               </div>
-              {c.description && <p className="text-sm text-black/65">{c.description}</p>}
+              {c.description && <p className="text-sm text-white/65">{c.description}</p>}
               {c.notes.length > 0 && (
                 <div className="mt-2 space-y-2">
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-black/40">Updates from LEANR</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-white/40">Updates from LEANR</p>
                   {c.notes.map((n, i) => (
-                    <div key={i} className="rounded-lg bg-black/[0.03] p-3">
-                      <p className="text-xs text-black/70">{n.note}</p>
-                      <p className="mt-1 text-[11px] text-black/40">{formatDate(n.createdAt)}</p>
+                    <div key={i} className="rounded-lg bg-white/[0.03] p-3">
+                      <p className="text-xs text-white/70">{n.note}</p>
+                      <p className="mt-1 text-[11px] text-white/40">{formatDate(n.createdAt)}</p>
                     </div>
                   ))}
                 </div>
               )}
               {c.status === "resolved" && c.resolutionNotes && (
-                <p className="mt-2 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800">
+                <p className="mt-2 rounded-lg bg-emerald-400/10 p-3 text-xs text-emerald-400">
                   <span className="font-bold">Resolution: </span>
                   {c.resolutionNotes}
                 </p>
@@ -90,8 +90,8 @@ export default function MyConcernsClient({ concerns }: { concerns: MyConcernView
       <Modal open={open} onClose={() => setOpen(false)} title="Raise a Concern">
         <div className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Category</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-xl border border-black/15 p-3 text-sm">
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Category</label>
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-xl border border-white/15 p-3 text-sm">
               {CONCERN_CATEGORIES.map((c) => (
                 <option key={c.value} value={c.value}>
                   {c.label}
@@ -100,10 +100,10 @@ export default function MyConcernsClient({ concerns }: { concerns: MyConcernView
             </select>
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Details (optional)</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="w-full rounded-xl border border-black/15 p-3 text-sm" />
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Details (optional)</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="w-full rounded-xl border border-white/15 p-3 text-sm" />
           </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p className="text-xs text-red-400">{error}</p>}
           <Button className="w-full" loading={busy} onClick={submit}>
             Submit
           </Button>

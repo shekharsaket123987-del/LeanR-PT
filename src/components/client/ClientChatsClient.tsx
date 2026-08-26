@@ -60,12 +60,12 @@ export default function ClientChatsClient({ conversations }: { conversations: Cl
                       </span>
                       <span className="text-sm font-bold">{c.coach.name}</span>
                       {c.unreadCount > 0 && (
-                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
+                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-400/100 px-1.5 text-[11px] font-bold text-white">
                           {c.unreadCount}
                         </span>
                       )}
                     </span>
-                    <span className="text-xs font-semibold text-black/40">{open ? "Hide" : "View"}</span>
+                    <span className="text-xs font-semibold text-white/40">{open ? "Hide" : "View"}</span>
                   </button>
                   {open && (
                     <div className="mt-4">

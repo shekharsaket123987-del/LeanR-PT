@@ -42,16 +42,16 @@ export default function CoachScheduleClient({
         title="Schedule"
         description="Your upcoming bookings, day by day."
         action={
-          <div className="flex gap-1 rounded-xl bg-black/5 p-1">
+          <div className="flex gap-1 rounded-xl bg-white/5 p-1">
             <button
               onClick={() => setView("day")}
-              className={`rounded-lg px-4 py-2 text-sm font-bold ${view === "day" ? "bg-white shadow-card" : "text-black/50"}`}
+              className={`rounded-lg px-4 py-2 text-sm font-bold ${view === "day" ? "bg-bg-elevated shadow-card" : "text-white/50"}`}
             >
               Day
             </button>
             <button
               onClick={() => setView("week")}
-              className={`rounded-lg px-4 py-2 text-sm font-bold ${view === "week" ? "bg-white shadow-card" : "text-black/50"}`}
+              className={`rounded-lg px-4 py-2 text-sm font-bold ${view === "week" ? "bg-bg-elevated shadow-card" : "text-white/50"}`}
             >
               Week
             </button>
@@ -74,20 +74,20 @@ export default function CoachScheduleClient({
                 type="button"
                 onClick={() => daySessions.length > 0 && setSelectedDay(d)}
                 className={`rounded-2xl border p-3 text-left transition-colors ${
-                  isToday ? "border-brand-yellow bg-brand-yellow/5" : "border-black/[0.06] bg-white"
-                } ${daySessions.length > 0 ? "hover:border-black/25 cursor-pointer" : "cursor-default"}`}
+                  isToday ? "border-brand-yellow bg-brand-yellow/5" : "border-white/[0.06] bg-bg-elevated"
+                } ${daySessions.length > 0 ? "hover:border-white/25 cursor-pointer" : "cursor-default"}`}
               >
-                <p className="mb-2 text-center text-xs font-bold text-black/60">
+                <p className="mb-2 text-center text-xs font-bold text-white/60">
                   {d.toLocaleDateString("en-US", { weekday: "short" })}
                   <br />
                   <span className="text-base">{d.getDate()}</span>
                 </p>
                 <div className="flex flex-col items-center gap-1 py-2">
                   {daySessions.length === 0 ? (
-                    <p className="text-[10px] text-black/25">—</p>
+                    <p className="text-[10px] text-white/25">—</p>
                   ) : (
                     <>
-                      <CalendarDays className="h-4 w-4 text-black/40" />
+                      <CalendarDays className="h-4 w-4 text-white/40" />
                       <p className="text-xs font-bold">
                         {daySessions.length} session{daySessions.length === 1 ? "" : "s"}
                       </p>
@@ -114,7 +114,7 @@ export default function CoachScheduleClient({
                 <a
                   key={s.id}
                   href={`/coach/session/${s.id}`}
-                  className="flex items-center gap-3 rounded-xl border border-black/10 p-3 hover:border-black/25"
+                  className="flex items-center gap-3 rounded-xl border border-white/10 p-3 hover:border-white/25"
                 >
                   <div className="w-16 shrink-0 text-sm font-bold">{formatTime(s.date)}</div>
                   <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full">

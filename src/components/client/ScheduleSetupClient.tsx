@@ -198,11 +198,11 @@ export default function ScheduleSetupClient({
   if (kept) {
     return (
       <Card className="mx-auto max-w-xl p-6">
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100">
-          <Check className="h-6 w-6 text-emerald-600" />
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400/10">
+          <Check className="h-6 w-6 text-emerald-400" />
         </div>
         <p className="text-display text-xl font-bold italic">You're all set!</p>
-        <p className="mt-2 text-sm text-black/60">
+        <p className="mt-2 text-sm text-white/60">
           Your schedule with {options.coach?.name} carries over exactly as it was -- nothing else to do.
         </p>
         <Button href="/client/dashboard" className="mt-6">
@@ -215,13 +215,13 @@ export default function ScheduleSetupClient({
   if (confirmed && result) {
     return (
       <Card className="mx-auto max-w-xl p-6">
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100">
-          <Check className="h-6 w-6 text-emerald-600" />
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400/10">
+          <Check className="h-6 w-6 text-emerald-400" />
         </div>
         <p className="text-display text-xl font-bold italic">
           {scheduleMode !== "setup" ? "Your schedule has been updated!" : "Your recurring schedule is set!"}
         </p>
-        <p className="mt-2 text-sm text-black/60">
+        <p className="mt-2 text-sm text-white/60">
           {daysLabel(result.days)} at {formatHour(Number(result.timeOfDay.split(":")[0]))}, with{" "}
           {result.newCoach?.name ?? options.coach?.name}. Your next few sessions have already been added to your calendar.
         </p>
@@ -241,15 +241,15 @@ export default function ScheduleSetupClient({
           </div>
           <div>
             <p className="text-sm font-bold">{options.coach.name}</p>
-            <p className="text-xs text-black/45">{options.coach.specialization}</p>
+            <p className="text-xs text-white/45">{options.coach.specialization}</p>
           </div>
         </Card>
         <Card className="p-6">
           <p className="text-sm font-bold">
             Keep training with {options.coach.name} at {daysAndTimeLabel(options.existingSchedule)}?
           </p>
-          <p className="mt-1 text-xs text-black/45">Your renewed plan can carry your exact schedule over with no changes.</p>
-          {keepError && <p className="mt-3 text-xs text-red-600">{keepError}</p>}
+          <p className="mt-1 text-xs text-white/45">Your renewed plan can carry your exact schedule over with no changes.</p>
+          {keepError && <p className="mt-3 text-xs text-red-400">{keepError}</p>}
           <div className="mt-5 flex flex-wrap gap-3">
             <Button loading={keepingSchedule} onClick={keepSchedule}>
               Keep My Schedule
@@ -272,21 +272,21 @@ export default function ScheduleSetupClient({
           </div>
           <div>
             <p className="text-sm font-bold">{options.coach.name}</p>
-            <p className="text-xs text-black/45">{options.coach.specialization}</p>
+            <p className="text-xs text-white/45">{options.coach.specialization}</p>
           </div>
         </Card>
       )}
 
       <Card className="p-6">
         <div className="mb-6">
-          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-black/40">Time</p>
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-white/40">Time</p>
           <select
             value={preferredTime}
             onChange={(e) => {
               setPreferredTime(e.target.value);
               resetResult();
             }}
-            className="w-full max-w-[220px] rounded-xl border border-black/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
+            className="w-full max-w-[220px] rounded-xl border border-white/15 p-3 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
           >
             {grid.map((h) => (
               <option key={h} value={`${String(h).padStart(2, "0")}:00`}>
@@ -298,7 +298,7 @@ export default function ScheduleSetupClient({
 
         {mode === "standard" && (
           <>
-            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-black/40">How Many Days a Week?</p>
+            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-white/40">How Many Days a Week?</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {STANDARD_PATTERNS.map((p) => (
                 <button
@@ -309,15 +309,15 @@ export default function ScheduleSetupClient({
                     resetResult();
                   }}
                   className={`rounded-xl border-2 p-4 text-left transition-colors ${
-                    standardPattern === p.key ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10 hover:border-black/25"
+                    standardPattern === p.key ? "border-brand-yellow bg-brand-yellow/10" : "border-white/10 hover:border-white/25"
                   }`}
                 >
                   <p className="text-sm font-bold">{p.label}</p>
-                  <p className="mt-0.5 text-xs text-black/45">{p.hint}</p>
+                  <p className="mt-0.5 text-xs text-white/45">{p.hint}</p>
                 </button>
               ))}
             </div>
-            <button type="button" onClick={openMoreOptions} className="mt-4 text-xs font-bold text-black/50 underline hover:text-black">
+            <button type="button" onClick={openMoreOptions} className="mt-4 text-xs font-bold text-white/50 underline hover:text-white">
               Not happy with these slots?
             </button>
           </>
@@ -325,11 +325,11 @@ export default function ScheduleSetupClient({
 
         {mode !== "standard" && (
           <>
-            <button type="button" onClick={backToStandard} className="mb-4 flex items-center gap-1 text-xs font-bold text-black/50 hover:text-black">
+            <button type="button" onClick={backToStandard} className="mb-4 flex items-center gap-1 text-xs font-bold text-white/50 hover:text-white">
               <ChevronLeft className="h-3.5 w-3.5" /> Back to standard patterns
             </button>
 
-            <div className="mb-4 flex gap-2 rounded-xl bg-black/5 p-1">
+            <div className="mb-4 flex gap-2 rounded-xl bg-white/5 p-1">
               <button
                 type="button"
                 onClick={() => {
@@ -337,7 +337,7 @@ export default function ScheduleSetupClient({
                   setCustomDays([]);
                   resetResult();
                 }}
-                className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold ${mode === "pair" ? "bg-white shadow-card" : "text-black/50"}`}
+                className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold ${mode === "pair" ? "bg-bg-elevated shadow-card" : "text-white/50"}`}
               >
                 2 Days a Week
               </button>
@@ -348,7 +348,7 @@ export default function ScheduleSetupClient({
                   setSelectedPair(null);
                   resetResult();
                 }}
-                className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold ${mode === "custom" ? "bg-white shadow-card" : "text-black/50"}`}
+                className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold ${mode === "custom" ? "bg-bg-elevated shadow-card" : "text-white/50"}`}
               >
                 Choose Your Own Days
               </button>
@@ -356,7 +356,7 @@ export default function ScheduleSetupClient({
 
             {mode === "pair" && (
               <div>
-                <p className="mb-3 text-xs text-black/50">Pick a fixed 2-day-a-week pairing.</p>
+                <p className="mb-3 text-xs text-white/50">Pick a fixed 2-day-a-week pairing.</p>
                 <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
                   {PAIR_OPTIONS.map((pair) => (
                     <button
@@ -367,7 +367,7 @@ export default function ScheduleSetupClient({
                         resetResult();
                       }}
                       className={`rounded-xl border-2 py-3 text-xs font-bold ${
-                        selectedPair && samePair(selectedPair, pair) ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10 hover:border-black/25"
+                        selectedPair && samePair(selectedPair, pair) ? "border-brand-yellow bg-brand-yellow/10" : "border-white/10 hover:border-white/25"
                       }`}
                     >
                       {daysLabel(pair)}
@@ -379,7 +379,7 @@ export default function ScheduleSetupClient({
 
             {mode === "custom" && (
               <div>
-                <p className="mb-3 text-xs text-black/50">Pick 2–5 days ({customDays.length} selected). Sunday is always off.</p>
+                <p className="mb-3 text-xs text-white/50">Pick 2–5 days ({customDays.length} selected). Sunday is always off.</p>
                 <div className="grid grid-cols-6 gap-1.5">
                   {CUSTOM_DAYS.map((day) => (
                     <button
@@ -387,7 +387,7 @@ export default function ScheduleSetupClient({
                       type="button"
                       onClick={() => toggleCustomDay(day)}
                       className={`rounded-lg border py-2 text-[11px] font-bold ${
-                        customDays.includes(day) ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10 hover:border-black/25"
+                        customDays.includes(day) ? "border-brand-yellow bg-brand-yellow/10" : "border-white/10 hover:border-white/25"
                       }`}
                     >
                       {DAY_LABELS[day]}
@@ -401,7 +401,7 @@ export default function ScheduleSetupClient({
 
         {(scheduleMode === "change" || scheduleMode === "renewal") && (
           <div className="mt-6">
-            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-black/40">Trainer Preference</p>
+            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-white/40">Trainer Preference</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {(scheduleMode === "renewal" ? RENEWAL_COACH_PREFERENCE_OPTIONS : COACH_PREFERENCE_OPTIONS).map((p) => (
                 <button
@@ -412,18 +412,18 @@ export default function ScheduleSetupClient({
                     resetResult();
                   }}
                   className={`rounded-xl border-2 p-4 text-left transition-colors ${
-                    coachPreference === p.key ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10 hover:border-black/25"
+                    coachPreference === p.key ? "border-brand-yellow bg-brand-yellow/10" : "border-white/10 hover:border-white/25"
                   }`}
                 >
                   <p className="text-sm font-bold">{p.label}</p>
-                  <p className="mt-0.5 text-xs text-black/45">{p.hint}</p>
+                  <p className="mt-0.5 text-xs text-white/45">{p.hint}</p>
                 </button>
               ))}
             </div>
 
             {scheduleMode === "renewal" && coachPreference === "new" && (
               <div className="mt-4">
-                <p className="mb-3 text-xs font-bold uppercase tracking-wide text-black/40">Trainer Gender</p>
+                <p className="mb-3 text-xs font-bold uppercase tracking-wide text-white/40">Trainer Gender</p>
                 <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                   {GENDER_PREFERENCE_OPTIONS.map((g) => (
                     <button
@@ -434,7 +434,7 @@ export default function ScheduleSetupClient({
                         resetResult();
                       }}
                       className={`rounded-xl border-2 py-2.5 text-xs font-bold ${
-                        genderPreference === g.key ? "border-brand-yellow bg-brand-yellow/10" : "border-black/10 hover:border-black/25"
+                        genderPreference === g.key ? "border-brand-yellow bg-brand-yellow/10" : "border-white/10 hover:border-white/25"
                       }`}
                     >
                       {g.label}
@@ -452,14 +452,14 @@ export default function ScheduleSetupClient({
           </Button>
         </div>
 
-        {checkError && <p className="mt-4 text-sm text-red-600">{checkError}</p>}
+        {checkError && <p className="mt-4 text-sm text-red-400">{checkError}</p>}
 
         {result === null && !reportedToAdmin && (
-          <div className="mt-6 rounded-xl border border-dashed border-black/15 p-4">
+          <div className="mt-6 rounded-xl border border-dashed border-white/15 p-4">
             <p className="flex items-center gap-2 text-sm font-bold">
               <Info className="h-4 w-4" /> No match found for that option.
             </p>
-            <p className="mt-1 text-xs text-black/50">
+            <p className="mt-1 text-xs text-white/50">
               {mode !== "standard"
                 ? "We tried this option at every available hour and couldn't find a fit."
                 : options.coach
@@ -479,15 +479,15 @@ export default function ScheduleSetupClient({
           </div>
         )}
 
-        {reportedToAdmin && <p className="mt-4 text-sm text-black/60">Our operations team has been notified and will follow up shortly.</p>}
+        {reportedToAdmin && <p className="mt-4 text-sm text-white/60">Our operations team has been notified and will follow up shortly.</p>}
 
         {result && (
-          <div className="mt-6 rounded-xl bg-black/[0.03] p-4">
+          <div className="mt-6 rounded-xl bg-white/[0.03] p-4">
             <p className="flex items-center gap-2 text-sm font-bold">
               <CalendarClock className="h-4 w-4" />
               {result.exact ? "Available as requested" : "Closest available match"}
             </p>
-            <p className="mt-1 text-sm text-black/60">
+            <p className="mt-1 text-sm text-white/60">
               {daysLabel(result.days)} at {formatHour(Number(result.timeOfDay.split(":")[0]))}
               {result.newCoach && <> — matched with <span className="font-bold">{result.newCoach.name}</span></>}
             </p>

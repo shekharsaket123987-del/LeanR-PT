@@ -51,17 +51,17 @@ export default function LeaveRequestsClient({ requests }: { requests: AdminLeave
 
   return (
     <div className="space-y-3">
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-red-400">{error}</p>}
 
       {justApproved && (
-        <Card className="space-y-3 border-emerald-200 bg-emerald-50 p-4">
-          <p className="text-sm font-bold text-emerald-900">
+        <Card className="space-y-3 border-emerald-400/25 bg-emerald-400/10 p-4">
+          <p className="text-sm font-bold text-emerald-300">
             Leave approved for {justApproved.request.coachName} ({formatDate(justApproved.request.startsOn)}–{formatDate(justApproved.request.endsOn)})
           </p>
           {justApproved.summary.assigned.length > 0 && (
             <div>
-              <p className="text-xs font-bold uppercase text-emerald-700">Shadow coverage auto-assigned</p>
-              <ul className="mt-1 space-y-0.5 text-xs text-emerald-800">
+              <p className="text-xs font-bold uppercase text-emerald-400">Shadow coverage auto-assigned</p>
+              <ul className="mt-1 space-y-0.5 text-xs text-emerald-400">
                 {justApproved.summary.assigned.map((a) => (
                   <li key={a.clientId}>
                     {a.clientName} →{" "}
@@ -78,8 +78,8 @@ export default function LeaveRequestsClient({ requests }: { requests: AdminLeave
           )}
           {justApproved.summary.unassignedFlagged.length > 0 && (
             <div>
-              <p className="text-xs font-bold uppercase text-red-700">Needs manual assignment -- no shadow coach available</p>
-              <ul className="mt-1 space-y-0.5 text-xs text-red-700">
+              <p className="text-xs font-bold uppercase text-red-400">Needs manual assignment -- no shadow coach available</p>
+              <ul className="mt-1 space-y-0.5 text-xs text-red-400">
                 {justApproved.summary.unassignedFlagged.map((c) => (
                   <li key={c.clientId}>
                     {c.clientName} ({c.uncoveredDates.map((d) => formatDate(d)).join(", ")})
@@ -94,10 +94,10 @@ export default function LeaveRequestsClient({ requests }: { requests: AdminLeave
             </div>
           )}
           {justApproved.summary.assigned.length === 0 && justApproved.summary.unassignedFlagged.length === 0 && (
-            <p className="text-xs text-emerald-700">This coach has no active clients affected during the leave window.</p>
+            <p className="text-xs text-emerald-400">This coach has no active clients affected during the leave window.</p>
           )}
           {leaveDurationDays(justApproved.request.startsOn, justApproved.request.endsOn) >= LONG_LEAVE_THRESHOLD_DAYS && (
-            <div className="flex items-start gap-2 rounded-lg bg-amber-100 p-3 text-xs text-amber-900">
+            <div className="flex items-start gap-2 rounded-lg bg-amber-100 p-3 text-xs text-amber-300">
               <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>
                 This leave is {leaveDurationDays(justApproved.request.startsOn, justApproved.request.endsOn)} days -- long enough that a
@@ -116,7 +116,7 @@ export default function LeaveRequestsClient({ requests }: { requests: AdminLeave
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-yellow/15">
-                  <Clock3 className="h-5 w-5 text-black/70" />
+                  <Clock3 className="h-5 w-5 text-white/70" />
                 </div>
                 <div>
                   <p className="flex items-center gap-1.5 text-sm font-bold">
@@ -125,14 +125,14 @@ export default function LeaveRequestsClient({ requests }: { requests: AdminLeave
                       <Badge variant="outline-yellow">{leaveDurationDays(r.startsOn, r.endsOn)}+ days</Badge>
                     )}
                   </p>
-                  <p className="text-xs text-black/45">
+                  <p className="text-xs text-white/45">
                     {r.leaveType === "partial"
                       ? `${formatDate(r.startsOn)} · ${r.partialStartTime?.slice(0, 5)}–${r.partialEndTime?.slice(0, 5)}`
                       : `${formatDate(r.startsOn)} – ${formatDate(r.endsOn)}`}
                   </p>
                 </div>
               </div>
-              {r.reason && <p className="flex-1 rounded-lg bg-black/[0.03] p-3 text-xs text-black/60">&ldquo;{r.reason}&rdquo;</p>}
+              {r.reason && <p className="flex-1 rounded-lg bg-white/[0.03] p-3 text-xs text-white/60">&ldquo;{r.reason}&rdquo;</p>}
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" loading={busyId === r.id} onClick={() => resolve(r, "rejected")}>
                   <XCircle className="h-3.5 w-3.5" /> Reject
@@ -142,7 +142,7 @@ export default function LeaveRequestsClient({ requests }: { requests: AdminLeave
                 </Button>
               </div>
             </div>
-            <p className="mt-3 text-[11px] text-black/35">Submitted {formatDate(r.submittedAt)}</p>
+            <p className="mt-3 text-[11px] text-white/35">Submitted {formatDate(r.submittedAt)}</p>
           </Card>
         ))}
     </div>

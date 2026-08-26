@@ -18,7 +18,7 @@ export default function ChangeScheduleClient({ options }: { options: ScheduleSet
   return (
     <Card className="p-6">
       <p className="text-sm font-bold">You already have an active recurring schedule</p>
-      <ul className="mt-3 space-y-1 text-sm text-black/60">
+      <ul className="mt-3 space-y-1 text-sm text-white/60">
         {(options.existingSchedule ?? []).map((s, i) => (
           <li key={i}>
             {DAY_LABELS[s.dayOfWeek]} at {s.startTime.slice(0, 5)}

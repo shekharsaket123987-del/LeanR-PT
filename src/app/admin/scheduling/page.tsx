@@ -11,17 +11,17 @@ function Section({ title, entries, emptyLabel }: { title: string; entries: Sched
   return (
     <div className="mt-8">
       <h2 className="text-display mb-4 text-xl font-bold italic">
-        {title} <span className="text-sm font-normal not-italic text-black/40">({entries.length})</span>
+        {title} <span className="text-sm font-normal not-italic text-white/40">({entries.length})</span>
       </h2>
       {entries.length === 0 ? (
-        <p className="text-sm text-black/45">{emptyLabel}</p>
+        <p className="text-sm text-white/45">{emptyLabel}</p>
       ) : (
         <div className="space-y-3">
           {entries.slice(0, 10).map((e) => (
             <Card key={e.id} className="p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-sm font-bold">{e.clientName}</p>
-                <span className="text-xs text-black/40">with {e.coachName}</span>
+                <span className="text-xs text-white/40">with {e.coachName}</span>
                 {e.sessionType === "assessment" ? <AssessmentBadge /> : <Badge variant="gray">Regular</Badge>}
                 <Badge
                   variant={
@@ -37,10 +37,10 @@ function Section({ title, entries, emptyLabel }: { title: string; entries: Sched
                   {e.status}
                 </Badge>
               </div>
-              <p className="mt-1.5 text-xs text-black/50">
+              <p className="mt-1.5 text-xs text-white/50">
                 {formatDate(e.date)} · {formatTime(e.date)}
               </p>
-              {e.note && <p className="mt-1.5 text-xs text-black/60">{e.note}</p>}
+              {e.note && <p className="mt-1.5 text-xs text-white/60">{e.note}</p>}
             </Card>
           ))}
         </div>

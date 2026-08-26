@@ -2,17 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --glass-hairline: rgba(255, 255, 255, 0.09);
+  --glass-hairline-strong: rgba(255, 255, 255, 0.16);
+  --yellow-glow: rgba(245, 217, 10, 0.35);
+}
+
 html {
   scroll-behavior: smooth;
+  background: #060606;
 }
 
 body {
-  @apply bg-[#FAFAFA] text-[#111111] font-body;
+  @apply bg-bg text-white font-body;
 }
 
 ::selection {
-  background: #F5E400;
-  color: #000;
+  background: #F5D90A;
+  color: #060606;
 }
 
 .scrollbar-none::-webkit-scrollbar {
@@ -23,16 +30,100 @@ body {
   scrollbar-width: none;
 }
 
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(245, 217, 10, 0.25);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 217, 10, 0.45);
+}
+
 .text-display {
   font-family: var(--font-display);
   letter-spacing: -0.01em;
 }
 
+.italic-skew {
+  display: inline-block;
+  font-style: italic;
+  transform: skewX(-6deg);
+}
+
 @layer utilities {
   .brand-gradient-text {
-    background: linear-gradient(90deg, #F5E400 0%, #FFE600 100%);
+    background: linear-gradient(90deg, #F5D90A 0%, #FFE94D 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
+}
+
+/* ---------------- Glassmorphism system ---------------- */
+
+.glass {
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--glass-hairline);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.08) inset,
+    0 0 0 1px rgba(0, 0, 0, 0.2),
+    0 20px 60px -20px rgba(0, 0, 0, 0.7);
+}
+
+.glass-strong {
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid var(--glass-hairline-strong);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.12) inset,
+    0 0 0 1px rgba(0, 0, 0, 0.25),
+    0 25px 70px -20px rgba(0, 0, 0, 0.8);
+}
+
+.glass-faint {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-yellow {
+  background: linear-gradient(155deg, rgba(245, 217, 10, 0.22), rgba(245, 217, 10, 0.06));
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(245, 217, 10, 0.4);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.25) inset,
+    0 0 40px -8px var(--yellow-glow);
+}
+
+.glow-yellow {
+  box-shadow: 0 0 60px -10px var(--yellow-glow);
+}
+
+.text-glow {
+  text-shadow: 0 0 30px var(--yellow-glow);
+}
+
+.container-px {
+  padding-left: clamp(1.25rem, 5vw, 6rem);
+  padding-right: clamp(1.25rem, 5vw, 6rem);
+}
+
+.noise::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.035;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxNjAnIGhlaWdodD0nMTYwJz48ZmlsdGVyIGlkPSduJz48ZmVUdXJidWxlbmNlIHR5cGU9J2ZyYWN0YWxOb2lzZScgYmFzZUZyZXF1ZW5jeT0nMC45JyBudW1PY3RhdmVzPScyJyBzdGl0Y2hUaWxlcz0nc3RpdGNoJy8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9JzEwMCUnIGhlaWdodD0nMTAwJScgZmlsdGVyPSd1cmwoI24pJy8+PC9zdmc+");
 }

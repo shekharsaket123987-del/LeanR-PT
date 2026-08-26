@@ -57,21 +57,21 @@ export default function AdminEscalationDetailClient({ escalation }: { escalation
 
   return (
     <div className="space-y-5">
-      {error && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600">{error}</p>}
+      {error && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</p>}
 
       {/* Client's own report -- read-only, exactly what they submitted */}
       <Card className="p-6">
-        <p className="mb-3 text-xs font-bold uppercase tracking-wide text-black/40">Client&apos;s Report</p>
+        <p className="mb-3 text-xs font-bold uppercase tracking-wide text-white/40">Client&apos;s Report</p>
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[11px] font-bold text-black/40">{escalation.clientCode || `#${escalation.id.slice(0, 8).toUpperCase()}`}</span>
+          <span className="font-mono text-[11px] font-bold text-white/40">{escalation.clientCode || `#${escalation.id.slice(0, 8).toUpperCase()}`}</span>
           <Badge variant="gray">{categoryLabel(escalation.category)}</Badge>
           <Badge variant={badge.variant}>{badge.label}</Badge>
         </div>
         <p className="text-sm font-bold">{escalation.clientName}</p>
-        {escalation.coachName && <p className="text-xs text-black/45">Coach: {escalation.coachName}</p>}
-        <p className="mt-2 text-sm text-black/70">{escalation.reason}</p>
-        {escalation.description && <p className="mt-1 text-sm text-black/55">{escalation.description}</p>}
-        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-black/40">
+        {escalation.coachName && <p className="text-xs text-white/45">Coach: {escalation.coachName}</p>}
+        <p className="mt-2 text-sm text-white/70">{escalation.reason}</p>
+        {escalation.description && <p className="mt-1 text-sm text-white/55">{escalation.description}</p>}
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-white/40">
           <span>Raised: {formatDate(escalation.createdAt)} · {formatTime(escalation.createdAt)}</span>
           {escalation.resolvedAt && <span>Resolved: {formatDate(escalation.resolvedAt)} · {formatTime(escalation.resolvedAt)}</span>}
         </div>
@@ -81,10 +81,10 @@ export default function AdminEscalationDetailClient({ escalation }: { escalation
       {!called ? (
         <Card className="p-6">
           <div className="flex items-start gap-3">
-            <PhoneCall className="mt-0.5 h-5 w-5 shrink-0 text-black/50" />
+            <PhoneCall className="mt-0.5 h-5 w-5 shrink-0 text-white/50" />
             <div>
               <p className="text-sm font-bold">Call the client first</p>
-              <p className="mt-1 text-xs text-black/50">
+              <p className="mt-1 text-xs text-white/50">
                 Discuss the issue with the client over the phone before working the case. Once confirmed, issue classification,
                 fault, and status changes unlock below.
               </p>
@@ -96,16 +96,16 @@ export default function AdminEscalationDetailClient({ escalation }: { escalation
         </Card>
       ) : (
         <>
-          <p className="text-xs text-black/40">
+          <p className="text-xs text-white/40">
             Called the client on {formatDate(escalation.calledClientAt!)} · {formatTime(escalation.calledClientAt!)}
           </p>
 
           <Card className="p-6">
-            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-black/40">Admin Assessment</p>
+            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-white/40">Admin Assessment</p>
             <div className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Issue Type</label>
-                <select value={issueType} onChange={(e) => setIssueType(e.target.value)} className="w-full rounded-xl border border-black/15 p-3 text-sm">
+                <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Issue Type</label>
+                <select value={issueType} onChange={(e) => setIssueType(e.target.value)} className="w-full rounded-xl border border-white/15 p-3 text-sm">
                   <option value="">Select...</option>
                   {ADMIN_ISSUE_TYPES.map((c) => (
                     <option key={c.value} value={c.value}>
@@ -115,8 +115,8 @@ export default function AdminEscalationDetailClient({ escalation }: { escalation
                 </select>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Who&apos;s at Fault</label>
-                <select value={fault} onChange={(e) => setFault(e.target.value)} className="w-full rounded-xl border border-black/15 p-3 text-sm">
+                <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Who&apos;s at Fault</label>
+                <select value={fault} onChange={(e) => setFault(e.target.value)} className="w-full rounded-xl border border-white/15 p-3 text-sm">
                   <option value="">Select...</option>
                   {FAULT_OPTIONS.map((f) => (
                     <option key={f.value} value={f.value}>
@@ -126,13 +126,13 @@ export default function AdminEscalationDetailClient({ escalation }: { escalation
                 </select>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Case Summary (internal)</label>
+                <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Case Summary (internal)</label>
                 <textarea
                   value={adminSummary}
                   onChange={(e) => setAdminSummary(e.target.value)}
                   rows={3}
                   placeholder="What's actually going on, in your own words"
-                  className="w-full rounded-xl border border-black/15 p-3 text-sm"
+                  className="w-full rounded-xl border border-white/15 p-3 text-sm"
                 />
               </div>
               <Button
@@ -147,14 +147,14 @@ export default function AdminEscalationDetailClient({ escalation }: { escalation
 
           {/* Progress notes -- client-visible trail for multi-day cases */}
           <Card className="p-6">
-            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-black/40">Progress Notes</p>
-            <p className="mb-3 text-xs text-black/45">Visible to the client -- use this to log updates while coordinating across teams.</p>
+            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-white/40">Progress Notes</p>
+            <p className="mb-3 text-xs text-white/45">Visible to the client -- use this to log updates while coordinating across teams.</p>
             <div className="mb-4 space-y-3">
-              {escalation.notes.length === 0 && <p className="text-sm text-black/40">No notes yet.</p>}
+              {escalation.notes.length === 0 && <p className="text-sm text-white/40">No notes yet.</p>}
               {escalation.notes.map((n) => (
-                <div key={n.id} className="rounded-lg bg-black/[0.03] p-3">
-                  <p className="text-sm text-black/70">{n.note}</p>
-                  <p className="mt-1 text-[11px] text-black/40">
+                <div key={n.id} className="rounded-lg bg-white/[0.03] p-3">
+                  <p className="text-sm text-white/70">{n.note}</p>
+                  <p className="mt-1 text-[11px] text-white/40">
                     {n.authorName} · {formatDate(n.createdAt)} · {formatTime(n.createdAt)}
                   </p>
                 </div>
@@ -166,7 +166,7 @@ export default function AdminEscalationDetailClient({ escalation }: { escalation
                 onChange={(e) => setNewNote(e.target.value)}
                 rows={2}
                 placeholder="Add a progress update..."
-                className="flex-1 rounded-xl border border-black/15 p-3 text-sm"
+                className="flex-1 rounded-xl border border-white/15 p-3 text-sm"
               />
               <Button
                 loading={busy}
@@ -184,7 +184,7 @@ export default function AdminEscalationDetailClient({ escalation }: { escalation
           {/* Status */}
           {escalation.status !== "resolved" ? (
             <Card className="p-6">
-              <p className="mb-3 text-xs font-bold uppercase tracking-wide text-black/40">Resolve</p>
+              <p className="mb-3 text-xs font-bold uppercase tracking-wide text-white/40">Resolve</p>
               <div className="flex gap-2">
                 {escalation.status === "open" && (
                   <Button variant="outline" loading={busy} onClick={() => run(() => markEscalationInProgressAction(escalation.id))}>
@@ -193,13 +193,13 @@ export default function AdminEscalationDetailClient({ escalation }: { escalation
                 )}
               </div>
               <div className="mt-4">
-                <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Resolution Notes</label>
+                <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Resolution Notes</label>
                 <textarea
                   value={resolutionNotes}
                   onChange={(e) => setResolutionNotes(e.target.value)}
                   rows={3}
                   placeholder="What was done to resolve this -- the client and coach will see this"
-                  className="w-full rounded-xl border border-black/15 p-3 text-sm"
+                  className="w-full rounded-xl border border-white/15 p-3 text-sm"
                 />
               </div>
               <Button className="mt-3" loading={busy} onClick={() => run(() => resolveEscalationAction(escalation.id, resolutionNotes || undefined))}>
@@ -207,11 +207,11 @@ export default function AdminEscalationDetailClient({ escalation }: { escalation
               </Button>
             </Card>
           ) : (
-            <Card className="border-emerald-500/30 bg-emerald-50 p-6">
-              <p className="flex items-center gap-2 text-sm font-bold text-emerald-800">
+            <Card className="border-emerald-500/30 bg-emerald-400/10 p-6">
+              <p className="flex items-center gap-2 text-sm font-bold text-emerald-400">
                 <CheckCircle2 className="h-4 w-4" /> Resolved
               </p>
-              {escalation.resolutionNotes && <p className="mt-2 text-sm text-emerald-800">{escalation.resolutionNotes}</p>}
+              {escalation.resolutionNotes && <p className="mt-2 text-sm text-emerald-400">{escalation.resolutionNotes}</p>}
             </Card>
           )}
         </>

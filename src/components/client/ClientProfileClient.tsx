@@ -125,75 +125,75 @@ export default function ClientProfileClient({ profile }: { profile: ClientProfil
           </div>
           <div>
             <p className="text-display text-xl font-bold italic">{profile.name || "Add your name"}</p>
-            {profile.packageName && <p className="text-sm text-black/45">{profile.packageName}</p>}
+            {profile.packageName && <p className="text-sm text-white/45">{profile.packageName}</p>}
           </div>
           <Button variant="outline" size="sm" className="ml-auto" onClick={openEdit}>
             Edit
           </Button>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 border-t border-black/[0.06] pt-6 sm:grid-cols-2">
+        <div className="mt-6 grid grid-cols-1 gap-4 border-t border-white/[0.06] pt-6 sm:grid-cols-2">
           <div className="flex items-center gap-3 text-sm">
-            <Mail className="h-4 w-4 text-black/40" />
+            <Mail className="h-4 w-4 text-white/40" />
             {profile.email}
           </div>
           <div className="flex items-center gap-3 text-sm">
-            <Phone className="h-4 w-4 text-black/40" />
+            <Phone className="h-4 w-4 text-white/40" />
             {profile.phone || "Not set"}
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-3 gap-4 border-t border-black/[0.06] pt-6">
+        <div className="mt-6 grid grid-cols-3 gap-4 border-t border-white/[0.06] pt-6">
           <div className="flex items-center gap-2 text-sm">
-            <Ruler className="h-4 w-4 text-black/40" />
+            <Ruler className="h-4 w-4 text-white/40" />
             {profile.heightCm ? `${profile.heightCm} cm` : "Height —"}
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <Weight className="h-4 w-4 text-black/40" />
+            <Weight className="h-4 w-4 text-white/40" />
             {profile.weightKg ? `${profile.weightKg} kg` : "Weight —"}
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <Scale className="h-4 w-4 text-black/40" />
+            <Scale className="h-4 w-4 text-white/40" />
             {profile.bmi ? `BMI ${profile.bmi}` : "BMI —"}
           </div>
         </div>
 
-        <div className="mt-6 border-t border-black/[0.06] pt-6">
-          <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-black/40">
+        <div className="mt-6 border-t border-white/[0.06] pt-6">
+          <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-white/40">
             <Target className="h-3.5 w-3.5" /> Goals
           </p>
           <div className="flex flex-wrap gap-2">
-            {profile.goals.length === 0 && <span className="text-sm text-black/40">No goals set yet.</span>}
+            {profile.goals.length === 0 && <span className="text-sm text-white/40">No goals set yet.</span>}
             {profile.goals.map((g) => (
-              <span key={g} className="rounded-full bg-black/5 px-3 py-1 text-xs font-semibold">
+              <span key={g} className="rounded-full bg-white/5 px-3 py-1 text-xs font-semibold">
                 {g}
               </span>
             ))}
           </div>
         </div>
 
-        <div className="mt-6 border-t border-black/[0.06] pt-6">
-          <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-black/40">
+        <div className="mt-6 border-t border-white/[0.06] pt-6">
+          <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-white/40">
             <Dumbbell className="h-3.5 w-3.5" /> Equipment
           </p>
           <div className="flex flex-wrap gap-2">
-            {profile.equipment.length === 0 && <span className="text-sm text-black/40">No equipment listed.</span>}
+            {profile.equipment.length === 0 && <span className="text-sm text-white/40">No equipment listed.</span>}
             {profile.equipment.map((g) => (
-              <span key={g} className="rounded-full bg-black/5 px-3 py-1 text-xs font-semibold">
+              <span key={g} className="rounded-full bg-white/5 px-3 py-1 text-xs font-semibold">
                 {g}
               </span>
             ))}
           </div>
         </div>
 
-        <div className="mt-6 border-t border-black/[0.06] pt-6">
-          <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-black/40">
+        <div className="mt-6 border-t border-white/[0.06] pt-6">
+          <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-white/40">
             <HeartPulse className="h-3.5 w-3.5" /> Medical Notes
           </p>
-          <p className="text-sm text-black/60">{profile.medicalNotes || "None on file."}</p>
+          <p className="text-sm text-white/60">{profile.medicalNotes || "None on file."}</p>
         </div>
 
-        <div className="mt-6 border-t border-black/[0.06] pt-6">
+        <div className="mt-6 border-t border-white/[0.06] pt-6">
           <Button variant="outline" size="sm" onClick={openPasswordModal}>
             <KeyRound className="h-3.5 w-3.5" /> Change Password
           </Button>
@@ -204,24 +204,24 @@ export default function ClientProfileClient({ profile }: { profile: ClientProfil
         {!pwSuccess ? (
           <div className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">New Password</label>
+              <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">New Password</label>
               <input
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+                className="w-full rounded-xl border border-white/15 p-2.5 text-sm"
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Confirm Password</label>
+              <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Confirm Password</label>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+                className="w-full rounded-xl border border-white/15 p-2.5 text-sm"
               />
             </div>
-            {pwError && <p className="text-xs text-red-600">{pwError}</p>}
+            {pwError && <p className="text-xs text-red-400">{pwError}</p>}
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setPwOpen(false)}>
                 Cancel
@@ -234,7 +234,7 @@ export default function ClientProfileClient({ profile }: { profile: ClientProfil
         ) : (
           <div className="py-4 text-center">
             <p className="text-display text-lg font-bold italic">Password updated</p>
-            <p className="mt-1 text-sm text-black/50">Use your new password next time you sign in.</p>
+            <p className="mt-1 text-sm text-white/50">Use your new password next time you sign in.</p>
             <Button className="mt-4" variant="outline" onClick={() => setPwOpen(false)}>
               Close
             </Button>
@@ -269,27 +269,27 @@ export default function ClientProfileClient({ profile }: { profile: ClientProfil
               {!photoUploading && <Camera className="h-3.5 w-3.5" />} Change Photo
             </Button>
           </div>
-          {photoError && <p className="text-xs text-red-600">{photoError}</p>}
+          {photoError && <p className="text-xs text-red-400">{photoError}</p>}
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-black/15 p-2.5 text-sm" />
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Name</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-white/15 p-2.5 text-sm" />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Phone</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl border border-black/15 p-2.5 text-sm" />
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Phone</label>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl border border-white/15 p-2.5 text-sm" />
           </div>
           <TagEditor label="Goals" values={goals} onChange={setGoals} />
           <TagEditor label="Equipment" values={equipment} onChange={setEquipment} />
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase text-black/40">Medical Notes</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Medical Notes</label>
             <textarea
               value={medicalNotes}
               onChange={(e) => setMedicalNotes(e.target.value)}
               rows={3}
-              className="w-full rounded-xl border border-black/15 p-2.5 text-sm"
+              className="w-full rounded-xl border border-white/15 p-2.5 text-sm"
             />
           </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p className="text-xs text-red-400">{error}</p>}
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel

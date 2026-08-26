@@ -10,7 +10,7 @@ export default async function CoachProfilePage() {
     <div className="mx-auto max-w-2xl">
       <PageHeader title="Profile" description="How clients see you across LEANR." />
       {isFailure(result) ? (
-        <p className="text-sm text-red-600">{result.error.message}</p>
+        <p className="text-sm text-red-400">{result.error.message}</p>
       ) : (
         <CoachProfileClient profile={result.data} />
       )}

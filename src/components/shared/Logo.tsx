@@ -1,19 +1,32 @@
+import Image from "next/image";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
-export default function Logo({ dark = true, href = "/" }: { dark?: boolean; size?: string; href?: string }) {
+const LOGO_SRC = "/01_LeanR_by_Fitelo_logo.png";
+const NATIVE_ASPECT = 400 / 376;
+
+export default function Logo({
+  href = "/",
+  height = 32,
+  className,
+}: {
+  dark?: boolean;
+  href?: string;
+  height?: number;
+  className?: string;
+}) {
+  const width = Math.round(height * NATIVE_ASPECT);
   return (
-    <Link href={href} className="inline-flex items-center gap-2">
-      <span
-        className={`text-display text-2xl font-bold italic tracking-tight sm:text-3xl ${
-          dark ? "text-brand-yellow" : "text-black"
-        }`}
-      >
-        LEANR
-      </span>
-      <span className="flex flex-col leading-none">
-        <span className={`font-script text-[11px] italic ${dark ? "text-white/80" : "text-black/60"}`}>By</span>
-        <span className={`text-[11px] font-bold tracking-wide ${dark ? "text-white" : "text-black"}`}>FITELO</span>
-      </span>
+    <Link href={href} className="inline-flex items-center">
+      <Image
+        src={LOGO_SRC}
+        alt="LeanR by Fitelo"
+        width={width}
+        height={height}
+        priority
+        className={cn("mix-blend-screen select-none", className)}
+        style={{ height, width: "auto" }}
+      />
     </Link>
   );
 }

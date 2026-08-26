@@ -27,11 +27,11 @@ export default function Modal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={onClose} />
-      <div className={`relative w-full ${maxWidth} rounded-2xl bg-white p-6 shadow-2xl animate-slide-up max-h-[90vh] overflow-y-auto`}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={onClose} />
+      <div className={`relative w-full ${maxWidth} rounded-2xl glass-strong p-6 animate-slide-up max-h-[90vh] overflow-y-auto text-white`}>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-display text-xl font-bold italic">{title}</h3>
-          <button onClick={onClose} className="rounded-full p-1.5 hover:bg-black/5">
+          <button onClick={onClose} className="rounded-full p-1.5 text-white/60 hover:bg-white/10 hover:text-white">
             <X className="h-5 w-5" />
           </button>
         </div>
