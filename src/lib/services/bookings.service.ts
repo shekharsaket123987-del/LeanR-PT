@@ -255,13 +255,17 @@ export async function sweepOverdueAttendance(accessToken: string) {
     .select("id, scheduled_start, coach:coach_profiles(profile_id), client:client_profiles(profile:profiles(full_name))")
     .in("id", newlyOverdue as string[]);
 
-  for (const b of (bookings as any[]) ?? []) {
-    if (!b.coach?.profile_id) continue;
-    await createFromTemplate("attendance_overdue", b.coach.profile_id, {
-      client_name: b.client?.profile?.full_name ?? "a client",
-      session_time: new Date(b.scheduled_start).toLocaleString(),
-    });
-  }
+  // Each booking's notification is independent of every other's.
+  await Promise.all(
+    ((bookings as any[]) ?? [])
+      .filter((b) => b.coach?.profile_id)
+      .map((b) =>
+        createFromTemplate("attendance_overdue", b.coach.profile_id, {
+          client_name: b.client?.profile?.full_name ?? "a client",
+          session_time: new Date(b.scheduled_start).toLocaleString(),
+        })
+      )
+  );
 }
 
 /** Same "notify exactly once" sweep as sweepOverdueAttendance() above, for
@@ -281,13 +285,17 @@ export async function sweepOverdueNotes(accessToken: string) {
     .select("id, scheduled_start, coach:coach_profiles(profile_id), client:client_profiles(profile:profiles(full_name))")
     .in("id", newlyOverdue as string[]);
 
-  for (const b of (bookings as any[]) ?? []) {
-    if (!b.coach?.profile_id) continue;
-    await createFromTemplate("notes_overdue", b.coach.profile_id, {
-      client_name: b.client?.profile?.full_name ?? "a client",
-      session_time: new Date(b.scheduled_start).toLocaleString(),
-    });
-  }
+  // Each booking's notification is independent of every other's.
+  await Promise.all(
+    ((bookings as any[]) ?? [])
+      .filter((b) => b.coach?.profile_id)
+      .map((b) =>
+        createFromTemplate("notes_overdue", b.coach.profile_id, {
+          client_name: b.client?.profile?.full_name ?? "a client",
+          session_time: new Date(b.scheduled_start).toLocaleString(),
+        })
+      )
+  );
 }
 
 /** Convenience wrapper for immediate booking (hold then confirm back-to-back)
@@ -372,13 +380,15 @@ export async function cancelBooking(accessToken: string, bookingId: string, reas
   });
   if (error) throw error;
 
-  await cleanupZoomMeeting(bookingId, (booking as any).zoom_meeting_id ?? null);
-
-  await logTimelineEvent((booking as any).client_id, "session_cancelled", "Session cancelled", {
-    description: reason,
-    actorId: ctx.userId,
-    metadata: { bookingId },
-  });
+  // Independent side effects -- neither consumes the other's result.
+  await Promise.all([
+    cleanupZoomMeeting(bookingId, (booking as any).zoom_meeting_id ?? null),
+    logTimelineEvent((booking as any).client_id, "session_cancelled", "Session cancelled", {
+      description: reason,
+      actorId: ctx.userId,
+      metadata: { bookingId },
+    }),
+  ]);
 
   if (ctx.role === "client") {
     const clientName = (booking as any).client?.profile?.full_name ?? "Client";
@@ -388,15 +398,17 @@ export async function cancelBooking(accessToken: string, bookingId: string, reas
       .select("profile_id")
       .eq("id", (booking as any).coach_id)
       .maybeSingle();
-    if (coach) {
-      await createFromTemplate("session_cancelled_by_client", coach.profile_id, {
-        client_name: clientName,
-        session_time: sessionTime,
-      });
-    }
-    await notifyAdmins("admin_alert", {
-      alert_message: `${clientName} cancelled their session scheduled for ${sessionTime}.`,
-    });
+    await Promise.all([
+      coach
+        ? createFromTemplate("session_cancelled_by_client", coach.profile_id, {
+            client_name: clientName,
+            session_time: sessionTime,
+          })
+        : Promise.resolve(),
+      notifyAdmins("admin_alert", {
+        alert_message: `${clientName} cancelled their session scheduled for ${sessionTime}.`,
+      }),
+    ]);
   }
 }
 
@@ -422,12 +434,14 @@ export async function rescheduleBooking(accessToken: string, bookingId: string, 
       throw new Error(`The new session time must fall within the next ${RESCHEDULE_WINDOW_DAYS} days.`);
     }
 
-    const reschedulesThisWeek = await countReschedulesThisWeek(accessToken, (booking as any).client_id);
+    // Independent validation reads -- neither depends on the other's result.
+    const [reschedulesThisWeek, busyDates] = await Promise.all([
+      countReschedulesThisWeek(accessToken, (booking as any).client_id),
+      getClientBusyDates(accessToken, (booking as any).client_id, bookingId),
+    ]);
     if (reschedulesThisWeek >= MAX_RESCHEDULES_PER_WEEK) {
       throw new Error("You have already used your maximum reschedule limit for this week.");
     }
-
-    const busyDates = await getClientBusyDates(accessToken, (booking as any).client_id, bookingId);
     if (busyDates.has(istDateString(newStart))) {
       throw new Error("You already have another session booked on that day.");
     }
@@ -444,13 +458,15 @@ export async function rescheduleBooking(accessToken: string, bookingId: string, 
 
   // The old meeting's start time is now wrong -- delete it and let
   // ensureZoomMeetingForBooking create a fresh one, lazily, for the new time.
-  await cleanupZoomMeeting(bookingId, (booking as any).zoom_meeting_id ?? null);
-
-  await logTimelineEvent((booking as any).client_id, "session_rescheduled", "Session rescheduled", {
-    description: `${new Date((booking as any).scheduled_start).toLocaleString()} → ${new Date(newStart).toLocaleString()}`,
-    actorId: ctx.userId,
-    metadata: { bookingId },
-  });
+  // Independent of the timeline log, so run both together.
+  await Promise.all([
+    cleanupZoomMeeting(bookingId, (booking as any).zoom_meeting_id ?? null),
+    logTimelineEvent((booking as any).client_id, "session_rescheduled", "Session rescheduled", {
+      description: `${new Date((booking as any).scheduled_start).toLocaleString()} → ${new Date(newStart).toLocaleString()}`,
+      actorId: ctx.userId,
+      metadata: { bookingId },
+    }),
+  ]);
 
   const clientName = (booking as any).client?.profile?.full_name ?? "Client";
   // Notifications go to whichever coach the session actually ends up with --
@@ -461,28 +477,35 @@ export async function rescheduleBooking(accessToken: string, bookingId: string, 
   const newTime = formatSessionTime(newStart);
 
   // Client always hears about their own session moving, regardless of who
-  // triggered it -- previously nobody told the client at all.
-  await notifyClient(
-    notifyCtx,
-    "session_rescheduled_client",
-    { coach_name: notifyCtx.coachName ?? "your coach", old_session_time: oldTime, new_session_time: newTime },
-    "session_rescheduled"
-  );
+  // triggered it -- previously nobody told the client at all. Independent of
+  // the role-specific notifications below, so all of them fire together.
+  const notifications: Promise<unknown>[] = [
+    notifyClient(
+      notifyCtx,
+      "session_rescheduled_client",
+      { coach_name: notifyCtx.coachName ?? "your coach", old_session_time: oldTime, new_session_time: newTime },
+      "session_rescheduled"
+    ),
+  ];
 
   // Only notify the coach when Admin is the one moving the session -- a
   // client rescheduling their own booking doesn't need a "schedule changed
   // by Admin" alert about their own action.
   if (ctx.role === "admin") {
-    await notifyCoach(notifyCtx, "admin_changed_schedule", { client_name: clientName, session_time: newTime });
+    notifications.push(notifyCoach(notifyCtx, "admin_changed_schedule", { client_name: clientName, session_time: newTime }));
   }
 
   // Client-initiated reschedule notifies the coach and Admin.
   if (ctx.role === "client") {
-    await notifyCoach(notifyCtx, "session_rescheduled_by_client", { client_name: clientName, old_time: oldTime, new_time: newTime });
-    await notifyAdmins("admin_alert", {
-      alert_message: `${clientName} rescheduled their session from ${oldTime} to ${newTime}.`,
-    });
+    notifications.push(
+      notifyCoach(notifyCtx, "session_rescheduled_by_client", { client_name: clientName, old_time: oldTime, new_time: newTime }),
+      notifyAdmins("admin_alert", {
+        alert_message: `${clientName} rescheduled their session from ${oldTime} to ${newTime}.`,
+      })
+    );
   }
+
+  await Promise.all(notifications);
 }
 
 /** coach_profiles.rating had no confirmed write-path from actual booking
@@ -615,32 +638,40 @@ export async function markAttendance(
   }
 
   const now = new Date().toISOString();
-  const { error: attendanceError } = await ctx.client.from("attendance").upsert(
-    {
-      booking_id: booking.id,
-      status,
-      checked_in_at: booking.scheduled_start,
-      // Present and late both mean the client showed up and the session is
-      // still ongoing (not checked out yet) -- only absent closes it immediately.
-      checked_out_at: status === "absent" ? now : null,
-      marked_by: ctx.userId,
-    },
-    { onConflict: "booking_id" }
-  );
+  // Independent writes/reads -- attendance upsert, the overdue-flag clear,
+  // and the notify-context lookup touch different tables/columns and none
+  // consumes another's result, so they don't need to be sequential.
+  const [{ error: attendanceError }, { error: clearOverdueError }, notifyCtx] = await Promise.all([
+    ctx.client.from("attendance").upsert(
+      {
+        booking_id: booking.id,
+        status,
+        checked_in_at: booking.scheduled_start,
+        // Present and late both mean the client showed up and the session is
+        // still ongoing (not checked out yet) -- only absent closes it immediately.
+        checked_out_at: status === "absent" ? now : null,
+        marked_by: ctx.userId,
+      },
+      { onConflict: "booking_id" }
+    ),
+    // Clears any overdue highlight (migration 0032) now that attendance has
+    // been marked at all, regardless of present/absent.
+    ctx.client.from("bookings").update({ attendance_overdue: false }).eq("id", booking.id),
+    resolveSessionNotifyContext(booking.client_id, booking.coach_id),
+  ]);
   if (attendanceError) throw attendanceError;
+  if (clearOverdueError) throw clearOverdueError;
 
   if (status === "absent") {
-    const { error: updateError } = await ctx.client
-      .from("bookings")
-      .update({ status: "missed", no_show_party: "client" })
-      .eq("id", booking.id);
+    const [{ error: updateError }] = await Promise.all([
+      ctx.client.from("bookings").update({ status: "missed", no_show_party: "client" }).eq("id", booking.id),
+      logTimelineEvent(booking.client_id, "session_missed", "Session Done", {
+        description: `${remark ? `${remark} — ` : ""}Session with Coach ${ctx.fullName ?? "Coach"} — Attendance: Absent.`,
+        actorId: ctx.userId,
+        metadata: { bookingId, coachName: ctx.fullName ?? null, attendanceStatus: "absent" },
+      }),
+    ]);
     if (updateError) throw updateError;
-
-    await logTimelineEvent(booking.client_id, "session_missed", "Session Done", {
-      description: `${remark ? `${remark} — ` : ""}Session with Coach ${ctx.fullName ?? "Coach"} — Attendance: Absent.`,
-      actorId: ctx.userId,
-      metadata: { bookingId, coachName: ctx.fullName ?? null, attendanceStatus: "absent" },
-    });
   } else {
     // Late counts as attended, same as present -- covers both here rather
     // than a third branch, since the only thing that changes is the label.
@@ -659,20 +690,18 @@ export async function markAttendance(
     );
   }
 
-  // Clears any overdue highlight (migration 0032) now that attendance has
-  // been marked at all, regardless of present/absent.
-  const { error: clearOverdueError } = await ctx.client.from("bookings").update({ attendance_overdue: false }).eq("id", booking.id);
-  if (clearOverdueError) throw clearOverdueError;
-
-  const notifyCtx = await resolveSessionNotifyContext(booking.client_id, booking.coach_id);
   const sessionTime = formatSessionTime(booking.scheduled_start);
   const vars = { coach_name: notifyCtx.coachName ?? "your coach", client_name: notifyCtx.clientName, session_time: sessionTime };
   if (status === "absent") {
-    await notifyClient(notifyCtx, "attendance_absent_client", vars, "attendance_absent");
-    await notifyCoach(notifyCtx, "attendance_absent_coach", vars);
+    await Promise.all([
+      notifyClient(notifyCtx, "attendance_absent_client", vars, "attendance_absent"),
+      notifyCoach(notifyCtx, "attendance_absent_coach", vars),
+    ]);
   } else {
-    await notifyClient(notifyCtx, "attendance_present_client", vars, "attendance_present");
-    await notifyCoach(notifyCtx, "attendance_present_coach", vars);
+    await Promise.all([
+      notifyClient(notifyCtx, "attendance_present_client", vars, "attendance_present"),
+      notifyCoach(notifyCtx, "attendance_present_coach", vars),
+    ]);
   }
 
   return booking;
@@ -696,19 +725,14 @@ export async function submitSessionNotes(
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["coach"]);
 
-  const { data: booking, error: bookingError } = await ctx.client
-    .from("bookings")
-    .select("id, client_id, coach_id")
-    .eq("id", bookingId)
-    .eq("status", "upcoming")
-    .single();
+  const [
+    { data: booking, error: bookingError },
+    { data: attendance, error: attendanceError },
+  ] = await Promise.all([
+    ctx.client.from("bookings").select("id, client_id, coach_id").eq("id", bookingId).eq("status", "upcoming").single(),
+    ctx.client.from("attendance").select("status").eq("booking_id", bookingId).maybeSingle(),
+  ]);
   if (bookingError || !booking) throw bookingError ?? new Error("Booking not found, or already completed");
-
-  const { data: attendance, error: attendanceError } = await ctx.client
-    .from("attendance")
-    .select("status")
-    .eq("booking_id", bookingId)
-    .maybeSingle();
   if (attendanceError) throw attendanceError;
   if (attendance?.status !== "present" && attendance?.status !== "late") {
     throw new Error("Attendance must be marked Present or Late before session notes can be submitted");

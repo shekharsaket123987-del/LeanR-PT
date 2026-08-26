@@ -23,7 +23,12 @@ export async function listClients(accessToken: string) {
   const clientIds = (data ?? []).map((c) => c.id);
   if (clientIds.length === 0) return [];
 
-  const [{ data: subs, error: subsError }, { data: slots, error: slotsError }, { data: everSubs, error: everSubsError }] = await Promise.all([
+  const [
+    { data: subs, error: subsError },
+    { data: slots, error: slotsError },
+    { data: everSubs, error: everSubsError },
+    lastMeasurementByClient,
+  ] = await Promise.all([
     ctx.client
       .from("subscriptions")
       .select("id, client_id, sessions_total, package:package_tiers(name)")
@@ -35,12 +40,11 @@ export async function listClients(accessToken: string) {
       .in("client_id", clientIds)
       .eq("status", "active"),
     ctx.client.from("subscriptions").select("client_id").in("client_id", clientIds),
+    getLatestMeasurementDatesForClients(accessToken, clientIds),
   ]);
   if (subsError) throw subsError;
   if (slotsError) throw slotsError;
   if (everSubsError) throw everSubsError;
-
-  const lastMeasurementByClient = await getLatestMeasurementDatesForClients(accessToken, clientIds);
 
   const subIds = (subs ?? []).map((s) => s.id);
   const { data: usage, error: usageError } =
@@ -113,7 +117,7 @@ export async function listMyClients(accessToken: string) {
 
   const clientIds = (data ?? []).map((c) => c.id);
   if (clientIds.length === 0) return [];
-  const [{ data: subs, error: subsError }, { data: slots, error: slotsError }] = await Promise.all([
+  const [{ data: subs, error: subsError }, { data: slots, error: slotsError }, lastMeasurementByClient] = await Promise.all([
     ctx.client
       .from("subscriptions")
       .select("client_id, status, package:package_tiers(name)")
@@ -124,6 +128,7 @@ export async function listMyClients(accessToken: string) {
       .select("client_id, day_of_week, start_time")
       .in("client_id", clientIds)
       .eq("status", "active"),
+    getLatestMeasurementDatesForClients(accessToken, clientIds),
   ]);
   if (subsError) throw subsError;
   if (slotsError) throw slotsError;
@@ -136,8 +141,6 @@ export async function listMyClients(accessToken: string) {
     existing.startTime = existing.startTime ?? s.start_time;
     scheduleByClient.set(s.client_id, existing);
   }
-
-  const lastMeasurementByClient = await getLatestMeasurementDatesForClients(accessToken, clientIds);
 
   return (data ?? []).map((c) => ({
     ...c,
@@ -291,37 +294,39 @@ export async function reassignClientCoach(
     );
   }
 
-  const { error: slotsError } = await ctx.client
-    .from("recurring_slots")
-    .update({ coach_id: toCoachId })
-    .eq("client_id", clientId)
-    .eq("coach_id", fromCoachId)
-    .eq("status", "active");
+  const [{ error: slotsError }, { error: bookingsError }] = await Promise.all([
+    ctx.client
+      .from("recurring_slots")
+      .update({ coach_id: toCoachId })
+      .eq("client_id", clientId)
+      .eq("coach_id", fromCoachId)
+      .eq("status", "active"),
+    ctx.client
+      .from("bookings")
+      .update({ coach_id: toCoachId })
+      .eq("client_id", clientId)
+      .eq("coach_id", fromCoachId)
+      .eq("status", "upcoming"),
+  ]);
   if (slotsError) throw slotsError;
-
-  const { error: bookingsError } = await ctx.client
-    .from("bookings")
-    .update({ coach_id: toCoachId })
-    .eq("client_id", clientId)
-    .eq("coach_id", fromCoachId)
-    .eq("status", "upcoming");
   if (bookingsError) throw bookingsError;
-
-  await logTimelineEvent(clientId, "coach_changed", "Coach changed", { actorId: ctx.userId, metadata: { fromCoachId, toCoachId } });
-  await ensureConversationForCoachAssignment(clientId, toCoachId);
 
   // Two separate contexts -- one per coach -- since notifyCoach() addresses
   // a single coach at a time and the old/new coach need different template
   // keys anyway (losing vs. gaining the client).
-  const [newCoachCtx, oldCoachCtx] = await Promise.all([
+  const [, , newCoachCtx, oldCoachCtx] = await Promise.all([
+    logTimelineEvent(clientId, "coach_changed", "Coach changed", { actorId: ctx.userId, metadata: { fromCoachId, toCoachId } }),
+    ensureConversationForCoachAssignment(clientId, toCoachId),
     resolveSessionNotifyContext(clientId, toCoachId),
     resolveSessionNotifyContext(clientId, fromCoachId),
   ]);
   const clientName = newCoachCtx.clientName;
 
-  await notifyClient(newCoachCtx, "coach_changed_client", { coach_name: newCoachCtx.coachName ?? "your new coach" });
-  await notifyCoach(oldCoachCtx, "client_transferred", { client_name: clientName });
-  await notifyCoach(newCoachCtx, "new_client_assigned", { client_name: clientName });
+  await Promise.all([
+    notifyClient(newCoachCtx, "coach_changed_client", { coach_name: newCoachCtx.coachName ?? "your new coach" }),
+    notifyCoach(oldCoachCtx, "client_transferred", { client_name: clientName }),
+    notifyCoach(newCoachCtx, "new_client_assigned", { client_name: clientName }),
+  ]);
 }
 
 /** Admin/coach-facing equivalent of getMyCurrentCoachId, parameterized by
@@ -331,23 +336,17 @@ export async function getClientCurrentCoachId(accessToken: string, clientId: str
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["admin", "coach"]);
 
-  const { data: activeSlot } = await ctx.client
-    .from("recurring_slots")
-    .select("coach_id")
-    .eq("client_id", clientId)
-    .eq("status", "active")
-    .limit(1)
-    .maybeSingle();
-  if (activeSlot?.coach_id) return activeSlot.coach_id;
-
-  const { data: latestBooking } = await ctx.client
-    .from("bookings")
-    .select("coach_id")
-    .eq("client_id", clientId)
-    .order("scheduled_start", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return latestBooking?.coach_id ?? null;
+  const [{ data: activeSlot }, { data: latestBooking }] = await Promise.all([
+    ctx.client.from("recurring_slots").select("coach_id").eq("client_id", clientId).eq("status", "active").limit(1).maybeSingle(),
+    ctx.client
+      .from("bookings")
+      .select("coach_id")
+      .eq("client_id", clientId)
+      .order("scheduled_start", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  return activeSlot?.coach_id ?? latestBooking?.coach_id ?? null;
 }
 
 /** Resolves the client's current coach: prefers an active recurring slot,
@@ -366,23 +365,17 @@ export async function getMyCurrentCoachId(accessToken: string): Promise<string |
     .single();
   if (clientError || !client) throw clientError ?? new Error("Client profile not found");
 
-  const { data: activeSlot } = await ctx.client
-    .from("recurring_slots")
-    .select("coach_id")
-    .eq("client_id", client.id)
-    .eq("status", "active")
-    .limit(1)
-    .maybeSingle();
-  if (activeSlot?.coach_id) return activeSlot.coach_id;
-
-  const { data: latestBooking } = await ctx.client
-    .from("bookings")
-    .select("coach_id")
-    .eq("client_id", client.id)
-    .order("scheduled_start", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return latestBooking?.coach_id ?? null;
+  const [{ data: activeSlot }, { data: latestBooking }] = await Promise.all([
+    ctx.client.from("recurring_slots").select("coach_id").eq("client_id", client.id).eq("status", "active").limit(1).maybeSingle(),
+    ctx.client
+      .from("bookings")
+      .select("coach_id")
+      .eq("client_id", client.id)
+      .order("scheduled_start", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  return activeSlot?.coach_id ?? latestBooking?.coach_id ?? null;
 }
 
 /** Coach from an ACTIVE recurring slot only -- unlike getMyCurrentCoachId(),
