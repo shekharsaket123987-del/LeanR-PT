@@ -12,10 +12,13 @@ export async function requestCoachChange(
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["client"]);
 
-  const { data: client, error: clientError } = await ctx.client.from("client_profiles").select("id").eq("profile_id", ctx.userId).single();
+  // getMyCurrentCoachId does its own independent client_profiles lookup --
+  // doesn't consume `client` below, so no need to wait on it first.
+  const [{ data: client, error: clientError }, currentCoachId] = await Promise.all([
+    ctx.client.from("client_profiles").select("id").eq("profile_id", ctx.userId).single(),
+    getMyCurrentCoachId(accessToken),
+  ]);
   if (clientError || !client) throw clientError ?? new Error("Client profile not found");
-
-  const currentCoachId = await getMyCurrentCoachId(accessToken);
   if (!currentCoachId) throw new Error("No current coach found for this client");
 
   const { data, error } = await ctx.client
@@ -154,24 +157,29 @@ export async function completeCoachChange(
 
   if (activeSlots && activeSlots.length > 0) {
     const slotIds = activeSlots.map((s) => s.id);
-    const { error: deactivateError } = await ctx.client.from("recurring_slots").update({ status: "cancelled" }).in("id", slotIds);
+    // Different tables, neither write depends on the other's result.
+    const [{ error: deactivateError }, { error: cancelBookingsError }] = await Promise.all([
+      ctx.client.from("recurring_slots").update({ status: "cancelled" }).in("id", slotIds),
+      ctx.client
+        .from("bookings")
+        .update({ status: "cancelled", cancel_reason: "Client changed coaches" })
+        .in("recurring_slot_id", slotIds)
+        .eq("status", "upcoming"),
+    ]);
     if (deactivateError) throw deactivateError;
-
-    const { error: cancelBookingsError } = await ctx.client
-      .from("bookings")
-      .update({ status: "cancelled", cancel_reason: "Client changed coaches" })
-      .in("recurring_slot_id", slotIds)
-      .eq("status", "upcoming");
     if (cancelBookingsError) throw cancelBookingsError;
   }
 
-  await createRecurringSlots(accessToken, { coachId: chosenCoachId, days, timeOfDay, durationMinutes });
-  await logTimelineEvent(request.client_id, "coach_changed", "Coach changed", {
-    actorId: ctx.userId,
-    metadata: { fromCoachId: request.current_coach_id, toCoachId: chosenCoachId },
-  });
-
-  const { error: finalizeError } = await supabaseAdmin.from("coach_change_requests").update({ new_coach_id: chosenCoachId }).eq("id", requestId);
+  // Creating the new pattern, logging the change, and finalizing the request
+  // row are three independent writes -- none consumes another's result.
+  const [, , { error: finalizeError }] = await Promise.all([
+    createRecurringSlots(accessToken, { coachId: chosenCoachId, days, timeOfDay, durationMinutes }),
+    logTimelineEvent(request.client_id, "coach_changed", "Coach changed", {
+      actorId: ctx.userId,
+      metadata: { fromCoachId: request.current_coach_id, toCoachId: chosenCoachId },
+    }),
+    supabaseAdmin.from("coach_change_requests").update({ new_coach_id: chosenCoachId }).eq("id", requestId),
+  ]);
   if (finalizeError) throw finalizeError;
 }
 
@@ -191,34 +199,37 @@ export async function assignShadowCoach(
   });
   if (error) throw error;
 
-  await logTimelineEvent(input.clientId, "shadow_coach_assigned", "Shadow coach assigned", {
-    description: input.reason,
-    actorId: ctx.userId,
-    metadata: { primaryCoachId: input.primaryCoachId, shadowCoachId: input.shadowCoachId, startsOn: input.startsOn, endsOn: input.endsOn },
-  });
-
-  const [{ data: client }, { data: shadowCoach }, { data: primaryCoach }] = await Promise.all([
+  // Timeline log doesn't consume the fetch results below, and none of the
+  // three fetches depend on each other -- all four run together.
+  const [, { data: client }, { data: shadowCoach }, { data: primaryCoach }] = await Promise.all([
+    logTimelineEvent(input.clientId, "shadow_coach_assigned", "Shadow coach assigned", {
+      description: input.reason,
+      actorId: ctx.userId,
+      metadata: { primaryCoachId: input.primaryCoachId, shadowCoachId: input.shadowCoachId, startsOn: input.startsOn, endsOn: input.endsOn },
+    }),
     supabaseAdmin.from("client_profiles").select("profile_id, profile:profiles(full_name)").eq("id", input.clientId).maybeSingle(),
     supabaseAdmin.from("coach_profiles").select("profile_id, profile:profiles(full_name)").eq("id", input.shadowCoachId).maybeSingle(),
     supabaseAdmin.from("coach_profiles").select("profile:profiles(full_name)").eq("id", input.primaryCoachId).maybeSingle(),
   ]);
   const primaryCoachName = (primaryCoach as any)?.profile?.full_name ?? "your coach";
-  if (client) {
-    await createFromTemplate("shadow_coach_assigned", (client as any).profile_id, {
-      shadow_coach_name: (shadowCoach as any)?.profile?.full_name ?? "A coach",
-      primary_coach_name: primaryCoachName,
-      starts_on: input.startsOn,
-      ends_on: input.endsOn,
-    });
-  }
-  if (shadowCoach) {
-    await createFromTemplate("shadow_assignment_for_coach", (shadowCoach as any).profile_id, {
-      client_name: (client as any)?.profile?.full_name ?? "a client",
-      primary_coach_name: primaryCoachName,
-      starts_on: input.startsOn,
-      ends_on: input.endsOn,
-    });
-  }
+  await Promise.all([
+    client
+      ? createFromTemplate("shadow_coach_assigned", (client as any).profile_id, {
+          shadow_coach_name: (shadowCoach as any)?.profile?.full_name ?? "A coach",
+          primary_coach_name: primaryCoachName,
+          starts_on: input.startsOn,
+          ends_on: input.endsOn,
+        })
+      : Promise.resolve(),
+    shadowCoach
+      ? createFromTemplate("shadow_assignment_for_coach", (shadowCoach as any).profile_id, {
+          client_name: (client as any)?.profile?.full_name ?? "a client",
+          primary_coach_name: primaryCoachName,
+          starts_on: input.startsOn,
+          ends_on: input.endsOn,
+        })
+      : Promise.resolve(),
+  ]);
 
   return data as string; // assignment id
 }
@@ -257,34 +268,37 @@ export async function reassignShadowCoverage(
   });
   if (error) throw error;
 
-  await logTimelineEvent(input.clientId, "shadow_coach_assigned", "Shadow coach reassigned", {
-    description: input.reason,
-    actorId: ctx.userId,
-    metadata: { primaryCoachId: input.primaryCoachId, oldShadowCoachId: input.oldShadowCoachId, newShadowCoachId: input.newShadowCoachId },
-  });
-
-  const [{ data: client }, { data: newShadowCoach }, { data: primaryCoach }] = await Promise.all([
+  // Timeline log doesn't consume the fetch results below, and none of the
+  // three fetches depend on each other -- all four run together.
+  const [, { data: client }, { data: newShadowCoach }, { data: primaryCoach }] = await Promise.all([
+    logTimelineEvent(input.clientId, "shadow_coach_assigned", "Shadow coach reassigned", {
+      description: input.reason,
+      actorId: ctx.userId,
+      metadata: { primaryCoachId: input.primaryCoachId, oldShadowCoachId: input.oldShadowCoachId, newShadowCoachId: input.newShadowCoachId },
+    }),
     supabaseAdmin.from("client_profiles").select("profile_id, profile:profiles(full_name)").eq("id", input.clientId).maybeSingle(),
     supabaseAdmin.from("coach_profiles").select("profile_id, profile:profiles(full_name)").eq("id", input.newShadowCoachId).maybeSingle(),
     supabaseAdmin.from("coach_profiles").select("profile:profiles(full_name)").eq("id", input.primaryCoachId).maybeSingle(),
   ]);
   const primaryCoachName = (primaryCoach as any)?.profile?.full_name ?? "your coach";
-  if (client) {
-    await createFromTemplate("shadow_coach_assigned", (client as any).profile_id, {
-      shadow_coach_name: (newShadowCoach as any)?.profile?.full_name ?? "A coach",
-      primary_coach_name: primaryCoachName,
-      starts_on: input.startsOn,
-      ends_on: input.endsOn,
-    });
-  }
-  if (newShadowCoach) {
-    await createFromTemplate("shadow_assignment_for_coach", (newShadowCoach as any).profile_id, {
-      client_name: (client as any)?.profile?.full_name ?? "a client",
-      primary_coach_name: primaryCoachName,
-      starts_on: input.startsOn,
-      ends_on: input.endsOn,
-    });
-  }
+  await Promise.all([
+    client
+      ? createFromTemplate("shadow_coach_assigned", (client as any).profile_id, {
+          shadow_coach_name: (newShadowCoach as any)?.profile?.full_name ?? "A coach",
+          primary_coach_name: primaryCoachName,
+          starts_on: input.startsOn,
+          ends_on: input.endsOn,
+        })
+      : Promise.resolve(),
+    newShadowCoach
+      ? createFromTemplate("shadow_assignment_for_coach", (newShadowCoach as any).profile_id, {
+          client_name: (client as any)?.profile?.full_name ?? "a client",
+          primary_coach_name: primaryCoachName,
+          starts_on: input.startsOn,
+          ends_on: input.endsOn,
+        })
+      : Promise.resolve(),
+  ]);
 
   return data as string; // assignment id
 }

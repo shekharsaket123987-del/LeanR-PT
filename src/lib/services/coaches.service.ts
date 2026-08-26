@@ -50,12 +50,14 @@ export async function listPublicActiveCoaches(limit = 8) {
 
 export async function listCoaches(accessToken: string) {
   const ctx = await getCallerContext(accessToken);
-  const { data, error } = await ctx.client
-    .from("coach_profiles")
-    .select("*, profile:profiles(full_name, photo_url, phone)");
+  // No filter on either query -- utilization for every coach is the same
+  // set this unfiltered coach_profiles fetch will return, so both can run
+  // together instead of using the profile fetch's result to scope the second.
+  const [{ data, error }, utilByCoach] = await Promise.all([
+    ctx.client.from("coach_profiles").select("*, profile:profiles(full_name, photo_url, phone)"),
+    withUtilization(ctx.client),
+  ]);
   if (error) throw error;
-
-  const utilByCoach = await withUtilization(ctx.client, (data ?? []).map((c) => c.id));
   return (data ?? []).map((c) => ({ ...c, utilization: utilByCoach.get(c.id) ?? null }));
 }
 
@@ -75,14 +77,13 @@ export async function getMyCoachProfile(accessToken: string) {
 
 export async function getCoach(accessToken: string, coachId: string) {
   const ctx = await getCallerContext(accessToken);
-  const { data, error } = await ctx.client
-    .from("coach_profiles")
-    .select("*, profile:profiles(full_name, photo_url, phone)")
-    .eq("id", coachId)
-    .single();
+  // Both queries only need coachId, which is already known -- no need to
+  // wait on one to run the other.
+  const [{ data, error }, utilByCoach] = await Promise.all([
+    ctx.client.from("coach_profiles").select("*, profile:profiles(full_name, photo_url, phone)").eq("id", coachId).single(),
+    withUtilization(ctx.client, [coachId]),
+  ]);
   if (error) throw error;
-
-  const utilByCoach = await withUtilization(ctx.client, [coachId]);
   return { ...data, utilization: utilByCoach.get(coachId) ?? null };
 }
 
@@ -211,11 +212,6 @@ export async function updateCoach(
   const { data: coach, error: coachFetchError } = await ctx.client.from("coach_profiles").select("profile_id").eq("id", coachId).single();
   if (coachFetchError || !coach) throw coachFetchError ?? new Error("Coach not found");
 
-  if (patch.fullName !== undefined) {
-    const { error } = await ctx.client.from("profiles").update({ full_name: patch.fullName }).eq("id", coach.profile_id);
-    if (error) throw error;
-  }
-
   const coachPatch: Record<string, unknown> = {};
   if (patch.specialization !== undefined) coachPatch.specialization = patch.specialization;
   if (patch.yearsExperience !== undefined) coachPatch.years_experience = patch.yearsExperience;
@@ -223,10 +219,18 @@ export async function updateCoach(
   if (patch.secondarySpecializations !== undefined) coachPatch.secondary_specializations = patch.secondarySpecializations;
   if (patch.languages !== undefined) coachPatch.languages = patch.languages;
 
-  if (Object.keys(coachPatch).length > 0) {
-    const { error } = await ctx.client.from("coach_profiles").update(coachPatch).eq("id", coachId);
-    if (error) throw error;
-  }
+  // Two different tables/rows, neither's write depends on the other -- run
+  // together instead of one-then-the-other.
+  const [nameResult, coachResult] = await Promise.all([
+    patch.fullName !== undefined
+      ? ctx.client.from("profiles").update({ full_name: patch.fullName }).eq("id", coach.profile_id)
+      : Promise.resolve({ error: null }),
+    Object.keys(coachPatch).length > 0
+      ? ctx.client.from("coach_profiles").update(coachPatch).eq("id", coachId)
+      : Promise.resolve({ error: null }),
+  ]);
+  if (nameResult.error) throw nameResult.error;
+  if (coachResult.error) throw coachResult.error;
 }
 
 /** Admin "Disable Coach" control. coach_profiles.status also drives

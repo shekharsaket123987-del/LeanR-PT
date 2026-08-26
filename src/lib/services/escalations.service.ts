@@ -32,21 +32,27 @@ export async function createEscalation(
     .single();
   if (error) throw error;
 
-  await logTimelineEvent(input.clientId, "client_raised_concern", input.reason, {
-    description: input.description,
-    actorId: raisedBy,
-    metadata: { escalationId: data.id },
-  });
+  // Timeline log and the coach/client lookups are all independent of each
+  // other -- none consumes another's result.
+  const [, coachResult, clientResult] = await Promise.all([
+    logTimelineEvent(input.clientId, "client_raised_concern", input.reason, {
+      description: input.description,
+      actorId: raisedBy,
+      metadata: { escalationId: data.id },
+    }),
+    input.coachId
+      ? supabaseAdmin.from("coach_profiles").select("profile_id").eq("id", input.coachId).maybeSingle()
+      : Promise.resolve({ data: null }),
+    input.coachId
+      ? supabaseAdmin.from("client_profiles").select("profile:profiles(full_name)").eq("id", input.clientId).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
 
-  if (input.coachId) {
-    const { data: coach } = await supabaseAdmin.from("coach_profiles").select("profile_id").eq("id", input.coachId).maybeSingle();
-    const { data: client } = await supabaseAdmin.from("client_profiles").select("profile:profiles(full_name)").eq("id", input.clientId).maybeSingle();
-    if (coach) {
-      await createFromTemplate("escalation_raised_to_coach", coach.profile_id, {
-        client_name: (client as any)?.profile?.full_name ?? "Client",
-        reason: input.reason,
-      });
-    }
+  if (input.coachId && coachResult.data) {
+    await createFromTemplate("escalation_raised_to_coach", (coachResult.data as any).profile_id, {
+      client_name: (clientResult.data as any)?.profile?.full_name ?? "Client",
+      reason: input.reason,
+    });
   }
 
   return data;

@@ -674,17 +674,14 @@ export async function findAvailableCoach(
   let coachQuery = ctx.client.from("coach_profiles").select("id").eq("status", "active");
   if (input.excludeCoachId) coachQuery = coachQuery.neq("id", input.excludeCoachId);
   if (input.genderPreference) coachQuery = coachQuery.eq("gender", input.genderPreference);
-  const { data: coaches, error: coachesError } = await coachQuery;
+  // Unfiltered rather than scoped to this query's coach ids -- lets both
+  // queries run together instead of using the first to filter the second.
+  const [{ data: coaches, error: coachesError }, { data: util, error: utilError }] = await Promise.all([
+    coachQuery,
+    ctx.client.from("coach_utilization_view").select("coach_id, utilization_pct"),
+  ]);
   if (coachesError) throw coachesError;
   if (!coaches || coaches.length === 0) return null;
-
-  const { data: util, error: utilError } = await ctx.client
-    .from("coach_utilization_view")
-    .select("coach_id, utilization_pct")
-    .in(
-      "coach_id",
-      coaches.map((c) => c.id)
-    );
   if (utilError) throw utilError;
   const utilByCoach = new Map((util ?? []).map((u) => [u.coach_id, u.utilization_pct]));
 
@@ -734,21 +731,14 @@ export async function findSubstituteCoachCandidates(
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["client"]);
 
-  const { data: coaches, error: coachesError } = await ctx.client
-    .from("coach_profiles")
-    .select("id, profile:profiles(full_name)")
-    .eq("status", "active")
-    .neq("id", input.excludeCoachId);
+  // Unfiltered rather than scoped to this query's coach ids -- lets both
+  // queries run together instead of using the first to filter the second.
+  const [{ data: coaches, error: coachesError }, { data: util, error: utilError }] = await Promise.all([
+    ctx.client.from("coach_profiles").select("id, profile:profiles(full_name)").eq("status", "active").neq("id", input.excludeCoachId),
+    ctx.client.from("coach_utilization_view").select("coach_id, utilization_pct"),
+  ]);
   if (coachesError) throw coachesError;
   if (!coaches || coaches.length === 0) return [];
-
-  const { data: util, error: utilError } = await ctx.client
-    .from("coach_utilization_view")
-    .select("coach_id, utilization_pct")
-    .in(
-      "coach_id",
-      coaches.map((c: any) => c.id)
-    );
   if (utilError) throw utilError;
   const utilByCoach = new Map((util ?? []).map((u) => [u.coach_id, u.utilization_pct]));
 
@@ -922,12 +912,30 @@ export async function findShadowCoachCandidates(
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["admin"]);
 
-  const { data: slots, error: slotsError } = await ctx.client
-    .from("recurring_slots")
-    .select("day_of_week, start_time, duration_minutes")
-    .eq("client_id", input.clientId)
-    .eq("coach_id", input.primaryCoachId)
-    .eq("status", "active");
+  // None of these four depend on each other's results -- slots only needs
+  // clientId/primaryCoachId (already known), and primary/coaches/util only
+  // need primaryCoachId, which is also already known. Run them together
+  // instead of using slots to gate the rest.
+  const [
+    { data: slots, error: slotsError },
+    { data: primary, error: primaryError },
+    { data: coaches, error: coachesError },
+    { data: util, error: utilError },
+  ] = await Promise.all([
+    ctx.client
+      .from("recurring_slots")
+      .select("day_of_week, start_time, duration_minutes")
+      .eq("client_id", input.clientId)
+      .eq("coach_id", input.primaryCoachId)
+      .eq("status", "active"),
+    ctx.client.from("coach_profiles").select("specialization, languages").eq("id", input.primaryCoachId).maybeSingle(),
+    ctx.client
+      .from("coach_profiles")
+      .select("id, specialization, secondary_specializations, languages, rating, profile:profiles(full_name)")
+      .eq("status", "active")
+      .neq("id", input.primaryCoachId),
+    ctx.client.from("coach_utilization_view").select("coach_id, utilization_pct"),
+  ]);
   if (slotsError) throw slotsError;
   if (!slots || slots.length === 0) return [];
 
@@ -949,32 +957,15 @@ export async function findShadowCoachCandidates(
   if (occurrences.length === 0) return [];
   occurrences.sort((a, b) => new Date(a.slotStart).getTime() - new Date(b.slotStart).getTime());
 
-  const { data: primary, error: primaryError } = await ctx.client
-    .from("coach_profiles")
-    .select("specialization, languages")
-    .eq("id", input.primaryCoachId)
-    .maybeSingle();
   if (primaryError) throw primaryError;
   const primaryProfile = {
     specialization: (primary as any)?.specialization ?? null,
     languages: ((primary as any)?.languages as string[] | null) ?? [],
   };
 
-  const { data: coaches, error: coachesError } = await ctx.client
-    .from("coach_profiles")
-    .select("id, specialization, secondary_specializations, languages, rating, profile:profiles(full_name)")
-    .eq("status", "active")
-    .neq("id", input.primaryCoachId);
   if (coachesError) throw coachesError;
   if (!coaches || coaches.length === 0) return occurrences.map((occ) => ({ ...occ, candidates: [] }));
 
-  const { data: util, error: utilError } = await ctx.client
-    .from("coach_utilization_view")
-    .select("coach_id, utilization_pct")
-    .in(
-      "coach_id",
-      coaches.map((c: any) => c.id)
-    );
   if (utilError) throw utilError;
   const utilByCoach = new Map((util ?? []).map((u) => [u.coach_id, u.utilization_pct]));
 
@@ -1209,23 +1200,30 @@ export async function changeMyRecurringSchedule(
   if (!activeSlots || activeSlots.length === 0) throw new Error("No active recurring schedule to change -- set one up first.");
 
   const slotIds = activeSlots.map((s) => s.id);
-  const { error: deactivateError } = await ctx.client.from("recurring_slots").update({ status: "cancelled" }).in("id", slotIds);
+  // Different tables, neither write depends on the other's result.
+  const [{ error: deactivateError }, { error: cancelBookingsError }] = await Promise.all([
+    ctx.client.from("recurring_slots").update({ status: "cancelled" }).in("id", slotIds),
+    ctx.client
+      .from("bookings")
+      .update({ status: "cancelled", cancel_reason: "Client changed their recurring schedule" })
+      .in("recurring_slot_id", slotIds)
+      .eq("status", "upcoming"),
+  ]);
   if (deactivateError) throw deactivateError;
-
-  const { error: cancelBookingsError } = await ctx.client
-    .from("bookings")
-    .update({ status: "cancelled", cancel_reason: "Client changed their recurring schedule" })
-    .in("recurring_slot_id", slotIds)
-    .eq("status", "upcoming");
   if (cancelBookingsError) throw cancelBookingsError;
 
-  const createdSlotIds = await createRecurringSlots(accessToken, {
-    coachId: input.coachId,
-    days: input.days,
-    timeOfDay: input.timeOfDay,
-    durationMinutes: input.durationMinutes,
-    subscriptionId: input.subscriptionId,
-  });
+  // Pure read, no side effects -- safe to resolve alongside creating the new
+  // pattern rather than waiting for it to finish first.
+  const [createdSlotIds, notifyCtx] = await Promise.all([
+    createRecurringSlots(accessToken, {
+      coachId: input.coachId,
+      days: input.days,
+      timeOfDay: input.timeOfDay,
+      durationMinutes: input.durationMinutes,
+      subscriptionId: input.subscriptionId,
+    }),
+    resolveSessionNotifyContext(client.id, input.coachId),
+  ]);
 
   // A subscriptionId only ever comes from the renewal-scheduling flow (a
   // regular mid-plan schedule change never passes one) -- log it distinctly
@@ -1244,14 +1242,15 @@ export async function changeMyRecurringSchedule(
     });
   }
 
-  const notifyCtx = await resolveSessionNotifyContext(client.id, input.coachId);
-  await notifyClient(
-    notifyCtx,
-    "schedule_changed_client",
-    { coach_name: notifyCtx.coachName ?? "your coach", schedule_summary: scheduleSummary },
-    "schedule_changed"
-  );
-  await notifyCoach(notifyCtx, "schedule_changed_coach", { client_name: notifyCtx.clientName, schedule_summary: scheduleSummary });
+  await Promise.all([
+    notifyClient(
+      notifyCtx,
+      "schedule_changed_client",
+      { coach_name: notifyCtx.coachName ?? "your coach", schedule_summary: scheduleSummary },
+      "schedule_changed"
+    ),
+    notifyCoach(notifyCtx, "schedule_changed_coach", { client_name: notifyCtx.clientName, schedule_summary: scheduleSummary }),
+  ]);
 
   return { createdSlotIds };
 }
@@ -1308,46 +1307,53 @@ export async function createRecurringSlots(
   const isFirstCoach = !priorSlot;
 
   const durationMinutes = input.durationMinutes ?? 60;
-  const createdIds: string[] = [];
-  for (const day of input.days) {
-    const { data: slot, error: slotError } = await ctx.client
-      .from("recurring_slots")
-      .insert({
-        client_id: client.id,
-        coach_id: input.coachId,
-        subscription_id: input.subscriptionId ?? null,
-        day_of_week: day,
-        start_time: `${input.timeOfDay}:00`,
-        duration_minutes: durationMinutes,
-        status: "active",
-      })
-      .select("id")
-      .single();
-    if (slotError || !slot) throw slotError ?? new Error("Failed to create recurring slot");
-    createdIds.push(slot.id);
+  // Each day's row + generated bookings are independent of every other
+  // day's -- no shared state between iterations, so run them all together
+  // instead of one day at a time.
+  const createdIds = await Promise.all(
+    input.days.map(async (day) => {
+      const { data: slot, error: slotError } = await ctx.client
+        .from("recurring_slots")
+        .insert({
+          client_id: client.id,
+          coach_id: input.coachId,
+          subscription_id: input.subscriptionId ?? null,
+          day_of_week: day,
+          start_time: `${input.timeOfDay}:00`,
+          duration_minutes: durationMinutes,
+          status: "active",
+        })
+        .select("id")
+        .single();
+      if (slotError || !slot) throw slotError ?? new Error("Failed to create recurring slot");
 
-    const { error: genError } = await ctx.client.rpc("generate_bookings_from_recurring_slot", {
-      p_recurring_slot_id: slot.id,
-      p_count: 4,
-    });
-    if (genError) throw genError;
-  }
+      const { error: genError } = await ctx.client.rpc("generate_bookings_from_recurring_slot", {
+        p_recurring_slot_id: slot.id,
+        p_count: 4,
+      });
+      if (genError) throw genError;
 
-  if (isFirstCoach) {
-    await logTimelineEvent(client.id, "coach_assigned", "Coach assigned", { actorId: ctx.userId, metadata: { coachId: input.coachId } });
-  }
+      return slot.id as string;
+    })
+  );
+
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  await logTimelineEvent(client.id, "slot_assigned", "Recurring schedule set", {
-    description: `${input.days.map((d) => dayNames[d]).join("/")} at ${input.timeOfDay}`,
-    actorId: ctx.userId,
-    metadata: { coachId: input.coachId, days: input.days, timeOfDay: input.timeOfDay },
-  });
-
-  // Covers first-time setup, "change my schedule" (same/new/no-preference),
-  // and coachChange.service.ts::completeCoachChange -- all three funnel
-  // through this one function, so this is the single choke point for
-  // "a client's coach just became input.coachId."
-  await ensureConversationForCoachAssignment(client.id, input.coachId);
+  // Independent side effects -- none consumes another's result.
+  await Promise.all([
+    isFirstCoach
+      ? logTimelineEvent(client.id, "coach_assigned", "Coach assigned", { actorId: ctx.userId, metadata: { coachId: input.coachId } })
+      : Promise.resolve(),
+    logTimelineEvent(client.id, "slot_assigned", "Recurring schedule set", {
+      description: `${input.days.map((d) => dayNames[d]).join("/")} at ${input.timeOfDay}`,
+      actorId: ctx.userId,
+      metadata: { coachId: input.coachId, days: input.days, timeOfDay: input.timeOfDay },
+    }),
+    // Covers first-time setup, "change my schedule" (same/new/no-preference),
+    // and coachChange.service.ts::completeCoachChange -- all three funnel
+    // through this one function, so this is the single choke point for
+    // "a client's coach just became input.coachId."
+    ensureConversationForCoachAssignment(client.id, input.coachId),
+  ]);
 
   return createdIds;
 }
