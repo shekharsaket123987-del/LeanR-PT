@@ -121,11 +121,18 @@ export async function createCoach(
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["admin"]);
 
+  // role must be app_metadata, not user_metadata -- handle_new_user() reads
+  // new.raw_app_meta_data->>'role' specifically (privileged, server-only
+  // field a public signUp() caller can never set) so that self-service
+  // signup can't escalate to coach/admin by passing role in its own
+  // metadata. user_metadata is still the right place for full_name (purely
+  // descriptive, no privilege implications).
   const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
     email: input.email,
     password: input.password,
     email_confirm: true,
-    user_metadata: { role: "coach", full_name: input.fullName },
+    user_metadata: { full_name: input.fullName },
+    app_metadata: { role: "coach" },
   });
   if (createError || !created.user) throw createError ?? new Error("Failed to create coach account");
 
