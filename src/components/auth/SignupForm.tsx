@@ -36,6 +36,12 @@ function normalizePhone(raw: string) {
  * already verified that address) but still needs phone verification -- see
  * PhoneGateModal.tsx, which runs the same phone-OTP step for that path.
  *
+ * TEMPORARY: the phone-otp step has a "Skip for now" button (see
+ * handleSkipPhoneOtp) because MSG91 KYC isn't verified yet -- OTPs are
+ * accepted by the API but never actually deliver. Remove it once MSG91 is
+ * verified and delivering; email OTP is unaffected (separate provider,
+ * Supabase's own signup-OTP flow) and was never skippable.
+ *
  * Email OTP requires "Confirm email" turned on in the Supabase dashboard's
  * Auth settings, and the "Confirm signup" email template edited to surface
  * {{ .Token }} (remove/downplay the default {{ .ConfirmationURL }} link --
@@ -171,6 +177,21 @@ export default function SignupForm() {
     setTimeout(() => setResendCooldown(false), 30_000);
   }
 
+  // TEMPORARY: MSG91 KYC isn't verified yet, so OTPs are accepted by the API
+  // but never actually deliver. Saves the typed number unverified instead of
+  // requiring the code. Remove once MSG91 is verified and delivering.
+  async function handleSkipPhoneOtp() {
+    setError("");
+    setLoading(true);
+    const saveResult = await setMyPhoneAction(normalizePhone(phone));
+    setLoading(false);
+    if (isFailure(saveResult)) {
+      setError(saveResult.error.message);
+      return;
+    }
+    router.push("/client/plans");
+  }
+
   if (step === "email-otp") {
     return (
       <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-white/5 p-6 text-center">
@@ -251,6 +272,14 @@ export default function SignupForm() {
             className="mt-3 w-full text-center text-xs font-semibold text-brand-yellow hover:underline disabled:cursor-not-allowed disabled:text-white/30 disabled:no-underline"
           >
             {resendCooldown ? "Code resent -- check your phone" : "Didn't get it? Resend code"}
+          </button>
+          <button
+            type="button"
+            onClick={handleSkipPhoneOtp}
+            disabled={loading}
+            className="mt-2 w-full text-center text-xs font-semibold text-amber-400/80 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Skip for now (demo -- MSG91 not verified yet)
           </button>
         </form>
       </div>
