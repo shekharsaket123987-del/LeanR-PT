@@ -11,10 +11,45 @@
 html {
   scroll-behavior: smooth;
   background: #060606;
+  color-scheme: dark;
 }
 
 body {
   @apply bg-bg text-white font-body;
+}
+
+/* ---------------- Form controls: legible text everywhere ----------------
+   Native inputs/selects fall back to a white browser background while our
+   dark theme forces white/inherited text, making typed values and dropdown
+   options invisible. Give every form field an explicit dark background and
+   brand-yellow text by default (any component-level bg or text utility
+   class still wins, since class selectors outrank these element selectors).
+   Applies across admin, coach, and client portals. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+textarea,
+select {
+  background-color: #1a1a1a;
+  color: #f5d90a;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(245, 217, 10, 0.4);
+}
+
+select option {
+  background-color: #1a1a1a;
+  color: #f5d90a;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill {
+  -webkit-text-fill-color: #f5d90a;
+  -webkit-box-shadow: 0 0 0px 1000px #1a1a1a inset;
+  box-shadow: 0 0 0px 1000px #1a1a1a inset;
+  transition: background-color 9999s ease-in-out 0s;
 }
 
 ::selection {
