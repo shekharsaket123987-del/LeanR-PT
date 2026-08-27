@@ -5,12 +5,27 @@ import { getClientStatusSnapshot, logClientStatusChange } from "./clientStatus";
 import { resolveSessionNotifyContext, notifyClient, notifyCoach } from "./sessionNotifications.service";
 import { getClientCurrentCoachId } from "./clients.service";
 
-// Subscriptions are financial records — only admins can create/pause/resume
-// them (matches the prototype: "Pause Subscription" lives on the admin
-// client-detail page, never in the client portal). RLS grants admins direct
-// write access already, but these use the admin client uniformly so a
-// non-admin caller gets a clean "Forbidden" from requireRole() rather than a
-// less obvious RLS-denied error.
+// Subscriptions are financial records — only admins can create them, or
+// adjust their session count. Pause/resume is different: a client can
+// pause/resume their OWN plan (added per the mobile-migration work -- the
+// client portal previously had no pause control at all, admin-only), so
+// those two additionally allow the client role, gated by the ownership
+// check below. RLS grants admins direct write access already, but these use
+// the admin client uniformly so a non-admin/non-owner caller gets a clean
+// "Forbidden" from requireRole()/the check below rather than a less obvious
+// RLS-denied error.
+
+/** Admin can act on any subscription; a client can only act on their own --
+ * thrown as the same "Forbidden" shape requireRole() already uses elsewhere
+ * so callers don't need to distinguish the two rejection paths. */
+async function requireAdminOrOwningClient(ctx: Awaited<ReturnType<typeof getCallerContext>>, subscriptionClientId: string) {
+  if (ctx.role === "admin") return;
+  if (ctx.role === "client") {
+    const { data: client, error } = await ctx.client.from("client_profiles").select("id").eq("profile_id", ctx.userId).single();
+    if (!error && client?.id === subscriptionClientId) return;
+  }
+  throw new Error("Forbidden");
+}
 
 export async function getSubscriptionsForClient(accessToken: string, clientId: string) {
   const ctx = await getCallerContext(accessToken);
@@ -73,14 +88,16 @@ export async function purchaseSubscription(accessToken: string, clientId: string
 
 export async function pauseSubscription(accessToken: string, subscriptionId: string) {
   const ctx = await getCallerContext(accessToken);
-  requireRole(ctx, ["admin"]);
+  requireRole(ctx, ["admin", "client"]);
 
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("subscriptions")
-    .select("client_id")
+    .select("client_id, status")
     .eq("id", subscriptionId)
     .single();
   if (existingError || !existing) throw existingError ?? new Error("Subscription not found");
+  await requireAdminOrOwningClient(ctx, existing.client_id);
+  if (existing.status !== "active") throw new Error("Only an active plan can be paused.");
   const before = await getClientStatusSnapshot(existing.client_id);
 
   const { data, error } = await supabaseAdmin
@@ -141,14 +158,16 @@ export async function adjustSubscriptionSessions(accessToken: string, subscripti
 
 export async function resumeSubscription(accessToken: string, subscriptionId: string) {
   const ctx = await getCallerContext(accessToken);
-  requireRole(ctx, ["admin"]);
+  requireRole(ctx, ["admin", "client"]);
 
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("subscriptions")
-    .select("client_id")
+    .select("client_id, status")
     .eq("id", subscriptionId)
     .single();
   if (existingError || !existing) throw existingError ?? new Error("Subscription not found");
+  await requireAdminOrOwningClient(ctx, existing.client_id);
+  if (existing.status !== "paused") throw new Error("Only a paused plan can be resumed.");
   const before = await getClientStatusSnapshot(existing.client_id);
 
   const { data, error } = await supabaseAdmin

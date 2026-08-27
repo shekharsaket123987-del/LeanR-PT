@@ -5,6 +5,8 @@ import { ensureConversationForCoachAssignment } from "./chat.service";
 import { resolveSessionNotifyContext, notifyClient, notifyCoach } from "./sessionNotifications.service";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { deriveClientStatus } from "@/lib/client-status";
+import { getClientStatusSnapshot, logClientStatusChange } from "./clientStatus";
+import { createRecurringSlotsForClient } from "./scheduling.service";
 
 /** Every subscription status a client has ever had, plus whether they've
  * ever taken a demo (session_type = 'assessment') booking -- the two raw
@@ -454,4 +456,108 @@ export async function getMyRecurringCoachId(accessToken: string): Promise<string
     .limit(1)
     .maybeSingle();
   return activeSlot?.coach_id ?? null;
+}
+
+export interface CreateMigratedClientInput {
+  fullName: string;
+  email: string;
+  password: string;
+  phone?: string;
+  packageId: string;
+  /** How many sessions to actually grant in THIS system -- not the
+   * client's original plan size. A client migrated mid-plan (e.g.
+   * "enrolled in a 24-session package, 2 left") gets sessions_total set to
+   * the remaining count (2), never the original size (24): this system has
+   * no booking history for the sessions already used elsewhere, and
+   * sessions_remaining is always derived as sessions_total minus completed
+   * bookings IN this system (subscription_usage_view) -- setting the
+   * original size would silently hand them 22 sessions they'd already
+   * used. The original size, if given, is preserved only as a note on the
+   * timeline event below, for context, never as a number this system
+   * counts down from. */
+  sessionsRemaining: number;
+  /** The client's original plan size before migration, for the timeline
+   * note only (see sessionsRemaining) -- purely descriptive. */
+  originalPlanSessions?: number;
+  pauseDaysAllowed?: number;
+  /** Optional immediate weekly schedule assignment -- already validated
+   * free via scheduling.service.ts::checkAdminSlotAssignment by the caller
+   * before this runs; this function does not re-check, it trusts the
+   * admin action layer already confirmed availability. */
+  schedule?: { coachId: string; days: number[]; timeOfDay: string; durationMinutes?: number };
+}
+
+/** Admin-only bulk-migration entry point: creates a full, ready-to-log-in
+ * client account (auth user + profile + client_profiles, all via the same
+ * handle_new_user() trigger every other signup path goes through, since
+ * 'client' is its default role -- no manual profile-row cleanup needed here,
+ * unlike coaches.service.ts::createCoach, which has to undo the trigger's
+ * client-shaped default), an active subscription pre-loaded with exactly
+ * the sessions the client has left (see CreateMigratedClientInput's doc
+ * comment), and optionally an immediate coach + weekly recurring schedule.
+ * Built for shifting an existing client roster (e.g. tracked in a
+ * spreadsheet) into the platform without losing their place mid-plan. */
+export async function createMigratedClient(
+  accessToken: string,
+  input: CreateMigratedClientInput
+): Promise<{ clientId: string; clientCode: string }> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+
+  if (input.sessionsRemaining < 1) throw new Error("Sessions remaining must be at least 1");
+
+  const { data: pkg, error: pkgError } = await supabaseAdmin
+    .from("package_tiers")
+    .select("name, default_pause_days")
+    .eq("id", input.packageId)
+    .single();
+  if (pkgError || !pkg) throw pkgError ?? new Error("Package not found");
+
+  const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
+    email: input.email,
+    password: input.password,
+    email_confirm: true,
+    user_metadata: { full_name: input.fullName, phone: input.phone ?? null },
+    app_metadata: { role: "client" },
+  });
+  if (createError || !created.user) throw createError ?? new Error("Failed to create client account");
+
+  const { data: clientRow, error: clientRowError } = await supabaseAdmin
+    .from("client_profiles")
+    .select("id, client_code")
+    .eq("profile_id", created.user.id)
+    .single();
+  if (clientRowError || !clientRow) throw clientRowError ?? new Error("Client profile wasn't created");
+
+  const before = await getClientStatusSnapshot(clientRow.id);
+
+  const { data: sub, error: subError } = await supabaseAdmin
+    .from("subscriptions")
+    .insert({
+      client_id: clientRow.id,
+      package_id: input.packageId,
+      sessions_total: input.sessionsRemaining,
+      pause_days_allowed: input.pauseDaysAllowed ?? pkg.default_pause_days ?? 0,
+      status: "active",
+    })
+    .select("id")
+    .single();
+  if (subError || !sub) throw subError ?? new Error("Failed to create subscription");
+
+  const migrationDescription = input.originalPlanSessions
+    ? `Migrated from the previous system -- originally ${input.originalPlanSessions} sessions, ${input.sessionsRemaining} remaining at migration.`
+    : `Migrated from the previous system with ${input.sessionsRemaining} sessions remaining.`;
+  await logTimelineEvent(clientRow.id, "plan_purchased", `Migrated onto ${pkg.name}`, {
+    description: migrationDescription,
+    actorId: ctx.userId,
+    metadata: { subscriptionId: sub.id, packageId: input.packageId, sessionsRemaining: input.sessionsRemaining },
+  });
+
+  if (input.schedule) {
+    await createRecurringSlotsForClient(accessToken, clientRow.id, { ...input.schedule, subscriptionId: sub.id });
+  }
+
+  await logClientStatusChange(clientRow.id, before, ctx.userId);
+
+  return { clientId: clientRow.id, clientCode: clientRow.client_code };
 }

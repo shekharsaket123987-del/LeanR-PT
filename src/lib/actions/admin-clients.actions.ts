@@ -2,7 +2,14 @@
 
 import { getAccessToken } from "@/lib/supabase/server-client";
 import { ActionResult, runAction } from "./action-result";
-import { getClient, listClients, reassignClientCoach, getClientCurrentCoachId } from "@/lib/services/clients.service";
+import {
+  getClient,
+  listClients,
+  reassignClientCoach,
+  getClientCurrentCoachId,
+  createMigratedClient,
+  CreateMigratedClientInput,
+} from "@/lib/services/clients.service";
 import { getCoach, listCoaches } from "@/lib/services/coaches.service";
 import { listBookingsForClient } from "@/lib/services/bookings.service";
 import {
@@ -15,6 +22,8 @@ import {
 import { logRefundRequest } from "@/lib/services/audit.service";
 import { listProgressLogsForClient, isMeasurementStale } from "@/lib/services/progressLogs.service";
 import { getOnboardingForClient } from "@/lib/services/onboarding.service";
+import { listPackages } from "@/lib/services/packages.service";
+import { checkAdminSlotAssignment, AdminSlotCheckResult } from "@/lib/services/scheduling.service";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { calculateBmi } from "@/lib/utils";
 import { ClientStatus, getClientStatusSnapshot } from "@/lib/services/clientStatus";
@@ -299,5 +308,50 @@ export async function logRefundRequestAction(clientId: string, amountRupees: num
     const token = await requireToken();
     await logRefundRequest(token, clientId, amountRupees, reason);
     return null;
+  });
+}
+
+export interface AdminPackageOption {
+  id: string;
+  name: string;
+  sessionsCount: number;
+  defaultPauseDays: number;
+}
+
+/** Plan dropdown for the "Add Client" migration form -- every package tier
+ * (not just is_active ones, unlike the public pricing page) since a
+ * migrated client may be on a legacy plan that's since been archived from
+ * new sales but still needs to exist as a selectable label here. */
+export async function listPackageOptionsAction(): Promise<ActionResult<AdminPackageOption[]>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    const rows = await listPackages(token);
+    return (rows as any[]).map((p) => ({
+      id: p.id,
+      name: p.name,
+      sessionsCount: p.sessions_count,
+      defaultPauseDays: p.default_pause_days ?? 0,
+    }));
+  });
+}
+
+export async function checkSlotAvailabilityAction(input: {
+  coachId: string;
+  days: number[];
+  timeOfDay: string;
+  durationMinutes?: number;
+}): Promise<ActionResult<AdminSlotCheckResult>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    return checkAdminSlotAssignment(token, input);
+  });
+}
+
+export async function createMigratedClientAction(
+  input: CreateMigratedClientInput
+): Promise<ActionResult<{ clientId: string; clientCode: string }>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    return createMigratedClient(token, input);
   });
 }

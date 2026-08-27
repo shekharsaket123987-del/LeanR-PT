@@ -15,7 +15,7 @@ import {
   istWallClockToInstant,
   SubstituteCoachCandidate,
 } from "@/lib/services/scheduling.service";
-import { getSubscriptionsForClient, getPauseDaysStatus } from "@/lib/services/subscriptions.service";
+import { getSubscriptionsForClient, getPauseDaysStatus, pauseSubscription, resumeSubscription } from "@/lib/services/subscriptions.service";
 import { listMySales } from "@/lib/services/sales.service";
 import { getAllSettings } from "@/lib/services/settings.service";
 import { getMeasurementStatus } from "@/lib/services/progressLogs.service";
@@ -176,9 +176,12 @@ function computeStreakWeeks(completedDates: string[]): number {
 export interface ClientDashboardData {
   firstName: string;
   packageName: string | null;
+  subscriptionStatus: "active" | "paused" | null;
   sessionsTotal: number;
   sessionsUsed: number;
   sessionsRemaining: number;
+  pauseDaysAllowed: number;
+  pauseDaysUsed: number;
   streakWeeks: number;
   completedCount: number;
   /** "Day N of your journey" (§3.3) -- 1-indexed days since the active
@@ -214,18 +217,26 @@ export async function getClientDashboardAction(): Promise<ActionResult<ClientDas
       nextSession.zoomJoinUrl = await tryEnsureZoomJoinUrl(token, nextSession.id);
     }
 
+    // Matches "active" OR "paused" -- a currently-paused plan is still the
+    // client's live plan; filtering to "active" only meant a paused
+    // client's dashboard showed "No active package" and 0 sessions instead
+    // of their own (paused) plan's real numbers.
     const subscriptions = await getSubscriptionsForClient(token, client.id);
-    const activeSub = (subscriptions as any[]).find((s) => s.status === "active") ?? null;
+    const liveSub = (subscriptions as any[]).find((s) => s.status === "active" || s.status === "paused") ?? null;
+    const pauseDays = liveSub ? await getPauseDaysStatus(token, liveSub.id) : null;
 
-    const journeyStart = new Date(activeSub?.started_at ?? (client as any).joined_date);
+    const journeyStart = new Date(liveSub?.started_at ?? (client as any).joined_date);
     const journeyDay = Math.max(1, Math.floor((Date.now() - journeyStart.getTime()) / 86_400_000) + 1);
 
     return {
       firstName: (client as any).profile?.full_name?.split(" ")[0] ?? "there",
-      packageName: activeSub?.package?.name ?? null,
-      sessionsTotal: activeSub?.sessions_total ?? 0,
-      sessionsUsed: activeSub?.usage?.sessions_used ?? 0,
-      sessionsRemaining: activeSub?.usage?.sessions_remaining ?? 0,
+      packageName: liveSub?.package?.name ?? null,
+      subscriptionStatus: liveSub?.status ?? null,
+      sessionsTotal: liveSub?.sessions_total ?? 0,
+      sessionsUsed: liveSub?.usage?.sessions_used ?? 0,
+      sessionsRemaining: liveSub?.usage?.sessions_remaining ?? 0,
+      pauseDaysAllowed: pauseDays?.pauseDaysAllowed ?? 0,
+      pauseDaysUsed: pauseDays?.pauseDaysUsed ?? 0,
       streakWeeks: computeStreakWeeks(completed.map((b: any) => b.scheduled_start)),
       completedCount: completed.length,
       journeyDay,
@@ -562,6 +573,8 @@ export async function getSchedulingRulesAction(): Promise<ActionResult<Schedulin
 }
 
 export interface MySubscriptionView {
+  subscriptionId: string | null;
+  status: "active" | "paused" | null;
   packageName: string | null;
   sessionsTotal: number;
   sessionsUsed: number;
@@ -572,29 +585,52 @@ export interface MySubscriptionView {
 }
 
 /** Subscription & Payments tab (FEATURE_SPEC_PORTAL_ENHANCEMENTS.md §3.11) --
- * session tracking already existed on the dashboard; this adds the two
- * pieces that didn't: pause-days remaining (getPauseDaysStatus, RLS-scoped
- * so it works unmodified for a client caller) and a payment ledger
- * (sales_view via listMySales, same view the admin sales list uses). */
+ * session tracking already existed on the dashboard; this adds the pieces
+ * that didn't: pause-days remaining (getPauseDaysStatus, RLS-scoped so it
+ * works unmodified for a client caller), a payment ledger (sales_view via
+ * listMySales, same view the admin sales list uses), and enough (status,
+ * subscriptionId) for the portal to render its own Pause/Resume control.
+ * Matches "active" OR "paused" -- a currently-paused plan is still the
+ * client's live plan, not nothing; filtering to "active" only (as this used
+ * to) meant a paused client saw "No active plan" instead of their own
+ * paused one. */
 export async function getMySubscriptionAction(): Promise<ActionResult<MySubscriptionView>> {
   return runAction(async () => {
     const token = await requireToken();
     const client = await getMyClientProfile(token);
     const [subscriptions, sales] = await Promise.all([getSubscriptionsForClient(token, client.id), listMySales(token)]);
 
-    const activeSub: any = (subscriptions as any[]).find((s) => s.status === "active") ?? null;
-    const pauseDays = activeSub ? await getPauseDaysStatus(token, activeSub.id) : null;
+    const liveSub: any = (subscriptions as any[]).find((s) => s.status === "active" || s.status === "paused") ?? null;
+    const pauseDays = liveSub ? await getPauseDaysStatus(token, liveSub.id) : null;
 
     return {
-      packageName: activeSub?.package?.name ?? null,
-      sessionsTotal: activeSub?.sessions_total ?? 0,
-      sessionsUsed: activeSub?.usage?.sessions_used ?? 0,
-      sessionsRemaining: activeSub?.usage?.sessions_remaining ?? 0,
+      subscriptionId: liveSub?.id ?? null,
+      status: liveSub?.status ?? null,
+      packageName: liveSub?.package?.name ?? null,
+      sessionsTotal: liveSub?.sessions_total ?? 0,
+      sessionsUsed: liveSub?.usage?.sessions_used ?? 0,
+      sessionsRemaining: liveSub?.usage?.sessions_remaining ?? 0,
       pauseDaysAllowed: pauseDays?.pauseDaysAllowed ?? 0,
       pauseDaysUsed: pauseDays?.pauseDaysUsed ?? 0,
       payments: (sales as any[])
         .map((s) => ({ saleDate: s.sale_date, packageName: s.package_name, amount: Number(s.amount ?? 0) }))
         .sort((a, b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime()),
     };
+  });
+}
+
+export async function pauseMySubscriptionAction(subscriptionId: string): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    await pauseSubscription(token, subscriptionId);
+    return null;
+  });
+}
+
+export async function resumeMySubscriptionAction(subscriptionId: string): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const token = await requireToken();
+    await resumeSubscription(token, subscriptionId);
+    return null;
   });
 }

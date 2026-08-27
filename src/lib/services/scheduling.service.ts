@@ -695,6 +695,73 @@ export async function findAvailableCoach(
   return null;
 }
 
+export interface AdminSlotCheckResult {
+  available: boolean;
+  /** Other whole-hour start times (within the platform's booking window)
+   * this SAME coach is free for across the whole requested day pattern,
+   * closest to the requested time first. Empty when available is true. */
+  alternativeTimesForSameCoach: string[];
+  /** Other active coaches free for the EXACT requested days/time. Empty
+   * when available is true. */
+  alternativeCoaches: { coachId: string; name: string }[];
+}
+
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+/** Admin-driven equivalent of findAvailableCoach() -- that one auto-picks
+ * whichever coach is free (client self-service, no specific coach in mind);
+ * this checks one ADMIN-CHOSEN coach for one ADMIN-CHOSEN day/time pattern
+ * (the "migrate an existing client from the spreadsheet, assign them to
+ * coach X" flow), and when it's not free, surfaces concrete alternatives
+ * instead of a bare rejection -- other times that work with the same coach,
+ * and other coaches free at the exact same time -- so the admin isn't stuck
+ * guessing. Reuses the exact same collision-safe check
+ * (patternFreeAt/isDayTimeFreeForCoach) the client-facing paths depend on,
+ * just parameterized by an admin-supplied coach and day list instead of a
+ * canned pattern. */
+export async function checkAdminSlotAssignment(
+  accessToken: string,
+  input: { coachId: string; days: number[]; timeOfDay: string; durationMinutes?: number }
+): Promise<AdminSlotCheckResult> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+  const durationMinutes = input.durationMinutes ?? 60;
+
+  if (await patternFreeAt(input.coachId, input.days, input.timeOfDay, durationMinutes)) {
+    return { available: true, alternativeTimesForSameCoach: [], alternativeCoaches: [] };
+  }
+
+  const { startHour, endHour } = await getBookingWindow(accessToken);
+  const grid = hourlyGrid(startHour, endHour).filter((t) => t !== input.timeOfDay);
+  const requestedMinutes = timeToMinutes(input.timeOfDay);
+
+  const sameCoachChecks = await Promise.all(grid.map((t) => patternFreeAt(input.coachId, input.days, t, durationMinutes)));
+  const alternativeTimesForSameCoach = grid
+    .filter((_, i) => sameCoachChecks[i])
+    .sort((a, b) => Math.abs(timeToMinutes(a) - requestedMinutes) - Math.abs(timeToMinutes(b) - requestedMinutes))
+    .slice(0, 5);
+
+  const { data: otherCoaches, error: coachesError } = await supabaseAdmin
+    .from("coach_profiles")
+    .select("id, profile:profiles(full_name)")
+    .eq("status", "active")
+    .neq("id", input.coachId);
+  if (coachesError) throw coachesError;
+
+  const otherCoachChecks = await Promise.all(
+    (otherCoaches ?? []).map((c: any) => patternFreeAt(c.id, input.days, input.timeOfDay, durationMinutes))
+  );
+  const alternativeCoaches = (otherCoaches ?? [])
+    .filter((_: any, i: number) => otherCoachChecks[i])
+    .map((c: any) => ({ coachId: c.id as string, name: c.profile?.full_name ?? "Coach" }))
+    .slice(0, 5);
+
+  return { available: false, alternativeTimesForSameCoach, alternativeCoaches };
+}
+
 /** Is this ONE coach free for this ONE instant? Thin wrapper around the same
  * two conflict-safe RPCs findSubstituteCoachCandidates checks per-candidate,
  * used to test the client's own coach before ever looking for a substitute. */
@@ -1353,6 +1420,65 @@ export async function createRecurringSlots(
     // through this one function, so this is the single choke point for
     // "a client's coach just became input.coachId."
     ensureConversationForCoachAssignment(client.id, input.coachId),
+  ]);
+
+  return createdIds;
+}
+
+/** Admin-driven equivalent of createRecurringSlots() -- that one derives
+ * clientId from the caller's own session (a client setting up their own
+ * schedule); this takes clientId explicitly and writes via supabaseAdmin,
+ * for the admin-side client migration flow (an existing client from the
+ * old spreadsheet system, whose weekly slot is being entered on their
+ * behalf, already availability-checked via checkAdminSlotAssignment()
+ * before this is ever called). Same generate-bookings/timeline/conversation
+ * side effects as the client-facing path, just without ever needing a
+ * client-role session for a client who may not even have logged in yet. */
+export async function createRecurringSlotsForClient(
+  accessToken: string,
+  clientId: string,
+  input: { coachId: string; days: number[]; timeOfDay: string; durationMinutes?: number; subscriptionId?: string }
+): Promise<string[]> {
+  const ctx = await getCallerContext(accessToken);
+  requireRole(ctx, ["admin"]);
+
+  const durationMinutes = input.durationMinutes ?? 60;
+  const createdIds = await Promise.all(
+    input.days.map(async (day) => {
+      const { data: slot, error: slotError } = await supabaseAdmin
+        .from("recurring_slots")
+        .insert({
+          client_id: clientId,
+          coach_id: input.coachId,
+          subscription_id: input.subscriptionId ?? null,
+          day_of_week: day,
+          start_time: `${input.timeOfDay}:00`,
+          duration_minutes: durationMinutes,
+          status: "active",
+        })
+        .select("id")
+        .single();
+      if (slotError || !slot) throw slotError ?? new Error("Failed to create recurring slot");
+
+      const { error: genError } = await supabaseAdmin.rpc("generate_bookings_from_recurring_slot", {
+        p_recurring_slot_id: slot.id,
+        p_count: 4,
+      });
+      if (genError) throw genError;
+
+      return slot.id as string;
+    })
+  );
+
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  await Promise.all([
+    logTimelineEvent(clientId, "coach_assigned", "Coach assigned", { actorId: ctx.userId, metadata: { coachId: input.coachId } }),
+    logTimelineEvent(clientId, "slot_assigned", "Recurring schedule set", {
+      description: `${input.days.map((d) => dayNames[d]).join("/")} at ${input.timeOfDay}`,
+      actorId: ctx.userId,
+      metadata: { coachId: input.coachId, days: input.days, timeOfDay: input.timeOfDay },
+    }),
+    ensureConversationForCoachAssignment(clientId, input.coachId),
   ]);
 
   return createdIds;

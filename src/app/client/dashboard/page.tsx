@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import Image from "next/image";
-import { Flame, CalendarCheck2, TrendingUp, AlertTriangle, Scale, CalendarClock, Sparkles } from "lucide-react";
+import { Flame, CalendarCheck2, TrendingUp, AlertTriangle, Scale, CalendarClock, Sparkles, PauseCircle } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import Badge from "@/components/ui/Badge";
 import ProgressRing from "@/components/ui/ProgressRing";
 import StatCard from "@/components/ui/StatCard";
 import EmptyState from "@/components/ui/EmptyState";
@@ -114,10 +115,22 @@ export default async function ClientDashboardPage() {
         <Card className="flex flex-col items-center justify-center gap-4 p-6 text-center lg:col-span-1">
           <ProgressRing value={data.sessionsUsed} max={data.sessionsTotal || 1} label={`${data.sessionsRemaining}`} sublabel="Sessions left" />
           <div>
-            <p className="text-sm font-bold">{data.packageName ?? "No active package"}</p>
+            <div className="flex items-center justify-center gap-2">
+              <p className="text-sm font-bold">{data.packageName ?? "No active package"}</p>
+              {data.subscriptionStatus === "paused" && (
+                <Badge variant="red">
+                  <PauseCircle className="h-3 w-3" /> Paused
+                </Badge>
+              )}
+            </div>
             <p className="text-xs text-white/45">
               {data.sessionsUsed} of {data.sessionsTotal} sessions used
             </p>
+            {data.pauseDaysAllowed > 0 && (
+              <p className="mt-1 text-[11px] text-white/40">
+                {Math.max(0, data.pauseDaysAllowed - data.pauseDaysUsed).toFixed(1)} of {data.pauseDaysAllowed} pause-days remaining
+              </p>
+            )}
           </div>
         </Card>
 
