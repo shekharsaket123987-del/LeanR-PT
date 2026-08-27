@@ -1,0 +1,20 @@
+name: Session reminders
+
+# Vercel's own Cron Jobs feature only allows daily schedules on the Hobby
+# plan (see vercel.json's history) -- that limit is specific to Vercel's
+# built-in cron, not to how often the target function itself can be called,
+# so this workflow just curls the endpoint on a real 15-minute schedule
+# from GitHub Actions instead, free, no plan change needed.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call session-reminders endpoint
+        run: |
+          curl -sf -X GET "https://leanr-pt.vercel.app/api/cron/session-reminders" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
