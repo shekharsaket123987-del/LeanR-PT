@@ -1,7 +1,7 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { logTimelineEvent } from "./timeline.service";
-import { createFromTemplate } from "./notifications.service";
+import { notifyUser } from "./notifications.service";
 
 const ESCALATION_SELECT =
   "*, client:client_profiles(id, client_code, profile:profiles(full_name, photo_url)), coach:coach_profiles(id, profile:profiles(full_name))";
@@ -49,7 +49,7 @@ export async function createEscalation(
   ]);
 
   if (input.coachId && coachResult.data) {
-    await createFromTemplate("escalation_raised_to_coach", (coachResult.data as any).profile_id, {
+    await notifyUser((coachResult.data as any).profile_id, "escalation_raised_to_coach", {
       client_name: (clientResult.data as any)?.profile?.full_name ?? "Client",
       reason: input.reason,
     });
@@ -134,7 +134,7 @@ export async function resolveEscalation(accessToken: string, escalationId: strin
     .from("escalations")
     .update({ status: "resolved", resolved_by: ctx.userId, resolved_at: new Date().toISOString(), resolution_notes: resolutionNotes ?? null })
     .eq("id", escalationId)
-    .select()
+    .select("*, client:client_profiles(profile_id)")
     .single();
   if (error) throw error;
 
@@ -143,6 +143,14 @@ export async function resolveEscalation(accessToken: string, escalationId: strin
     actorId: ctx.userId,
     metadata: { escalationId },
   });
+
+  const clientProfileId = (data as any).client?.profile_id;
+  if (clientProfileId) {
+    await notifyUser(clientProfileId, "escalation_resolved_client", {
+      reason: data.reason,
+      resolution_line: resolutionNotes ? ` ${resolutionNotes}` : "",
+    });
+  }
 
   return data;
 }

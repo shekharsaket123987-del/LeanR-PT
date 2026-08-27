@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { listActiveClientIdsForCoach } from "./clients.service";
 import { findShadowCoachCandidates, istTimeOfDayMinutes, planShadowAssignments } from "./scheduling.service";
 import { assignShadowCoach, reassignShadowCoverage } from "./coachChange.service";
-import { createFromTemplate, notifyAdmins } from "./notifications.service";
+import { notifyAdmins, notifyUser } from "./notifications.service";
 
 export async function getCoachAvailability(accessToken: string, coachId: string) {
   const ctx = await getCallerContext(accessToken);
@@ -192,13 +192,18 @@ export async function resolveLeave(accessToken: string, leaveId: string, status:
   const { data: leave, error } = await supabaseAdmin.from("coach_leave").update({ status }).eq("id", leaveId).select().single();
   if (error) throw error;
 
-  const { data: coach } = await supabaseAdmin.from("coach_profiles").select("profile_id").eq("id", leave.coach_id).maybeSingle();
+  const { data: coach } = await supabaseAdmin
+    .from("coach_profiles")
+    .select("profile_id, profile:profiles(full_name)")
+    .eq("id", leave.coach_id)
+    .maybeSingle();
   if (coach) {
-    await createFromTemplate(status === "approved" ? "leave_approved" : "leave_rejected", coach.profile_id, {
+    await notifyUser(coach.profile_id, status === "approved" ? "leave_approved" : "leave_rejected", {
       starts_on: leave.starts_on,
       ends_on: leave.ends_on,
     });
   }
+  const coachName = (coach as any)?.profile?.full_name ?? "Your coach";
 
   const summary: LeaveResolutionSummary = {
     leave: { id: leave.id, coachId: leave.coach_id, startsOn: leave.starts_on, endsOn: leave.ends_on, status: leave.status },
@@ -212,9 +217,20 @@ export async function resolveLeave(accessToken: string, leaveId: string, status:
 
   const { data: profiles } = await supabaseAdmin
     .from("client_profiles")
-    .select("id, profile:profiles(full_name)")
+    .select("id, profile_id, profile:profiles(full_name)")
     .in("id", clientIds);
   const nameById = new Map((profiles ?? []).map((p: any) => [p.id, p.profile?.full_name ?? "Client"]));
+
+  // Every one of this coach's active clients gets told their coach is on
+  // leave -- same client set the shadow-coverage matching below already
+  // treats as "affected," so this stays consistent with it rather than
+  // re-deriving a narrower "has a session strictly inside the leave window"
+  // set.
+  await Promise.all(
+    (profiles ?? []).map((p: any) =>
+      notifyUser(p.profile_id, "coach_on_leave_client", { coach_name: coachName, starts_on: leave.starts_on, ends_on: leave.ends_on })
+    )
+  );
 
   // Partial-day leave only makes the coach unavailable for a specific time
   // window on starts_on -- sessions outside that window aren't affected and

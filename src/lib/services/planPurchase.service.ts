@@ -2,6 +2,7 @@ import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { logTimelineEvent } from "./timeline.service";
 import { getClientStatusSnapshot, logClientStatusChange } from "./clientStatus";
+import { resolveSessionNotifyContext, notifyClient } from "./sessionNotifications.service";
 
 /** Shared by the renewal reminder (client-portal nudge to renew) and the
  * purchase-gate relaxation below, so the two always agree on when "running
@@ -68,6 +69,12 @@ export async function purchaseMyPlanForClient(clientId: string, packageId: strin
     metadata: { subscriptionId: data.id, packageId },
   });
   await logClientStatusChange(clientId, before, actorId);
+
+  // resolveSessionNotifyContext only resolves an ACTIVE subscription for
+  // plan_name -- this one is still "awaiting_activation", so pass the plan
+  // name explicitly rather than let it fall back to "N/A".
+  const notifyCtx = await resolveSessionNotifyContext(clientId);
+  await notifyClient(notifyCtx, "plan_purchased_client", { plan_name: pkg.name, sessions_left: String(pkg.sessions_count) });
 
   return data;
 }
@@ -140,6 +147,9 @@ export async function activateMyPlan(accessToken: string, subscriptionId: string
     metadata: { subscriptionId },
   });
   await logClientStatusChange(sub.client_id, before, ctx.userId);
+
+  const notifyCtx = await resolveSessionNotifyContext(sub.client_id);
+  await notifyClient(notifyCtx, "plan_activated_client", { start_date: startDate });
 
   return data;
 }

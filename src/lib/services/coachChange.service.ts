@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { getMyCurrentCoachId, reassignClientCoach } from "./clients.service";
 import { logTimelineEvent } from "./timeline.service";
 import { findAvailableCoach, createRecurringSlots, PatternKey } from "./scheduling.service";
-import { createFromTemplate } from "./notifications.service";
+import { notifyUser } from "./notifications.service";
 
 export async function requestCoachChange(
   accessToken: string,
@@ -214,7 +214,7 @@ export async function assignShadowCoach(
   const primaryCoachName = (primaryCoach as any)?.profile?.full_name ?? "your coach";
   await Promise.all([
     client
-      ? createFromTemplate("shadow_coach_assigned", (client as any).profile_id, {
+      ? notifyUser((client as any).profile_id, "shadow_coach_assigned", {
           shadow_coach_name: (shadowCoach as any)?.profile?.full_name ?? "A coach",
           primary_coach_name: primaryCoachName,
           starts_on: input.startsOn,
@@ -222,7 +222,7 @@ export async function assignShadowCoach(
         })
       : Promise.resolve(),
     shadowCoach
-      ? createFromTemplate("shadow_assignment_for_coach", (shadowCoach as any).profile_id, {
+      ? notifyUser((shadowCoach as any).profile_id, "shadow_assignment_for_coach", {
           client_name: (client as any)?.profile?.full_name ?? "a client",
           primary_coach_name: primaryCoachName,
           starts_on: input.startsOn,
@@ -283,7 +283,7 @@ export async function reassignShadowCoverage(
   const primaryCoachName = (primaryCoach as any)?.profile?.full_name ?? "your coach";
   await Promise.all([
     client
-      ? createFromTemplate("shadow_coach_assigned", (client as any).profile_id, {
+      ? notifyUser((client as any).profile_id, "shadow_coach_assigned", {
           shadow_coach_name: (newShadowCoach as any)?.profile?.full_name ?? "A coach",
           primary_coach_name: primaryCoachName,
           starts_on: input.startsOn,
@@ -291,7 +291,7 @@ export async function reassignShadowCoverage(
         })
       : Promise.resolve(),
     newShadowCoach
-      ? createFromTemplate("shadow_assignment_for_coach", (newShadowCoach as any).profile_id, {
+      ? notifyUser((newShadowCoach as any).profile_id, "shadow_assignment_for_coach", {
           client_name: (client as any)?.profile?.full_name ?? "a client",
           primary_coach_name: primaryCoachName,
           starts_on: input.startsOn,

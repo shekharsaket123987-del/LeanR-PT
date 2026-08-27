@@ -1,5 +1,6 @@
 import { getCallerContext } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
+import { sendEmail } from "./email.service";
 
 export async function listMyNotifications(accessToken: string) {
   const ctx = await getCallerContext(accessToken);
@@ -52,6 +53,24 @@ export async function createFromTemplate(templateKey: string, userId: string, va
     .single();
   if (error) throw error;
   return data;
+}
+
+/** Generic single-user notify: writes the in-app row via createFromTemplate
+ * AND emails them -- for events that don't fit the client/coach-pair shape
+ * sessionNotifications.service.ts's notifyClient/notifyCoach expect (a
+ * coach's own leave approval, a shadow-coach assignment, an escalation),
+ * where there's exactly one recipient and no "client's active plan" context
+ * to resolve. Same fail-soft contract as everything else here -- a broken
+ * email must never break the flow that triggered it. */
+export async function notifyUser(profileId: string, templateKey: string, vars: Record<string, string> = {}) {
+  try {
+    const row = await createFromTemplate(templateKey, profileId, vars);
+    const { data } = await supabaseAdmin.auth.admin.getUserById(profileId);
+    const email = data.user?.email;
+    if (email) await sendEmail(email, row.title, `<p>${row.message}</p>`);
+  } catch (err) {
+    console.warn(`[notifications] notifyUser failed (${templateKey}):`, err instanceof Error ? err.message : err);
+  }
 }
 
 /** Notifies every admin profile via a template — used when an automated flow

@@ -2,6 +2,8 @@ import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { logTimelineEvent } from "./timeline.service";
 import { getClientStatusSnapshot, logClientStatusChange } from "./clientStatus";
+import { resolveSessionNotifyContext, notifyClient, notifyCoach } from "./sessionNotifications.service";
+import { getClientCurrentCoachId } from "./clients.service";
 
 // Subscriptions are financial records — only admins can create/pause/resume
 // them (matches the prototype: "Pause Subscription" lives on the admin
@@ -63,6 +65,9 @@ export async function purchaseSubscription(accessToken: string, clientId: string
   });
   await logClientStatusChange(clientId, before, ctx.userId);
 
+  const notifyCtx = await resolveSessionNotifyContext(clientId);
+  await notifyClient(notifyCtx, "plan_purchased_client", {});
+
   return data;
 }
 
@@ -82,12 +87,23 @@ export async function pauseSubscription(accessToken: string, subscriptionId: str
     .from("subscriptions")
     .update({ status: "paused", paused_at: new Date().toISOString() })
     .eq("id", subscriptionId)
-    .select()
+    .select("*, package:package_tiers(name)")
     .single();
   if (error) throw error;
 
   await logTimelineEvent(data.client_id, "pause_started", "Subscription paused", { actorId: ctx.userId, metadata: { subscriptionId } });
   await logClientStatusChange(data.client_id, before, ctx.userId);
+
+  // resolveSessionNotifyContext only resolves an ACTIVE subscription for
+  // plan_name -- this one just became paused, so pass the plan name
+  // explicitly rather than let it fall back to "N/A".
+  const coachId = await getClientCurrentCoachId(accessToken, data.client_id);
+  const notifyCtx = await resolveSessionNotifyContext(data.client_id, coachId);
+  const planName = (data as any).package?.name ?? "your plan";
+  await Promise.all([
+    notifyClient(notifyCtx, "subscription_paused_client", { plan_name: planName }),
+    notifyCoach(notifyCtx, "subscription_paused_coach", { plan_name: planName }),
+  ]);
 
   return data;
 }
@@ -145,6 +161,10 @@ export async function resumeSubscription(accessToken: string, subscriptionId: st
 
   await logTimelineEvent(data.client_id, "pause_ended", "Subscription resumed", { actorId: ctx.userId, metadata: { subscriptionId } });
   await logClientStatusChange(data.client_id, before, ctx.userId);
+
+  const coachId = await getClientCurrentCoachId(accessToken, data.client_id);
+  const notifyCtx = await resolveSessionNotifyContext(data.client_id, coachId);
+  await Promise.all([notifyClient(notifyCtx, "subscription_resumed_client", {}), notifyCoach(notifyCtx, "subscription_resumed_coach", {})]);
 
   return data;
 }

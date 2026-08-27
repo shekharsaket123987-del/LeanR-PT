@@ -390,25 +390,25 @@ export async function cancelBooking(accessToken: string, bookingId: string, reas
     }),
   ]);
 
+  const notifyCtx = await resolveSessionNotifyContext((booking as any).client_id, (booking as any).coach_id);
+  const sessionTime = formatSessionTime((booking as any).scheduled_start);
+
   if (ctx.role === "client") {
-    const clientName = (booking as any).client?.profile?.full_name ?? "Client";
-    const sessionTime = new Date((booking as any).scheduled_start).toLocaleString();
-    const { data: coach } = await supabaseAdmin
-      .from("coach_profiles")
-      .select("profile_id")
-      .eq("id", (booking as any).coach_id)
-      .maybeSingle();
+    const clientName = notifyCtx.clientName;
     await Promise.all([
-      coach
-        ? createFromTemplate("session_cancelled_by_client", coach.profile_id, {
-            client_name: clientName,
-            session_time: sessionTime,
-          })
-        : Promise.resolve(),
+      notifyCoach(notifyCtx, "session_cancelled_by_client", { client_name: clientName, session_time: sessionTime }),
       notifyAdmins("admin_alert", {
         alert_message: `${clientName} cancelled their session scheduled for ${sessionTime}.`,
       }),
     ]);
+  } else {
+    // Coach or admin cancelled -- the client was never told at all before
+    // this, regardless of who acted.
+    await notifyClient(notifyCtx, "session_cancelled_client", {
+      coach_name: notifyCtx.coachName ?? "your coach",
+      session_time: sessionTime,
+      reason_line: reason ? ` Reason: ${reason}` : "",
+    });
   }
 }
 
