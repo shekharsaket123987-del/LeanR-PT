@@ -121,12 +121,17 @@ export async function createCoach(
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["admin"]);
 
-  // role must be app_metadata, not user_metadata -- handle_new_user() reads
-  // new.raw_app_meta_data->>'role' specifically (privileged, server-only
-  // field a public signUp() caller can never set) so that self-service
-  // signup can't escalate to coach/admin by passing role in its own
-  // metadata. user_metadata is still the right place for full_name (purely
-  // descriptive, no privilege implications).
+  // app_metadata is the right field for role (privileged, server-only --
+  // a public signUp() caller can only ever set user_metadata, which is what
+  // stops self-service signup from escalating to coach/admin), but
+  // handle_new_user() fires AFTER INSERT on auth.users while
+  // admin.createUser() applies custom app_metadata via a separate UPDATE
+  // right after that initial insert -- the trigger only ever sees the
+  // system-default app_metadata (provider/providers) at insert time, so it
+  // always creates a 'client' profile here regardless of what's passed
+  // below. Passed anyway so auth.users itself has the correct role on
+  // record, but the profile/coach_profiles linkage is fixed up explicitly
+  // afterward rather than relied on from the trigger.
   const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
     email: input.email,
     password: input.password,
@@ -135,6 +140,19 @@ export async function createCoach(
     app_metadata: { role: "coach" },
   });
   if (createError || !created.user) throw createError ?? new Error("Failed to create coach account");
+
+  const { error: roleFixError } = await supabaseAdmin.from("profiles").update({ role: "coach" }).eq("id", created.user.id);
+  if (roleFixError) throw roleFixError;
+
+  // handle_new_user() inserted a client_profiles row (it always defaults to
+  // 'client' for this creation path, per the comment above) -- remove it
+  // and create the real coach_profiles row before the persona-detail update
+  // below, which expects one to already exist.
+  const { error: removeClientRowError } = await supabaseAdmin.from("client_profiles").delete().eq("profile_id", created.user.id);
+  if (removeClientRowError) throw removeClientRowError;
+
+  const { error: insertCoachRowError } = await supabaseAdmin.from("coach_profiles").insert({ profile_id: created.user.id });
+  if (insertCoachRowError) throw insertCoachRowError;
 
   const { data: coachRow, error: coachError } = await supabaseAdmin
     .from("coach_profiles")
