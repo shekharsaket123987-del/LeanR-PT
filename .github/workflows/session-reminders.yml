@@ -1,4 +1,5 @@
 name: Session reminders
+# (re-pushed after enabling Actions on the repo so GitHub actually registers it)
 
 # Vercel's own Cron Jobs feature only allows daily schedules on the Hobby
 # plan (see vercel.json's history) -- that limit is specific to Vercel's
