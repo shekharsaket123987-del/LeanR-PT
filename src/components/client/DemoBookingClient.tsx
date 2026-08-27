@@ -19,6 +19,18 @@ function earliestDateISO(): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** 5am-9pm IST, whole hours only -- matches the platform's actual booking
+ * grid (scheduling.service.ts's hourlyGrid/getBookingWindow default), which
+ * only ever offers on-the-hour start times anyway, so a free-text time
+ * picker let a client "prefer" a slot no coach could ever match. */
+const PREFERRED_TIME_HOURS = Array.from({ length: 17 }, (_, i) => i + 5); // 5..21
+
+function formatHour(h: number): string {
+  const period = h >= 12 ? "PM" : "AM";
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return `${hour12}:00 ${period}`;
+}
+
 /** The client picks a date/time preference only -- never a coach. The
  * system auto-assigns the best available coach (findDemoSlots' existing
  * utilization ranking) and confirms immediately, free, no payment step. */
@@ -103,12 +115,18 @@ export default function DemoBookingClient({ measurementsStale }: { measurementsS
         </div>
         <div>
           <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Preferred Time (optional)</label>
-          <input
-            type="time"
+          <select
             value={preferredTime}
             onChange={(e) => setPreferredTime(e.target.value)}
             className="w-full rounded-xl border border-white/15 p-3 text-sm"
-          />
+          >
+            <option value="">No preference</option>
+            {PREFERRED_TIME_HOURS.map((h) => (
+              <option key={h} value={`${String(h).padStart(2, "0")}:00`}>
+                {formatHour(h)}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="mb-1.5 block text-xs font-bold uppercase text-white/40">Coach Gender (optional)</label>
