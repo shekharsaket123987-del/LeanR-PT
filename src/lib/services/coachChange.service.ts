@@ -101,7 +101,20 @@ export async function resolveCoachChangeRequest(
   if (updateError || !request) throw updateError ?? new Error("Request not found");
 
   if (decision.approve && decision.newCoachId) {
+    // reassignClientCoach already emails the client (coach_changed_client) --
+    // nothing further to send here.
     await reassignClientCoach(accessToken, request.client_id, request.current_coach_id, decision.newCoachId);
+  } else {
+    // Every other outcome (rejected, or approved with no coach picked yet --
+    // the client still has to search/choose one via findCoachChangeOptions)
+    // previously told the client nothing at all.
+    const { data: client } = await supabaseAdmin.from("client_profiles").select("profile_id").eq("id", request.client_id).maybeSingle();
+    if (client) {
+      await notifyUser(
+        client.profile_id,
+        decision.approve ? "coach_change_request_approved_client" : "coach_change_request_rejected_client"
+      );
+    }
   }
 
   return request;

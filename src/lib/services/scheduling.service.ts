@@ -1405,13 +1405,14 @@ export async function createRecurringSlots(
   );
 
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const scheduleSummary = `${input.days.map((d) => dayNames[d]).join("/")} at ${input.timeOfDay}`;
   // Independent side effects -- none consumes another's result.
   await Promise.all([
     isFirstCoach
       ? logTimelineEvent(client.id, "coach_assigned", "Coach assigned", { actorId: ctx.userId, metadata: { coachId: input.coachId } })
       : Promise.resolve(),
     logTimelineEvent(client.id, "slot_assigned", "Recurring schedule set", {
-      description: `${input.days.map((d) => dayNames[d]).join("/")} at ${input.timeOfDay}`,
+      description: scheduleSummary,
       actorId: ctx.userId,
       metadata: { coachId: input.coachId, days: input.days, timeOfDay: input.timeOfDay },
     }),
@@ -1420,6 +1421,12 @@ export async function createRecurringSlots(
     // through this one function, so this is the single choke point for
     // "a client's coach just became input.coachId."
     ensureConversationForCoachAssignment(client.id, input.coachId),
+  ]);
+
+  const notifyCtx = await resolveSessionNotifyContext(client.id, input.coachId);
+  await Promise.all([
+    notifyClient(notifyCtx, "schedule_assigned_client", { coach_name: notifyCtx.coachName ?? "your coach", schedule_summary: scheduleSummary }),
+    notifyCoach(notifyCtx, "schedule_assigned_coach", { client_name: notifyCtx.clientName, schedule_summary: scheduleSummary }),
   ]);
 
   return createdIds;
@@ -1471,14 +1478,21 @@ export async function createRecurringSlotsForClient(
   );
 
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const scheduleSummary = `${input.days.map((d) => dayNames[d]).join("/")} at ${input.timeOfDay}`;
   await Promise.all([
     logTimelineEvent(clientId, "coach_assigned", "Coach assigned", { actorId: ctx.userId, metadata: { coachId: input.coachId } }),
     logTimelineEvent(clientId, "slot_assigned", "Recurring schedule set", {
-      description: `${input.days.map((d) => dayNames[d]).join("/")} at ${input.timeOfDay}`,
+      description: scheduleSummary,
       actorId: ctx.userId,
       metadata: { coachId: input.coachId, days: input.days, timeOfDay: input.timeOfDay },
     }),
     ensureConversationForCoachAssignment(clientId, input.coachId),
+  ]);
+
+  const notifyCtx = await resolveSessionNotifyContext(clientId, input.coachId);
+  await Promise.all([
+    notifyClient(notifyCtx, "schedule_assigned_client", { coach_name: notifyCtx.coachName ?? "your coach", schedule_summary: scheduleSummary }),
+    notifyCoach(notifyCtx, "schedule_assigned_coach", { client_name: notifyCtx.clientName, schedule_summary: scheduleSummary }),
   ]);
 
   return createdIds;
