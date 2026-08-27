@@ -27,6 +27,7 @@ import {
   AlertTriangle,
   ChevronRight,
   X,
+  ArrowRightLeft,
 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import { TimelineEventRow, TimelineEventType } from "@/lib/services/timeline.service";
@@ -58,6 +59,7 @@ const EVENT_ICONS: Record<TimelineEventType, any> = {
   refund_approved: Banknote,
   plan_completed: CheckCheck,
   plan_promise_adjusted: Gift,
+  client_status_changed: ArrowRightLeft,
 };
 
 const EVENT_LABELS: Record<TimelineEventType, string> = {
@@ -87,6 +89,7 @@ const EVENT_LABELS: Record<TimelineEventType, string> = {
   refund_approved: "Refund approved",
   plan_completed: "Plan completed",
   plan_promise_adjusted: "Pause days adjusted",
+  client_status_changed: "Client status changed",
 };
 
 const PAGE_SIZE = 20;

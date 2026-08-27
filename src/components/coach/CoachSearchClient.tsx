@@ -8,6 +8,16 @@ import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
 import { ClientSearchResultView } from "@/lib/actions/coach-portal.actions";
+import { CLIENT_STATUS_LABELS } from "@/lib/client-status";
+
+const STATUS_VARIANT: Record<string, "green" | "red" | "gray" | "black" | "outline-yellow"> = {
+  active: "green",
+  paused: "red",
+  expired: "gray",
+  created: "black",
+  demo: "outline-yellow",
+  not_paid: "gray",
+};
 
 export default function CoachSearchClient({ clients }: { clients: ClientSearchResultView[] }) {
   const [query, setQuery] = useState("");
@@ -48,7 +58,10 @@ export default function CoachSearchClient({ clients }: { clients: ClientSearchRe
                 <p className="truncate text-sm font-bold">{c.name}</p>
                 <p className="truncate text-xs text-white/45">{c.clientCode}</p>
               </div>
-              {c.isAssignedToMe ? <Badge variant="green">Your client</Badge> : <Badge variant="gray">Read-only</Badge>}
+              <div className="flex shrink-0 flex-col items-end gap-1.5">
+                <Badge variant={STATUS_VARIANT[c.status] ?? "gray"}>{CLIENT_STATUS_LABELS[c.status] ?? c.status}</Badge>
+                {c.isAssignedToMe ? <Badge variant="green">Your client</Badge> : <Badge variant="gray">Read-only</Badge>}
+              </div>
             </Card>
           </Link>
         ))}

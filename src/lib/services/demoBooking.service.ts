@@ -2,6 +2,7 @@ import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { earliestBookableDateIST, getBookingWindow, hourlyGrid, istWallClockToInstant } from "./scheduling.service";
 import { createBooking } from "./bookings.service";
+import { getClientStatusSnapshot, logClientStatusChange } from "./clientStatus";
 
 export interface DemoSlotOption {
   coachId: string;
@@ -103,7 +104,8 @@ export async function confirmDemoBooking(accessToken: string, coachId: string, s
   const { data: client, error } = await ctx.client.from("client_profiles").select("id").eq("profile_id", ctx.userId).single();
   if (error || !client) throw error ?? new Error("Client profile not found");
 
-  return createBooking(accessToken, {
+  const before = await getClientStatusSnapshot(client.id);
+  const result = await createBooking(accessToken, {
     clientId: client.id,
     coachId,
     slotStart,
@@ -111,6 +113,8 @@ export async function confirmDemoBooking(accessToken: string, coachId: string, s
     sessionType: "assessment",
     amountPaid: 0,
   });
+  await logClientStatusChange(client.id, before, ctx.userId);
+  return result;
 }
 
 export interface DemoSessionSummary {

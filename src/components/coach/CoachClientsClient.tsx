@@ -15,8 +15,10 @@ const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const STATUS_BADGE: Record<CoachClientView["status"], { variant: any; label: string }> = {
   active: { variant: "green", label: "Active" },
   paused: { variant: "red", label: "Paused" },
-  completed: { variant: "gray", label: "Completed" },
-  waiting_to_start: { variant: "outline-yellow", label: "Waiting to Start" },
+  expired: { variant: "gray", label: "Expired" },
+  created: { variant: "black", label: "Created" },
+  demo: { variant: "outline-yellow", label: "Demo" },
+  not_paid: { variant: "gray", label: "Not Paid" },
 };
 
 function formatSlot(days: number[], startTime: string | null): string {
@@ -55,8 +57,8 @@ export default function CoachClientsClient({ clients }: { clients: CoachClientVi
           />
         </div>
         <div className="flex flex-wrap gap-2">
-          <div className="flex gap-1 rounded-xl bg-white/5 p-1">
-            {(["all", "active", "waiting_to_start", "paused", "completed"] as const).map((s) => (
+          <div className="flex flex-wrap gap-1 rounded-xl bg-white/5 p-1">
+            {(["all", "not_paid", "demo", "created", "active", "paused", "expired"] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}

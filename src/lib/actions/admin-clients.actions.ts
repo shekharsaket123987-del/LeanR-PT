@@ -17,6 +17,7 @@ import { listProgressLogsForClient, isMeasurementStale } from "@/lib/services/pr
 import { getOnboardingForClient } from "@/lib/services/onboarding.service";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { calculateBmi } from "@/lib/utils";
+import { ClientStatus, getClientStatusSnapshot } from "@/lib/services/clientStatus";
 
 async function requireToken(): Promise<string> {
   const token = await getAccessToken();
@@ -32,7 +33,7 @@ export interface AdminClientListItem {
   name: string;
   photo: string;
   phone: string | null;
-  status: "active" | "inactive" | "paused" | "expired";
+  status: ClientStatus;
   packageName: string | null;
   coachName: string | null;
   sessionsRemaining: number | null;
@@ -41,19 +42,6 @@ export interface AdminClientListItem {
   slotStartTime: string | null;
   lastMeasurementAt: string | null;
   measurementsStale: boolean;
-}
-
-/** "Expired" isn't a stored enum value (client_profiles.status is never
- * actually written to "inactive" by any code path today) -- it's derived:
- * a client who has had a subscription before but has none active now reads
- * as expired, distinct from a lead who never purchased at all (who keeps
- * showing under their raw status, unaffected by this). Paused stays exactly
- * as before -- this only adds a new bucket on top, no existing case changes. */
-function deriveAdminClientStatus(rawStatus: string, hasActiveSubscription: boolean, hasEverSubscribed: boolean): AdminClientListItem["status"] {
-  if (rawStatus === "paused") return "paused";
-  if (hasActiveSubscription) return "active";
-  if (hasEverSubscribed) return "expired";
-  return rawStatus as AdminClientListItem["status"];
 }
 
 export async function listAdminClientsAction(): Promise<ActionResult<AdminClientListItem[]>> {
@@ -66,7 +54,7 @@ export async function listAdminClientsAction(): Promise<ActionResult<AdminClient
       name: c.profile?.full_name ?? "Client",
       photo: c.profile?.photo_url ?? FALLBACK_PHOTO(c.id),
       phone: c.profile?.phone ?? null,
-      status: deriveAdminClientStatus(c.status, !!c.activeSubscription, !!c.hasEverSubscribed),
+      status: c.clientStatus as ClientStatus,
       packageName: c.activeSubscription?.package?.name ?? null,
       coachName: c.activeCoach?.profile?.full_name ?? null,
       sessionsRemaining: c.activeSubscription?.sessionsRemaining ?? null,
@@ -101,7 +89,7 @@ export interface AdminClientDetailView {
   photo: string;
   email: string;
   phone: string | null;
-  status: "active" | "inactive" | "paused";
+  status: ClientStatus;
   joinedDate: string;
   goals: string[];
   medicalNotes: string | null;
@@ -127,13 +115,22 @@ export async function getAdminClientDetailAction(clientId: string): Promise<Acti
     const token = await requireToken();
     const client: any = await getClient(token, clientId);
 
-    const [subs, bookings, authUser, currentCoachId, progressLogs, onboarding]: [any[], any[], any, string | null, any[], any] = await Promise.all([
+    const [subs, bookings, authUser, currentCoachId, progressLogs, onboarding, clientStatus]: [
+      any[],
+      any[],
+      any,
+      string | null,
+      any[],
+      any,
+      ClientStatus
+    ] = await Promise.all([
       getSubscriptionsForClient(token, clientId),
       listBookingsForClient(token, clientId),
       supabaseAdmin.auth.admin.getUserById(client.profile.id),
       getClientCurrentCoachId(token, clientId),
       listProgressLogsForClient(token, clientId),
       getOnboardingForClient(token, clientId),
+      getClientStatusSnapshot(clientId),
     ]);
 
     let coach: AdminClientDetailView["coach"] = null;
@@ -172,7 +169,7 @@ export async function getAdminClientDetailAction(clientId: string): Promise<Acti
       photo: client.profile?.photo_url ?? FALLBACK_PHOTO(client.id),
       email: authUser.data.user?.email ?? "",
       phone: client.profile?.phone ?? null,
-      status: client.status,
+      status: clientStatus,
       joinedDate: client.joined_date,
       goals: client.goals ?? [],
       medicalNotes: client.medical_notes,
@@ -226,7 +223,7 @@ export interface AdminClientSearchResult {
   name: string;
   photo: string;
   phone: string | null;
-  status: "active" | "inactive" | "paused";
+  status: ClientStatus;
 }
 
 /** Admin Universal Search (FEATURE_SPEC_PORTAL_ENHANCEMENTS.md §2.1) --
@@ -245,7 +242,7 @@ export async function searchAdminClientsAction(): Promise<ActionResult<AdminClie
       name: c.profile?.full_name ?? "Client",
       photo: c.profile?.photo_url ?? FALLBACK_PHOTO(c.id),
       phone: c.profile?.phone ?? null,
-      status: c.status,
+      status: c.clientStatus as ClientStatus,
     }));
   });
 }

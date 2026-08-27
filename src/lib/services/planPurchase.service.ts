@@ -1,6 +1,7 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { logTimelineEvent } from "./timeline.service";
+import { getClientStatusSnapshot, logClientStatusChange } from "./clientStatus";
 
 /** Shared by the renewal reminder (client-portal nudge to renew) and the
  * purchase-gate relaxation below, so the two always agree on when "running
@@ -23,6 +24,8 @@ export const SESSIONS_LOW_THRESHOLD = 5;
  * created at checkout time. actorId is the acting user's profile id for the
  * timeline log -- null for the system/webhook path. */
 export async function purchaseMyPlanForClient(clientId: string, packageId: string, actorId: string | null) {
+  const before = await getClientStatusSnapshot(clientId);
+
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("subscriptions")
     .select("id, status")
@@ -64,6 +67,7 @@ export async function purchaseMyPlanForClient(clientId: string, packageId: strin
     actorId,
     metadata: { subscriptionId: data.id, packageId },
   });
+  await logClientStatusChange(clientId, before, actorId);
 
   return data;
 }
@@ -88,6 +92,7 @@ export async function activateMyPlan(accessToken: string, subscriptionId: string
   const { data: sub, error: subError } = await supabaseAdmin.from("subscriptions").select("id, client_id, activated_at, status").eq("id", subscriptionId).single();
   if (subError || !sub) throw subError ?? new Error("Subscription not found");
   if (sub.activated_at) throw new Error("This plan has already been activated.");
+  const before = await getClientStatusSnapshot(sub.client_id);
 
   // Business "today" is IST, same convention as the rest of scheduling.
   // Same-day is disallowed here too, matching earliestBookableDateIST's
@@ -134,6 +139,7 @@ export async function activateMyPlan(accessToken: string, subscriptionId: string
     actorId: ctx.userId,
     metadata: { subscriptionId },
   });
+  await logClientStatusChange(sub.client_id, before, ctx.userId);
 
   return data;
 }

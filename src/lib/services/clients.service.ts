@@ -4,6 +4,44 @@ import { getLatestMeasurementDatesForClients } from "./progressLogs.service";
 import { ensureConversationForCoachAssignment } from "./chat.service";
 import { resolveSessionNotifyContext, notifyClient, notifyCoach } from "./sessionNotifications.service";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
+import { deriveClientStatus } from "@/lib/client-status";
+
+/** Every subscription status a client has ever had, plus whether they've
+ * ever taken a demo (session_type = 'assessment') booking -- the two raw
+ * signals deriveClientStatus() needs. Shared by listClients/listMyClients/
+ * searchAllClients so admin, coach, and global search all compute the exact
+ * same composite ClientStatus off the exact same query shape. Uses
+ * supabaseAdmin deliberately: subscriptions/bookings RLS is scoped to admin
+ * or the assigned coach (unlike the widened client_profiles/profiles RLS
+ * from migration 0033), so a coach's global-search read across every
+ * client's data would otherwise come back empty for anyone not their own. */
+async function getStatusInputsForClients(
+  clientIds: string[]
+): Promise<{ statusesByClient: Map<string, string[]>; demoClientIds: Set<string> }> {
+  if (clientIds.length === 0) return { statusesByClient: new Map(), demoClientIds: new Set() };
+
+  const [{ data: allSubs, error: allSubsError }, { data: demoBookings, error: demoError }] = await Promise.all([
+    supabaseAdmin.from("subscriptions").select("client_id, status").in("client_id", clientIds),
+    supabaseAdmin
+      .from("bookings")
+      .select("client_id")
+      .in("client_id", clientIds)
+      .eq("session_type", "assessment")
+      .in("status", ["upcoming", "completed", "missed"]),
+  ]);
+  if (allSubsError) throw allSubsError;
+  if (demoError) throw demoError;
+
+  const statusesByClient = new Map<string, string[]>();
+  for (const s of (allSubs ?? []) as any[]) {
+    const list = statusesByClient.get(s.client_id) ?? [];
+    list.push(s.status);
+    statusesByClient.set(s.client_id, list);
+  }
+  const demoClientIds = new Set((demoBookings ?? []).map((b: any) => b.client_id));
+
+  return { statusesByClient, demoClientIds };
+}
 
 /** Admin roster view — merges each client's active subscription (package
  * name + session counts), active recurring coach + schedule, and whether
@@ -26,7 +64,7 @@ export async function listClients(accessToken: string) {
   const [
     { data: subs, error: subsError },
     { data: slots, error: slotsError },
-    { data: everSubs, error: everSubsError },
+    { statusesByClient, demoClientIds },
     lastMeasurementByClient,
   ] = await Promise.all([
     ctx.client
@@ -39,12 +77,11 @@ export async function listClients(accessToken: string) {
       .select("client_id, coach_id, day_of_week, start_time, coach:coach_profiles(id, profile:profiles(full_name))")
       .in("client_id", clientIds)
       .eq("status", "active"),
-    ctx.client.from("subscriptions").select("client_id").in("client_id", clientIds),
+    getStatusInputsForClients(clientIds),
     getLatestMeasurementDatesForClients(accessToken, clientIds),
   ]);
   if (subsError) throw subsError;
   if (slotsError) throw slotsError;
-  if (everSubsError) throw everSubsError;
 
   const subIds = (subs ?? []).map((s) => s.id);
   const { data: usage, error: usageError } =
@@ -56,7 +93,6 @@ export async function listClients(accessToken: string) {
 
   const subById = new Map((subs ?? []).map((s) => [s.client_id, { ...s, sessionsRemaining: remainingBySub.get(s.id) ?? null }]));
   const coachById = new Map((slots ?? []).map((s) => [s.client_id, s.coach]));
-  const hasEverSubscribedIds = new Set((everSubs ?? []).map((s) => s.client_id));
 
   const scheduleByClient = new Map<string, { days: number[]; startTime: string | null }>();
   for (const s of slots ?? []) {
@@ -66,14 +102,18 @@ export async function listClients(accessToken: string) {
     scheduleByClient.set(s.client_id, existing);
   }
 
-  return (data ?? []).map((c) => ({
-    ...c,
-    activeSubscription: subById.get(c.id) ?? null,
-    activeCoach: coachById.get(c.id) ?? null,
-    schedule: scheduleByClient.get(c.id) ?? { days: [], startTime: null },
-    hasEverSubscribed: hasEverSubscribedIds.has(c.id),
-    lastMeasurementAt: lastMeasurementByClient.get(c.id) ?? null,
-  }));
+  return (data ?? []).map((c) => {
+    const statuses = statusesByClient.get(c.id) ?? [];
+    return {
+      ...c,
+      activeSubscription: subById.get(c.id) ?? null,
+      activeCoach: coachById.get(c.id) ?? null,
+      schedule: scheduleByClient.get(c.id) ?? { days: [], startTime: null },
+      hasEverSubscribed: statuses.length > 0,
+      clientStatus: deriveClientStatus(statuses, demoClientIds.has(c.id)),
+      lastMeasurementAt: lastMeasurementByClient.get(c.id) ?? null,
+    };
+  });
 }
 
 export async function getClient(accessToken: string, clientId: string) {
@@ -117,19 +157,21 @@ export async function listMyClients(accessToken: string) {
 
   const clientIds = (data ?? []).map((c) => c.id);
   if (clientIds.length === 0) return [];
-  const [{ data: subs, error: subsError }, { data: slots, error: slotsError }, lastMeasurementByClient] = await Promise.all([
-    ctx.client
-      .from("subscriptions")
-      .select("client_id, status, package:package_tiers(name)")
-      .in("client_id", clientIds)
-      .eq("status", "active"),
-    ctx.client
-      .from("recurring_slots")
-      .select("client_id, day_of_week, start_time")
-      .in("client_id", clientIds)
-      .eq("status", "active"),
-    getLatestMeasurementDatesForClients(accessToken, clientIds),
-  ]);
+  const [{ data: subs, error: subsError }, { data: slots, error: slotsError }, { statusesByClient, demoClientIds }, lastMeasurementByClient] =
+    await Promise.all([
+      ctx.client
+        .from("subscriptions")
+        .select("client_id, status, package:package_tiers(name)")
+        .in("client_id", clientIds)
+        .eq("status", "active"),
+      ctx.client
+        .from("recurring_slots")
+        .select("client_id, day_of_week, start_time")
+        .in("client_id", clientIds)
+        .eq("status", "active"),
+      getStatusInputsForClients(clientIds),
+      getLatestMeasurementDatesForClients(accessToken, clientIds),
+    ]);
   if (subsError) throw subsError;
   if (slotsError) throw slotsError;
   const subByClient = new Map((subs ?? []).map((s) => [s.client_id, s]));
@@ -142,12 +184,16 @@ export async function listMyClients(accessToken: string) {
     scheduleByClient.set(s.client_id, existing);
   }
 
-  return (data ?? []).map((c) => ({
-    ...c,
-    activeSubscription: subByClient.get(c.id) ?? null,
-    schedule: scheduleByClient.get(c.id) ?? { days: [], startTime: null },
-    lastMeasurementAt: lastMeasurementByClient.get(c.id) ?? null,
-  }));
+  return (data ?? []).map((c) => {
+    const statuses = statusesByClient.get(c.id) ?? [];
+    return {
+      ...c,
+      activeSubscription: subByClient.get(c.id) ?? null,
+      schedule: scheduleByClient.get(c.id) ?? { days: [], startTime: null },
+      clientStatus: deriveClientStatus(statuses, demoClientIds.has(c.id)),
+      lastMeasurementAt: lastMeasurementByClient.get(c.id) ?? null,
+    };
+  });
 }
 
 /** Coach Global Search (FEATURE_SPEC_PORTAL_ENHANCEMENTS.md §1.5): every
@@ -169,8 +215,13 @@ export async function searchAllClients(accessToken: string) {
   ]);
   if (allError) throw allError;
 
+  const { statusesByClient, demoClientIds } = await getStatusInputsForClients((allClients ?? []).map((c: any) => c.id));
   const myClientIds = new Set((myClients as any[]).map((c) => c.id));
-  return (allClients ?? []).map((c: any) => ({ ...c, isAssignedToMe: myClientIds.has(c.id) }));
+  return (allClients ?? []).map((c: any) => ({
+    ...c,
+    clientStatus: deriveClientStatus(statusesByClient.get(c.id) ?? [], demoClientIds.has(c.id)),
+    isAssignedToMe: myClientIds.has(c.id),
+  }));
 }
 
 /** Direct client_profiles lookup for Global Search result detail (§1.5) --

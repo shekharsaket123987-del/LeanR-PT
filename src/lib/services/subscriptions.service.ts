@@ -1,6 +1,7 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { supabaseAdmin } from "@/lib/supabase/admin-client";
 import { logTimelineEvent } from "./timeline.service";
+import { getClientStatusSnapshot, logClientStatusChange } from "./clientStatus";
 
 // Subscriptions are financial records — only admins can create/pause/resume
 // them (matches the prototype: "Pause Subscription" lives on the admin
@@ -33,6 +34,8 @@ export async function purchaseSubscription(accessToken: string, clientId: string
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["admin"]);
 
+  const before = await getClientStatusSnapshot(clientId);
+
   const { data: pkg, error: pkgError } = await supabaseAdmin
     .from("package_tiers")
     .select("name, sessions_count, default_pause_days")
@@ -58,6 +61,7 @@ export async function purchaseSubscription(accessToken: string, clientId: string
     actorId: ctx.userId,
     metadata: { subscriptionId: data.id, packageId },
   });
+  await logClientStatusChange(clientId, before, ctx.userId);
 
   return data;
 }
@@ -65,6 +69,15 @@ export async function purchaseSubscription(accessToken: string, clientId: string
 export async function pauseSubscription(accessToken: string, subscriptionId: string) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["admin"]);
+
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from("subscriptions")
+    .select("client_id")
+    .eq("id", subscriptionId)
+    .single();
+  if (existingError || !existing) throw existingError ?? new Error("Subscription not found");
+  const before = await getClientStatusSnapshot(existing.client_id);
+
   const { data, error } = await supabaseAdmin
     .from("subscriptions")
     .update({ status: "paused", paused_at: new Date().toISOString() })
@@ -74,6 +87,7 @@ export async function pauseSubscription(accessToken: string, subscriptionId: str
   if (error) throw error;
 
   await logTimelineEvent(data.client_id, "pause_started", "Subscription paused", { actorId: ctx.userId, metadata: { subscriptionId } });
+  await logClientStatusChange(data.client_id, before, ctx.userId);
 
   return data;
 }
@@ -112,6 +126,15 @@ export async function adjustSubscriptionSessions(accessToken: string, subscripti
 export async function resumeSubscription(accessToken: string, subscriptionId: string) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["admin"]);
+
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from("subscriptions")
+    .select("client_id")
+    .eq("id", subscriptionId)
+    .single();
+  if (existingError || !existing) throw existingError ?? new Error("Subscription not found");
+  const before = await getClientStatusSnapshot(existing.client_id);
+
   const { data, error } = await supabaseAdmin
     .from("subscriptions")
     .update({ status: "active", resumed_at: new Date().toISOString() })
@@ -121,6 +144,7 @@ export async function resumeSubscription(accessToken: string, subscriptionId: st
   if (error) throw error;
 
   await logTimelineEvent(data.client_id, "pause_ended", "Subscription resumed", { actorId: ctx.userId, metadata: { subscriptionId } });
+  await logClientStatusChange(data.client_id, before, ctx.userId);
 
   return data;
 }

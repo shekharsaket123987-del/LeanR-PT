@@ -27,7 +27,8 @@ export type TimelineEventType =
   | "refund_requested"
   | "refund_approved"
   | "plan_completed"
-  | "plan_promise_adjusted";
+  | "plan_promise_adjusted"
+  | "client_status_changed";
 
 /** Which timeline column an event belongs to -- "internal" is staff/coach/
  * admin/system action on the client's record, "customer" is something the
@@ -72,6 +73,7 @@ export const TIMELINE_EVENT_SIDE: Record<TimelineEventType, TimelineSide> = {
   refund_approved: "internal",
   plan_completed: "internal",
   plan_promise_adjusted: "internal",
+  client_status_changed: "internal",
 };
 
 /** Who/what to show on the card's "Added by" line. "staff" and "customer"

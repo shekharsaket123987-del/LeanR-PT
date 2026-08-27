@@ -6,6 +6,7 @@ import { listClients } from "@/lib/services/clients.service";
 import { listCoaches } from "@/lib/services/coaches.service";
 import { listAllBookings } from "@/lib/services/bookings.service";
 import { getRevenueTrendRaw } from "@/lib/services/adminDashboard.service";
+import { ClientStatus, CLIENT_STATUS_LABELS } from "@/lib/client-status";
 
 async function requireToken(): Promise<string> {
   const token = await getAccessToken();
@@ -42,7 +43,7 @@ export async function generateClientReportAction(): Promise<ActionResult<ReportD
       (rows as any[]).map((c) => [
         c.profile?.full_name ?? "",
         c.profile?.phone ?? "",
-        c.status,
+        CLIENT_STATUS_LABELS[c.clientStatus as ClientStatus] ?? c.clientStatus,
         c.activeSubscription?.package?.name ?? "",
         c.activeCoach?.profile?.full_name ?? "",
         c.activeSubscription?.sessionsRemaining ?? "",

@@ -9,6 +9,16 @@ import MeasurementChart from "@/components/shared/MeasurementChart";
 import { getCoachClientDetailAction } from "@/lib/actions/coach-portal.actions";
 import { isFailure } from "@/lib/actions/action-result";
 import { formatDate } from "@/lib/utils";
+import { CLIENT_STATUS_LABELS } from "@/lib/client-status";
+
+const STATUS_VARIANT: Record<string, "green" | "red" | "gray" | "black" | "outline-yellow"> = {
+  active: "green",
+  paused: "red",
+  expired: "gray",
+  created: "black",
+  demo: "outline-yellow",
+  not_paid: "gray",
+};
 
 const GENDER_LABEL: Record<string, string> = { male: "Male", female: "Female", other: "Other" };
 const GOAL_LABEL: Record<string, string> = {
@@ -63,7 +73,10 @@ export default async function CoachClientDetailPage({ params }: { params: { id: 
                 <Image src={client.photo} alt={client.name} fill className="object-cover" />
               </div>
               <div>
-                <p className="text-sm font-bold">{client.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-bold">{client.name}</p>
+                  <Badge variant={STATUS_VARIANT[client.status] ?? "gray"}>{CLIENT_STATUS_LABELS[client.status] ?? client.status}</Badge>
+                </div>
               </div>
             </div>
 

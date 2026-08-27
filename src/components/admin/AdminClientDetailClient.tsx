@@ -42,6 +42,16 @@ import { TimelineEventRow } from "@/lib/services/timeline.service";
 import { AdminConversationView } from "@/lib/services/chat.service";
 import { isFailure } from "@/lib/actions/action-result";
 import { formatDate } from "@/lib/utils";
+import { CLIENT_STATUS_LABELS } from "@/lib/client-status";
+
+const STATUS_VARIANT: Record<string, "green" | "red" | "gray" | "black" | "outline-yellow"> = {
+  active: "green",
+  paused: "red",
+  expired: "gray",
+  created: "black",
+  demo: "outline-yellow",
+  not_paid: "gray",
+};
 
 export default function AdminClientDetailClient({
   client,
@@ -206,7 +216,10 @@ export default function AdminClientDetailClient({
               <Image src={client.photo} alt={client.name} fill className="object-cover" />
             </div>
             <div>
-              <p className="text-sm font-bold">{client.name}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-bold">{client.name}</p>
+                <Badge variant={STATUS_VARIANT[client.status] ?? "gray"}>{CLIENT_STATUS_LABELS[client.status] ?? client.status}</Badge>
+              </div>
               <p className="text-xs text-white/45">{client.email}</p>
               <p className="text-xs text-white/45">{client.phone}</p>
             </div>

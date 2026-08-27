@@ -20,7 +20,9 @@ const STATUS_BADGE: Record<AdminClientListItem["status"], { variant: any; label:
   active: { variant: "green", label: "Active" },
   paused: { variant: "red", label: "Paused" },
   expired: { variant: "gray", label: "Expired" },
-  inactive: { variant: "gray", label: "Inactive" },
+  created: { variant: "black", label: "Created" },
+  demo: { variant: "outline-yellow", label: "Demo" },
+  not_paid: { variant: "gray", label: "Not Paid" },
 };
 
 export default function AdminClientsListClient({ clients }: { clients: AdminClientListItem[] }) {
@@ -47,16 +49,16 @@ export default function AdminClientsListClient({ clients }: { clients: AdminClie
             className="w-full rounded-xl border border-white/10 bg-bg-elevated py-2.5 pl-10 pr-4 text-sm focus:border-brand-yellow focus:outline-none focus:ring-1 focus:ring-brand-yellow"
           />
         </div>
-        <div className="flex gap-1 rounded-xl bg-white/5 p-1">
-          {["all", "active", "paused", "expired", "inactive"].map((s) => (
+        <div className="flex flex-wrap gap-1 rounded-xl bg-white/5 p-1">
+          {(["all", "not_paid", "demo", "created", "active", "paused", "expired"] as const).map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className={`whitespace-nowrap rounded-lg px-3.5 py-2 text-xs font-bold capitalize ${
+              className={`whitespace-nowrap rounded-lg px-3.5 py-2 text-xs font-bold ${
                 statusFilter === s ? "bg-bg-elevated shadow-card" : "text-white/50"
               }`}
             >
-              {s}
+              {s === "all" ? "All" : STATUS_BADGE[s].label}
             </button>
           ))}
         </div>

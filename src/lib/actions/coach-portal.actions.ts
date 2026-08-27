@@ -18,6 +18,7 @@ import { getMyCoachPerformance, CoachPerformance } from "@/lib/services/coachPer
 import { listMyShadowAssignments } from "@/lib/services/coachChange.service";
 import { getOnboardingForClient } from "@/lib/services/onboarding.service";
 import { getSubscriptionsForClient } from "@/lib/services/subscriptions.service";
+import { ClientStatus, getClientStatusSnapshot } from "@/lib/services/clientStatus";
 import { listProgressLogsForClient, isMeasurementStale } from "@/lib/services/progressLogs.service";
 import { listClientTimeline, TimelineEventRow } from "@/lib/services/timeline.service";
 import {
@@ -376,20 +377,9 @@ export interface CoachClientView {
   startTime: string | null;
   sessionsCompleted: number;
   sessionsPurchased: number;
-  status: "active" | "paused" | "completed" | "waiting_to_start";
+  status: ClientStatus;
   lastMeasurementAt: string | null;
   measurementsStale: boolean;
-}
-
-/** client_profiles.status only has active/inactive/paused -- "Completed" and
- * "Waiting to Start" (PRD §3 status list) are derived display states, not
- * new enum values: inactive reads as "Completed" from the coach's view (no
- * separate plan-completion concept exists yet), and an active client with no
- * bookings at all under this coach yet reads as "Waiting to Start". */
-function deriveClientStatus(rawStatus: string, hasAnyBooking: boolean): CoachClientView["status"] {
-  if (rawStatus === "paused") return "paused";
-  if (rawStatus === "inactive") return "completed";
-  return hasAnyBooking ? "active" : "waiting_to_start";
 }
 
 export async function getCoachClientsAction(): Promise<ActionResult<CoachClientView[]>> {
@@ -398,11 +388,9 @@ export async function getCoachClientsAction(): Promise<ActionResult<CoachClientV
     const [clients, bookings] = await Promise.all([listMyClients(token), listMyBookingsAsCoach(token)]);
 
     const completedByClient = new Map<string, number>();
-    const hasBookingByClient = new Set<string>();
     for (const b of bookings as any[]) {
       const cid = b.client?.id;
       if (!cid) continue;
-      hasBookingByClient.add(cid);
       if (b.status === "completed") completedByClient.set(cid, (completedByClient.get(cid) ?? 0) + 1);
     }
 
@@ -421,7 +409,7 @@ export async function getCoachClientsAction(): Promise<ActionResult<CoachClientV
       startTime: c.schedule?.startTime ?? null,
       sessionsCompleted: completedByClient.get(c.id) ?? 0,
       sessionsPurchased: c.activeSubscription?.sessions_total ?? 0,
-      status: deriveClientStatus(c.status, hasBookingByClient.has(c.id)),
+      status: c.clientStatus as ClientStatus,
       lastMeasurementAt: c.lastMeasurementAt ?? null,
       measurementsStale: isMeasurementStale(c.lastMeasurementAt ?? null),
     }));
@@ -512,11 +500,12 @@ export async function getCoachClientDetailAction(clientId: string): Promise<Acti
     }
     if (!client) throw new Error("Client not found");
 
-    const [onboarding, subscriptions, progressLogs, timeline]: [any, any[], any[], any[]] = await Promise.all([
+    const [onboarding, subscriptions, progressLogs, timeline, clientStatus]: [any, any[], any[], any[], ClientStatus] = await Promise.all([
       getOnboardingForClient(token, clientId),
       getSubscriptionsForClient(token, clientId),
       listProgressLogsForClient(token, clientId),
       listClientTimeline(token, clientId),
+      getClientStatusSnapshot(clientId),
     ]);
 
     const notesByBooking = new Map((notes as any[]).map((n) => [n.booking_id, n.notes as string]));
@@ -569,7 +558,7 @@ export async function getCoachClientDetailAction(clientId: string): Promise<Acti
       startTime: client.schedule?.startTime ?? null,
       sessionsCompleted: sessionSummary.completed,
       sessionsPurchased: sessionSummary.purchased,
-      status: deriveClientStatus(client.status, clientBookings.length > 0),
+      status: clientStatus,
       history,
       demographics: onboarding
         ? {
@@ -607,7 +596,7 @@ export interface ClientSearchResultView {
   clientCode: string;
   name: string;
   photo: string;
-  status: string;
+  status: ClientStatus;
   isAssignedToMe: boolean;
 }
 
@@ -621,7 +610,7 @@ export async function searchAllClientsAction(): Promise<ActionResult<ClientSearc
       clientCode: c.client_code ?? "",
       name: c.profile?.full_name ?? "Client",
       photo: c.profile?.photo_url ?? FALLBACK_PHOTO(c.id),
-      status: c.status,
+      status: c.clientStatus as ClientStatus,
       isAssignedToMe: c.isAssignedToMe,
     }));
   });

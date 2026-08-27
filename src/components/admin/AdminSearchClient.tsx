@@ -8,8 +8,16 @@ import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
 import { AdminClientSearchResult } from "@/lib/actions/admin-clients.actions";
+import { CLIENT_STATUS_LABELS } from "@/lib/client-status";
 
-const STATUS_VARIANT: Record<string, "green" | "red" | "gray"> = { active: "green", paused: "red", inactive: "gray" };
+const STATUS_VARIANT: Record<string, "green" | "red" | "gray" | "black" | "outline-yellow"> = {
+  active: "green",
+  paused: "red",
+  expired: "gray",
+  created: "black",
+  demo: "outline-yellow",
+  not_paid: "gray",
+};
 
 export default function AdminSearchClient({ clients }: { clients: AdminClientSearchResult[] }) {
   const [query, setQuery] = useState("");
@@ -53,7 +61,7 @@ export default function AdminSearchClient({ clients }: { clients: AdminClientSea
                   {c.phone ? ` · ${c.phone}` : ""}
                 </p>
               </div>
-              <Badge variant={STATUS_VARIANT[c.status] ?? "gray"}>{c.status}</Badge>
+              <Badge variant={STATUS_VARIANT[c.status] ?? "gray"}>{CLIENT_STATUS_LABELS[c.status] ?? c.status}</Badge>
             </Card>
           </Link>
         ))}

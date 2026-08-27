@@ -28,8 +28,8 @@ const FALLBACK_PHOTO = (seed: string) => `https://i.pravatar.cc/300?u=${seed}`;
  * itself correctly per caller via RLS (coach_client_linked for a coach,
  * unrestricted for admin) and already carries everything needed
  * (activeSubscription.sessionsRemaining, activeCoach, hasEverSubscribed) --
- * same "expired" derivation admin-clients.actions.ts::deriveAdminClientStatus
- * already uses, so the two stay consistent with each other. */
+ * same "expired" derivation clientStatus.ts::deriveClientStatus already
+ * uses, so the two stay consistent with each other. */
 export async function listRenewalOpportunities(accessToken: string): Promise<RenewalOpportunityRow[]> {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["admin", "coach"]);
