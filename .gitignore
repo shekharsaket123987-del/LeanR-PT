@@ -11,3 +11,6 @@ out
 .vercel
 .env*
 supabase/.temp
+
+# Local DB backups (contain PII, never commit)
+supabase/backups/
