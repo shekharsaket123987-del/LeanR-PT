@@ -29,6 +29,14 @@ export default function CoachPerformancePanel({ performance }: { performance: Co
         <Stat label="Escalations Raised" value={performance.escalationsRaised} />
         <Stat label="Coach Change Requests" value={performance.coachChangeRequestsReceived} />
         <Stat label="Avg. Client Rating" value={performance.averageRating.toFixed(1)} />
+        <Stat
+          label="AI RM: Coach Rating"
+          value={performance.weeklyRatingCount > 0 ? performance.avgWeeklyCoachRating.toFixed(1) : "—"}
+        />
+        <Stat
+          label="AI RM: Session Rating"
+          value={performance.weeklyRatingCount > 0 ? performance.avgWeeklySessionRating.toFixed(1) : "—"}
+        />
       </div>
     </Card>
   );

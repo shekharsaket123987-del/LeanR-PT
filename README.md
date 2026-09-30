@@ -49,6 +49,16 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 ```
 
+Optional — powers the client-portal AI Relationship Manager (chat companion available
+from a free demo through an active plan). Without it, `/client/ai-buddy` shows a clear
+"AI Relationship Manager isn't configured yet" error rather than crashing:
+
+```
+ANTHROPIC_API_KEY=
+```
+
+Get a key from the [Anthropic Console](https://console.anthropic.com) → **API Keys**.
+
 Optional — enables real "Join" links (Zoom) on session cards. Without these set,
 Join buttons stay disabled with a "link not ready yet" message rather than
 breaking:

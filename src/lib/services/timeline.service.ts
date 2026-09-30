@@ -106,6 +106,20 @@ export async function logTimelineEvent(
   if (error) throw error;
 }
 
+export type TimelineEventTier = "A" | "B" | "C";
+
+/** Admin-configurable replacement for the AI RM's old hardcoded allowlist
+ * (migration 0059) -- a reference table, same trust level as
+ * notification_templates, so a supabaseAdmin read is fine here rather than
+ * threading an access token through for an authenticated-select RLS check. */
+export async function getTimelineEventTiers(): Promise<Record<string, TimelineEventTier>> {
+  const { data, error } = await supabaseAdmin.from("timeline_event_tiers").select("event_type, tier");
+  if (error) throw error;
+  const map: Record<string, TimelineEventTier> = {};
+  for (const row of data as { event_type: string; tier: TimelineEventTier }[]) map[row.event_type] = row.tier;
+  return map;
+}
+
 export interface TimelineEventRow {
   id: string;
   event_type: TimelineEventType;

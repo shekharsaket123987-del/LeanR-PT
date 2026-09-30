@@ -14,6 +14,7 @@ import {
   Star,
   Activity,
   RefreshCcw,
+  Smartphone,
 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import StatCard from "@/components/ui/StatCard";
@@ -35,6 +36,12 @@ export default function AdminDashboardClient({ data }: { data: AdminDashboardDat
         <StatCard icon={IndianRupee} label="Revenue This Month" value={`₹${(metrics.revenueThisMonth / 100000).toFixed(1)}L`} />
         <StatCard icon={UserCog} label="Active Coaches" value={metrics.activeCoachesCount} />
         <StatCard icon={Star} label="Avg. Coach Rating" value={metrics.avgCoachRating.toFixed(1)} />
+        <StatCard
+          icon={Smartphone}
+          label="Platform Rating (AI RM)"
+          value={metrics.platformRatingCount > 0 ? metrics.avgPlatformRating.toFixed(1) : "—"}
+          change={metrics.platformRatingCount > 0 ? `${metrics.platformRatingCount} ratings` : "no ratings yet"}
+        />
         <StatCard icon={Activity} label="Avg. Sessions / Day" value={metrics.avgSessionsPerDay} />
         <StatCard
           icon={RefreshCcw}

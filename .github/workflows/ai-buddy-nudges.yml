@@ -1,0 +1,18 @@
+name: AI Health Buddy nudges
+
+# Daily sweep -- nudges (missed session / inactivity / stale measurements)
+# aren't time-critical the way session reminders are, so once a day is
+# plenty. Same free GitHub Actions cron pattern as session-reminders.yml.
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call ai-buddy-nudges endpoint
+        run: |
+          curl -sf -X GET "https://leanr-pt.vercel.app/api/cron/ai-buddy-nudges" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

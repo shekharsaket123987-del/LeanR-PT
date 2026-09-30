@@ -1,5 +1,6 @@
 import { CallerContext, getCallerContext, requireRole } from "./_auth";
 import { countEscalationsForCoach } from "./escalations.service";
+import { getCoachRatingBreakdown } from "./aiWeeklyRatings.service";
 
 export interface CoachPerformance {
   totalActiveClients: number;
@@ -17,6 +18,13 @@ export interface CoachPerformance {
   escalationsRaised: number;
   coachChangeRequestsReceived: number;
   averageRating: number;
+  /** From the AI RM's weekly 3-part rating (ai_weekly_ratings), distinct
+   * from `averageRating` (which is the older per-booking trainer_rating
+   * average) -- shown separately since they're different instruments. 0
+   * when no weekly ratings have been submitted for this coach yet. */
+  avgWeeklyCoachRating: number;
+  avgWeeklySessionRating: number;
+  weeklyRatingCount: number;
 }
 
 /** Shared by the admin-only getCoachPerformance() and the coach-facing
@@ -45,6 +53,7 @@ async function computePerformance(ctx: CallerContext, coachId: string): Promise<
     { data: outcomeRows, error: outcomeError },
     { count: coachChangeRequestsReceived },
     escalationsRaised,
+    weeklyRatingBreakdown,
   ] = await Promise.all([
     ctx.client.from("coach_profiles").select("max_capacity, rating").eq("id", coachId).single(),
     ctx.client.from("coach_utilization_view").select("active_clients").eq("coach_id", coachId).maybeSingle(),
@@ -61,6 +70,7 @@ async function computePerformance(ctx: CallerContext, coachId: string): Promise<
     ctx.client.from("bookings").select("id, no_show_party").eq("coach_id", coachId).in("status", ["completed", "missed", "cancelled"]),
     ctx.client.from("coach_change_requests").select("id", { count: "exact", head: true }).eq("current_coach_id", coachId),
     countEscalationsForCoach(coachId),
+    getCoachRatingBreakdown(coachId),
   ]);
   if (coachError) throw coachError;
   if (utilError) throw utilError;
@@ -114,6 +124,9 @@ async function computePerformance(ctx: CallerContext, coachId: string): Promise<
     escalationsRaised,
     coachChangeRequestsReceived: coachChangeRequestsReceived ?? 0,
     averageRating: Number(coach?.rating ?? 0),
+    avgWeeklyCoachRating: weeklyRatingBreakdown.avgCoachRating,
+    avgWeeklySessionRating: weeklyRatingBreakdown.avgSessionRating,
+    weeklyRatingCount: weeklyRatingBreakdown.ratingCount,
   };
 }
 

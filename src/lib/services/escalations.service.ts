@@ -6,16 +6,85 @@ import { notifyUser } from "./notifications.service";
 const ESCALATION_SELECT =
   "*, client:client_profiles(id, client_code, profile:profiles(full_name, photo_url)), coach:coach_profiles(id, profile:profiles(full_name))";
 
-/** Client raising their own concern (client portal, once built) or admin
- * logging one on the client's behalf during a support call -- raisedBy is
- * omitted for the admin case, which the timeline event and UI both reflect. */
+const LEVEL_ORDER = ["L0", "L1", "L2", "L3"] as const;
+type Level = (typeof LEVEL_ORDER)[number];
+function bumpLevel(level: Level): Level {
+  const next = LEVEL_ORDER[LEVEL_ORDER.indexOf(level) + 1];
+  return next ?? level;
+}
+const DEDUPE_WINDOW_DAYS = 14;
+
+/** Client raising their own concern (client portal), admin logging one on
+ * the client's behalf during a support call, or the AI RM raising one for
+ * the client (source='ai_rm', see aiBuddyChat.service.ts's raise_concern
+ * tool and the pre-check L3 path in the chat route) -- raisedBy is omitted
+ * for the admin and AI RM cases, which the timeline event and UI both
+ * reflect the same way ("logged on the client's behalf").
+ *
+ * Dedupe (PRD §11.3) applies only to source='ai_rm' -- a human client
+ * manually raising a second, genuinely separate concern in the same
+ * category should always get its own ticket; it's specifically the AI
+ * re-raising the same thing that must fold into the existing one. When it
+ * applies: an open/in_progress escalation in the same category for this
+ * client, raised within the last 14 days, gets a progress note appended
+ * instead of a duplicate row; if the *same* trigger_rule fires again within
+ * that window, the existing escalation's level is bumped one step instead
+ * of silently repeating. */
 export async function createEscalation(
   accessToken: string,
-  input: { clientId: string; coachId?: string; reason: string; description?: string; category?: string }
+  input: {
+    clientId: string;
+    coachId?: string;
+    reason: string;
+    description?: string;
+    category?: string;
+    source?: "client" | "ai_rm";
+    level?: Level;
+    triggerRule?: string;
+    aiSummary?: string;
+    aiChatMessageId?: string;
+  }
 ) {
   const ctx = await getCallerContext(accessToken);
   requireRole(ctx, ["admin", "client"]);
-  const raisedBy = ctx.role === "client" ? ctx.userId : null;
+  const raisedBy = ctx.role === "client" && input.source !== "ai_rm" ? ctx.userId : null;
+  const source = input.source ?? "client";
+
+  if (input.category && source === "ai_rm") {
+    const since = new Date(Date.now() - DEDUPE_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from("escalations")
+      .select("id, level, trigger_rule, ai_summary")
+      .eq("client_id", input.clientId)
+      .eq("category", input.category)
+      .neq("status", "resolved")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingError) throw existingError;
+
+    if (existing) {
+      // escalation_notes is gated by enforce_escalation_note_call_gate (DB
+      // trigger, migration 0049) -- no row can go in there until an admin
+      // has confirmed they called the client, which is correct for that
+      // channel (it's specifically "what admin did about it," client-
+      // visible as such) but wrong for an AI-authored repeat-report. Folding
+      // the repeat into ai_summary instead avoids the gate and keeps
+      // escalation_notes meaning what it already means everywhere else in
+      // the app.
+      const sameTrigger = input.triggerRule && existing.trigger_rule === input.triggerRule;
+      const updates: Record<string, unknown> = {
+        ai_summary: `${existing.ai_summary ? existing.ai_summary + "\n" : ""}Repeated: ${input.reason}${input.description ? ` -- ${input.description}` : ""}`,
+      };
+      if (sameTrigger && existing.level) updates.level = bumpLevel(existing.level as Level);
+      const { error: updateError } = await supabaseAdmin.from("escalations").update(updates).eq("id", existing.id);
+      if (updateError) throw updateError;
+      const { data: updated, error: fetchError } = await supabaseAdmin.from("escalations").select().eq("id", existing.id).single();
+      if (fetchError) throw fetchError;
+      return updated;
+    }
+  }
 
   const { data, error } = await ctx.client
     .from("escalations")
@@ -27,6 +96,11 @@ export async function createEscalation(
       description: input.description ?? null,
       category: input.category ?? null,
       status: "open",
+      source,
+      level: input.level ?? null,
+      trigger_rule: input.triggerRule ?? null,
+      ai_summary: input.aiSummary ?? null,
+      ai_chat_message_id: input.aiChatMessageId ?? null,
     })
     .select()
     .single();

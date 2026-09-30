@@ -5,6 +5,13 @@ export const CONCERN_CATEGORIES = [
   { value: "payment_issue", label: "Payment issue" },
   { value: "technical_issue", label: "Technical issue" },
   { value: "want_coach_change", label: "Want to change coach" },
+  // AI RM pre-check (aiBuddySafety.service.ts) always maps pain/injury/
+  // medical/self-harm triggers to this category -- see AI_RM_prd.md §11.2.
+  { value: "injury_or_health", label: "Injury or health" },
+  // A low score (session or coach dimension) on the AI RM's weekly rating
+  // ask -- see aiWeeklyRatings.service.ts. A low platform-dimension score
+  // uses "technical_issue" instead, since that category already fits it.
+  { value: "service_feedback", label: "Low rating / service feedback" },
   { value: "other", label: "Other" },
 ] as const;
 

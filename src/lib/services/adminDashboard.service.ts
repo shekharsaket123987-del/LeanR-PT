@@ -1,5 +1,6 @@
 import { getCallerContext, requireRole } from "./_auth";
 import { listRenewalOpportunities } from "./renewals.service";
+import { getPlatformRatingBreakdown } from "./aiWeeklyRatings.service";
 
 export interface AdminDashboardMetrics {
   totalClients: number;
@@ -13,6 +14,11 @@ export interface AdminDashboardMetrics {
   avgSessionsPerClient: number;
   activeCoachesCount: number;
   avgCoachRating: number;
+  /** Platform/tech-dimension average from the AI RM's weekly rating ask --
+   * the one dimension of that 3-part rating with no other home in the app
+   * (session and coach dimensions surface on CoachPerformancePanel instead). */
+  avgPlatformRating: number;
+  platformRatingCount: number;
   /** Completed sessions per day, trailing 30-day window. */
   avgSessionsPerDay: number;
   /** Live snapshot, not calendar-month-anchored: of every client currently
@@ -78,6 +84,7 @@ export async function getAdminDashboard(accessToken: string): Promise<AdminDashb
     { data: activeCoachRatings, error: ratingsError },
     { count: completedLast30Days },
     renewalOpportunities,
+    platformRatingBreakdown,
   ] = await Promise.all([
     ctx.client.from("client_profiles").select("id", { count: "exact", head: true }),
     ctx.client.from("client_profiles").select("id", { count: "exact", head: true }).eq("status", "active"),
@@ -107,6 +114,7 @@ export async function getAdminDashboard(accessToken: string): Promise<AdminDashb
       .eq("status", "completed")
       .gte("scheduled_start", new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()),
     listRenewalOpportunities(accessToken),
+    getPlatformRatingBreakdown(accessToken),
   ]);
   if (utilError) throw utilError;
   if (revenueError) throw revenueError;
@@ -177,6 +185,8 @@ export async function getAdminDashboard(accessToken: string): Promise<AdminDashb
       avgSessionsPerClient,
       activeCoachesCount: activeCoachesCount ?? 0,
       avgCoachRating,
+      avgPlatformRating: platformRatingBreakdown.avgPlatformRating,
+      platformRatingCount: platformRatingBreakdown.ratingCount,
       avgSessionsPerDay,
       renewalOpportunityCount,
       renewalRatePct,

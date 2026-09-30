@@ -73,11 +73,26 @@ export async function getMyUnresolvedConcernsCountAction(): Promise<ActionResult
   });
 }
 
-export async function raiseConcernAction(category: string, reason: string, description?: string): Promise<ActionResult<null>> {
+export async function raiseConcernAction(
+  category: string,
+  reason: string,
+  description?: string,
+  aiOrigin?: { level: "L1" | "L2"; aiChatMessageId: string }
+): Promise<ActionResult<null>> {
   return runAction(async () => {
     const token = await requireToken();
     const [client, coachId]: [any, string | null] = await Promise.all([getMyClientProfile(token), getMyCurrentCoachId(token)]);
-    await createEscalation(token, { clientId: client.id, coachId: coachId ?? undefined, reason, description, category });
+    await createEscalation(token, {
+      clientId: client.id,
+      coachId: coachId ?? undefined,
+      reason,
+      description,
+      category,
+      // Set only when this concern came from a confirmed AI RM proposal
+      // (AIBuddyChatClient's "Raise this concern" button) -- the manual
+      // Raise a Concern flow calls this with aiOrigin omitted, same as before.
+      ...(aiOrigin ? { source: "ai_rm" as const, level: aiOrigin.level, aiChatMessageId: aiOrigin.aiChatMessageId } : {}),
+    });
     return null;
   });
 }

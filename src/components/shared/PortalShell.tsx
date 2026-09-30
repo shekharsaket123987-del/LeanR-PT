@@ -32,6 +32,7 @@ import {
   CalendarSearch,
   MessagesSquare,
   RefreshCcw,
+  Sparkles,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import Badge from "../ui/Badge";
@@ -41,6 +42,7 @@ type Role = "client" | "coach" | "admin";
 const NAV: Record<Role, { label: string; href: string; icon: any }[]> = {
   client: [
     { label: "Dashboard", href: "/client/dashboard", icon: LayoutDashboard },
+    { label: "AI Relationship Manager", href: "/client/ai-buddy", icon: Sparkles },
     { label: "My Sessions", href: "/client/sessions", icon: CalendarDays },
     { label: "Book a Session", href: "/client/book", icon: CalendarPlus },
     { label: "My Schedule", href: "/client/schedule", icon: Clock },
